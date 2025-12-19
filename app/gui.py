@@ -127,6 +127,7 @@ class FaceCheckInApp:
         self.last_seen = {}
         
         self.api_client = CompreFaceClient()
+        self.recognition_sem = threading.Semaphore(1)
         self.logger = AttendanceLogger()
 
         # --- Video Panel ---
@@ -254,6 +255,13 @@ class FaceCheckInApp:
         except requests.exceptions.RequestException as e:
             self.window.after(0, self.log_message, f"Error: A network error occurred: {e}")
 
+        finally:
+            try:
+                self.recognition_sem.release()
+            except ValueError as e:
+                # 如果出现重复 release（理论上不应发生），避免线程崩掉
+                pass
+    
     def update_frame(self):
         frame = None
         if hasattr(self, "cam_worker") and self.cam_worker:
@@ -263,11 +271,13 @@ class FaceCheckInApp:
             if self.is_recognizing:
                 self.frame_count += 1
                 if self.frame_count % max(1, settings.FRAME_SKIP) == 0:
-                    threading.Thread(
-                        target=self.recognize_frame_threaded,
-                        args=(frame.copy(),),
-                        daemon=True,
-                    ).start()
+                    aquired = self.recognition_sem.acquire(blocking=False)
+                    if aquired:
+                        threading.Thread(
+                            target=self.recognize_frame_threaded,
+                            args=(frame.copy(),),
+                            daemon=True,
+                        ).start()
 
             if self.preview_enabled:
                 self._render_preview(frame)
