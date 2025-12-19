@@ -1,5 +1,6 @@
 archive/
 data/
 records/
+app/__pycache__/
 live_attendance.csv
 config.ini
