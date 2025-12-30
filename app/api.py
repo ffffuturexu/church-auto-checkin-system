@@ -34,6 +34,10 @@ class CompreFaceClient:
         url = f"{self.base_url}/api/v1/recognition/recognize"
         files = {"file": ("frame.jpg", image_bytes, "image/jpeg")}
         # Timeout set to 20 seconds as in original script
-        response = requests.post(url, headers=self.headers, files=files, timeout=20)
+        response = requests.post(url, 
+                                 headers=self.headers, 
+                                 files=files,
+                                 params={"prediction_count": settings.PREDICTION_COUNT}, 
+                                 timeout=20)
         response.raise_for_status()
         return response.json()

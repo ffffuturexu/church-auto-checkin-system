@@ -24,6 +24,7 @@ class Config:
         self.DEDUPE_SECONDS = self.config.getint('Script', 'DedupeSeconds', fallback=60)
         self.FRAME_SKIP = self.config.getint('Script', 'FrameSkip', fallback=10)
         self.MAX_QUEUE_SIZE = self.config.getint('Script', 'MaxQueueSize', fallback=3)
+        self.PREDICTION_COUNT = self.config.getint('Script', 'PredictionCount', fallback=5)
 
         # DataSource Settings
         self.CAMERA_INDEX = self.config.getint('DataSource', 'CameraIndex', fallback=0)

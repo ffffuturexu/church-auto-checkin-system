@@ -8,6 +8,7 @@ from tkinter import font as tkFont
 from tkinter import scrolledtext
 from PIL import Image, ImageTk
 from datetime import datetime, timedelta
+from collections import deque, Counter
 import requests
 
 os.environ.setdefault("OPENCV_LOG_LEVEL", "SILENT")
@@ -130,6 +131,13 @@ class FaceCheckInApp:
         self.recognition_sem = threading.Semaphore(1)
         self.logger = AttendanceLogger()
 
+        # --- Multi-frame voting (temporal aggregation) ---
+        self.vote_window_sec = 2          # 1–2 秒窗口
+        self.vote_min_samples = 3           # 窗口里至少累计到这么多“有效帧结果”才做判断
+        self.vote_ratio = 0.7               # 最高票占比至少 70% 才算“稳定”
+        self.vote_buffer = deque()          # 元素：(datetime, subject, similarity)
+        self.vote_lock = threading.Lock()   # 保护 vote_buffer（即使你已做并发限制，也建议保留）
+
         # --- Video Panel ---
         # Container for video
         self.video_frame = tk.Frame(
@@ -193,13 +201,60 @@ class FaceCheckInApp:
         else:
             self.toggle_button.config(text="Start Recognition")
             self.log_message("Recognition paused.")
+            with self.vote_lock:
+                self.vote_buffer.clear() # Clear votes when pausing
 
     def log_message(self, msg):
         self.log_text.config(state=tk.NORMAL)
         self.log_text.insert(tk.END, f"{msg}\n")
         self.log_text.see(tk.END)
         self.log_text.config(state=tk.DISABLED)
-    
+
+    def _add_vote_and_maybe_checkin(self, subject: str, similarity: float):
+        now = datetime.now()
+        cutoff = now - timedelta(seconds=self.vote_window_sec)
+
+        with self.vote_lock:
+            self.vote_buffer.append((now, subject, similarity))
+
+            # prune old samples
+            while self.vote_buffer and self.vote_buffer[0][0] < cutoff:
+                self.vote_buffer.popleft()
+
+            self.window.after(0, self.log_message, f"[VOTE] Buffer size: {len(self.vote_buffer)}")
+            if len(self.vote_buffer) < self.vote_min_samples:
+                return
+
+            counts = Counter(s for _, s, _ in self.vote_buffer)
+            top_subject, top_count = counts.most_common(1)[0]
+            ratio = top_count / len(self.vote_buffer)
+
+            if ratio < self.vote_ratio:
+                return  # still unstable / ambiguous
+
+            # 可选：取该 top_subject 在窗口内的最高相似度或平均相似度
+            top_sims = [sim for _, s, sim in self.vote_buffer if s == top_subject]
+            final_sim = max(top_sims) if top_sims else similarity
+
+            # 达成共识：提交签到，并清空窗口，避免“同一个人一进来就连续触发”
+            self.vote_buffer.clear()
+
+        log_msg = f"[VOTE] {top_subject} confirmed with ratio {ratio:.2%} and similarity {final_sim:.3f} over last {self.vote_window_sec}s"
+        self.window.after(0, self.log_message, log_msg)
+        self._commit_checkin(top_subject, final_sim)
+
+    def _commit_checkin(self, subject: str, similarity: float):
+        now = datetime.now()
+        if subject in self.last_seen and (now - self.last_seen[subject]) <= timedelta(seconds=settings.DEDUPE_SECONDS):
+            return
+
+        timestamp_str = now.isoformat(timespec="seconds")
+        log_msg = f"[CHECK-IN] {timestamp_str} - {subject} (Similarity: {similarity:.3f})"
+        self.window.after(0, self.log_message, log_msg)
+        self.logger.write_record(timestamp_str, subject, f"{similarity:.3f}")
+        self.last_seen[subject] = now
+
+
     def recognize_frame_threaded(self, frame):
         """
         This function runs in a separate thread to perform recognition.
@@ -210,29 +265,30 @@ class FaceCheckInApp:
 
             for item in recognition_result.get("result", []):
                 subjects = item.get("subjects", [])
+                self.window.after(0, self.log_message, f"Length of subjects: {len(subjects)}")
                 if not subjects:
                     continue
 
                 best = subjects[0]  # Most similar
-                second = subjects[1] if len(subjects) > 1 else None
-
                 best_sub = best.get("subject")
+                # second = subjects[1] if len(subjects) > 1 else None
+                for cand in subjects[1:]: # Find second best with different subject
+                    if cand.get("subject") != best_sub:
+                        second = cand
+                        break
+
                 best_sim = best.get("similarity", 0.0)
                 second_sim = second.get("similarity", 0.0) if second else 0.0
+
+                self.window.after(0, self.log_message, f"  - Best match: {best_sub} (Similarity: {best_sim:.3f}) | Second match: {second.get('subject', 'N/A')} (Similarity: {second_sim:.3f})")
 
                 # Only consider valid match if:
                 # 1) best_sim is high enough
                 # 2) AND it is higher than the second best by at least MARGIN
                 if best_sub and best_sim >= settings.THRESHOLD and (best_sim - second_sim) >= settings.MARGIN:
-                    # Deduplication logic
-                    now = datetime.now()
-                    if best_sub not in self.last_seen or (now - self.last_seen[best_sub]) > timedelta(seconds=settings.DEDUPE_SECONDS):
-                        timestamp_str = now.isoformat(timespec="seconds")
-                        log_msg = f"[CHECK-IN] {timestamp_str} - {best_sub} (Similarity: {best_sim:.3f})"
-                        
-                        self.window.after(0, self.log_message, log_msg)
-                        self.logger.write_record(timestamp_str, best_sub, f"{best_sim:.3f}")
-                        self.last_seen[best_sub] = now
+                    # self._add_vote_and_maybe_checkin(best_sub, best_sim)
+                    self.window.after(0, self.log_message, f"[SINGLE FRAME] {best_sub} accepted (Similarity: {best_sim:.3f})")
+                    self._commit_checkin(best_sub, best_sim)
                 else:
                     # Unknown or unreliable match
                     continue
