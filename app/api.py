@@ -17,6 +17,7 @@ class CompreFaceClient:
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 400 and "already exists" in e.response.text:
                 print(f"Subject '{name}' already exists, skipping creation.")
+                return {"status": "exists", "subject": name}
             else:
                 print(f"Error creating subject '{name}': {e.response.text}")
                 raise
@@ -41,3 +42,21 @@ class CompreFaceClient:
                                  timeout=20)
         response.raise_for_status()
         return response.json()
+
+    def delete_face(self, face_id: str):
+        url = f"{self.base_url}/api/v1/recognition/faces/{face_id}"
+        response = requests.delete(url, headers=self.headers)
+        response.raise_for_status()
+        try:
+            return response.json()
+        except ValueError:
+            return {"status": "deleted", "face_id": face_id}
+
+    def delete_subject(self, subject: str):
+        url = f"{self.base_url}/api/v1/recognition/subjects/{subject}"
+        response = requests.delete(url, headers=self.headers)
+        response.raise_for_status()
+        try:
+            return response.json()
+        except ValueError:
+            return {"status": "deleted", "subject": subject}

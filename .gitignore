@@ -1,6 +1,59 @@
+# Directories with user data or deployment artifacts
 archive/
 data/
 records/
-app/__pycache__/
-live_attendance.csv
+scripts/
+
+# Configuration and credentials
 config.ini
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Generated/runtime files
+live_attendance.csv
+implementation_doc.md
+DEVELOPMENT_PROGRESS.md
+MAINTENANCE.md
+*.log

@@ -1,0 +1,1263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>接待同工工作台</title>
+  <style>
+    :root {
+      --bg: #f7f2e6;
+      --panel: #fffdf8;
+      --ink: #2d2418;
+      --sub: #6d5e4d;
+      --line: #e7dcca;
+      --ok: #1f7a4f;
+      --warn: #9a3f2f;
+      --gold: #a5792a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 12%, #f0e2c8 0%, transparent 30%),
+        radial-gradient(circle at 82% 20%, #f3e9d2 0%, transparent 38%),
+        var(--bg);
+      font-family: "Source Han Sans SC", "PingFang SC", sans-serif;
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 1280px;
+      margin: 20px auto;
+      padding: 0 16px 24px;
+      display: grid;
+      gap: 14px;
+    }
+    .hero {
+      background: linear-gradient(135deg, #fffaf0 0%, #f6e8cb 100%);
+      border: 1px solid #e8dcc4;
+      border-radius: 18px;
+      box-shadow: 0 14px 28px rgba(70, 46, 18, 0.08);
+      padding: 16px;
+    }
+    .hero h1 {
+      margin: 0 0 6px;
+      font-size: 26px;
+      letter-spacing: 1px;
+    }
+    .hero .sub {
+      color: var(--sub);
+      font-size: 14px;
+    }
+    .back-home {
+      display: inline-block;
+      margin-top: 8px;
+      color: #6e4f1f;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 14px;
+    }
+
+    .left-column {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .member-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 8px;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+
+    .member-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px;
+      background: #fffdfa;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .member-card:hover {
+      background: #fff5ec;
+      box-shadow: 0 4px 12px rgba(70, 46, 18, 0.1);
+    }
+
+    .member-photo {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #ece5d7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .member-photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .member-info {
+      font-size: 10px;
+      color: var(--ink);
+      font-weight: 500;
+      text-align: center;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .member-group {
+      font-size: 9px;
+      color: var(--sub);
+      text-align: center;
+      margin-top: 1px;
+    }
+
+    .member-status {
+      font-size: 10px;
+      text-align: center;
+      padding: 3px 5px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-top: 1px;
+    }
+
+    .member-status.checked-in {
+      background: #e8f7ef;
+      color: #1f7a4f;
+      border-color: #bfe3cf;
+    }
+
+    .member-status.not-checked-in {
+      background: #fff2ee;
+      color: #9a3f2f;
+      border-color: #efc9bf;
+    }
+
+    .member-status.unknown {
+      background: #f0ebe0;
+      color: #6d5e4d;
+      border-color: #e1d6c3;
+    }
+
+    .member-card button {
+      padding: 5px 6px;
+      font-size: 10px;
+      width: 100%;
+      margin-top: 2px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 8px 20px rgba(63, 42, 18, 0.06);
+    }
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 17px;
+      color: #523e21;
+    }
+    .card-note {
+      margin: -4px 0 10px;
+      font-size: 12px;
+      color: var(--sub);
+      line-height: 1.4;
+    }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    input, select {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #fff;
+      min-width: 150px;
+      color: var(--ink);
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 12px;
+      background: #6e4f1f;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.alt { background: #715f45; }
+    button.ok { background: var(--ok); }
+    button.warn { background: var(--warn); }
+    #voiceBtn.listening { background: var(--ok); }
+    #voiceStatus { margin-top: 6px; }
+    .tiny { font-size: 12px; color: var(--sub); }
+    #liveFeed {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      max-height: 580px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+    }
+    #liveFeed li {
+      border-bottom: 1px dashed var(--line);
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    #liveFeed li:last-child { border-bottom: 0; }
+    .event-auto { color: #1f5f3f; }
+    .event-manual { color: #65490d; }
+    .event-ignored { color: #9a3f2f; }
+
+    .queue {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      align-items: start;
+      gap: 6px;
+      max-height: 620px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+    .unknown-card {
+      border: 1px solid #e6d4bb;
+      border-radius: 8px;
+      padding: 6px;
+      background: #fffdfa;
+      animation: fadeUp .24s ease;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .unknown-image-frame {
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ece5d7;
+      overflow: hidden;
+      min-height: 120px;
+      max-height: 220px;
+    }
+
+    .unknown-actions {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .unknown-card img {
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .row {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .picked {
+      color: var(--gold);
+      font-size: 12px;
+    }
+    .status {
+      font-size: 13px;
+      color: var(--sub);
+    }
+    .candidate {
+      color: #65490d;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+    @keyframes fadeUp {
+      from { transform: translateY(6px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>接待同工工作台</h1>
+      <div class="sub">实时签到动态 + 异常抓拍队列 + 快捷手动补签（不展示视频流）</div>
+      <a class="back-home" href="/">返回首页</a>
+    </div>
+
+    <div class="grid">
+      <div class="left-column">
+        <div class="card">
+          <h2>手动查找会友</h2>
+          <div class="card-note">支持姓名、中文名、拼音全拼、拼音首字母和语音输入。</div>
+          <div class="toolbar">
+            <div style="display:flex;gap:6px;align-items:center;width:100%;">
+              <input id="memberQuery" placeholder="输入姓名/电话/组别搜索成员" style="flex:1;" />
+              <button id="clearSearchBtn" title="清空" style="padding: 8px 10px; font-size: 12px; background: #9a7c5c;">✕</button>
+              <button id="voiceBtn" title="语音输入">🎤</button>
+            </div>
+          </div>
+          <div id="voiceStatus" class="tiny">语音输入待命</div>
+          <div class="member-cards-grid" id="memberCardsContainer"></div>
+        </div>
+
+        <div class="card">
+          <h2>实时签到动态（Channel A）</h2>
+          <div class="toolbar" style="margin-bottom:8px">
+            <button id="refreshBtn" class="alt">刷新系统状态</button>
+            <button id="clearFeedBtn" class="warn">清空动态</button>
+            <span id="statusText" class="status">状态读取中...</span>
+          </div>
+          <ul id="liveFeed"></ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>异常抓拍队列（Unknown）</h2>
+        <div class="toolbar">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <select id="eventSelect" style="flex:1;min-width:150px;">
+              <option value="">按抓拍日期自动匹配场次</option>
+            </select>
+            <button id="refreshQueueBtn" class="alt">刷新队列</button>
+            <button id="clearUnknownBtn" class="warn">清空队列</button>
+          </div>
+        </div>
+        <div class="tiny" id="eventHint" style="margin-top:6px">当前补签场次: 自动按抓拍日期匹配</div>
+        <div class="tiny" id="currentServiceText" style="margin-top:4px">当前场次读取中...</div>
+        <div class="queue" id="unknownQueue" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const liveFeed = document.getElementById('liveFeed');
+    const unknownQueue = document.getElementById('unknownQueue');
+    const memberCardsContainer = document.getElementById('memberCardsContainer');
+    const voiceStatus = document.getElementById('voiceStatus');
+    const statusText = document.getElementById('statusText');
+    const eventSelect = document.getElementById('eventSelect');
+    const eventHint = document.getElementById('eventHint');
+    const currentServiceText = document.getElementById('currentServiceText');
+
+    let selectedMember = null;
+    let currentServiceEventId = '';
+    const queueCards = new Map();
+    const seenDailyCheckins = new Set();
+    const seenDailyIgnored = new Set();
+
+    function toLocalDayKey(timestampValue) {
+      if (!timestampValue) {
+        return null;
+      }
+      const raw = String(timestampValue).trim();
+      if (!raw) {
+        return null;
+      }
+      const dateOnlyMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (dateOnlyMatch) {
+        return dateOnlyMatch[1];
+      }
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) {
+        return null;
+      }
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function getActiveSearchEventId() {
+      return eventSelect.value || currentServiceEventId || '';
+    }
+
+    function getAttendanceUiText(status) {
+      if (status === 'checked_in') {
+        return '已签到';
+      }
+      if (status === 'not_checked_in') {
+        return '未签到';
+      }
+      return '未知';
+    }
+
+    function isUuid(value) {
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+    }
+
+    function normalizePrimaryText(value) {
+      return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ');
+    }
+
+    function sameUnknownPrimary(
+      card,
+      dayKey,
+      resolvedMemberId,
+      resolvedMemberName,
+      targetBestId,
+      targetBestName,
+    ) {
+      if (!card || !dayKey) {
+        return false;
+      }
+      if ((card.dataset.dayKey || '') !== dayKey) {
+        return false;
+      }
+
+      const cardBestId = (card.dataset.bestSubjectId || '').trim();
+      const cardBestName = normalizePrimaryText(card.dataset.bestSubjectName || '');
+
+      const normalizedResolvedMemberId = String(resolvedMemberId || '').trim();
+      const normalizedResolvedMemberName = normalizePrimaryText(resolvedMemberName || '');
+      const normalizedTargetBestId = String(targetBestId || '').trim();
+      const normalizedTargetBestName = normalizePrimaryText(targetBestName || '');
+
+      if (normalizedResolvedMemberId && cardBestId && cardBestId === normalizedResolvedMemberId) {
+        return true;
+      }
+      if (normalizedTargetBestId && cardBestId && cardBestId === normalizedTargetBestId) {
+        return true;
+      }
+      if (normalizedResolvedMemberName && cardBestName && cardBestName === normalizedResolvedMemberName) {
+        return true;
+      }
+      if (normalizedTargetBestName && cardBestName && cardBestName === normalizedTargetBestName) {
+        return true;
+      }
+      return false;
+    }
+
+    async function pruneSiblingUnknownCardsByPrimary({
+      dayKey,
+      resolvedMemberId,
+      resolvedMemberName,
+      targetBestId,
+      targetBestName,
+      keepCaseId,
+    }) {
+      const snapshot = Array.from(queueCards.entries());
+      for (const [caseId, card] of snapshot) {
+        if (caseId === keepCaseId) {
+          continue;
+        }
+        if (!sameUnknownPrimary(
+          card,
+          dayKey,
+          resolvedMemberId,
+          resolvedMemberName,
+          targetBestId,
+          targetBestName,
+        )) {
+          continue;
+        }
+
+        if (!String(caseId).startsWith('tmp-')) {
+          try {
+            await fetch(`/reception/queue/unknown/${encodeURIComponent(caseId)}/ignore`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ note: 'auto_ignored_after_manual_resolve_same_day_primary' })
+            });
+          } catch {
+            // Keep UI consistent even when ignore request fails.
+          }
+        }
+
+        queueCards.delete(caseId);
+        card.remove();
+      }
+    }
+
+    function parseUnknownCandidate(payload) {
+      const candidate = {
+        bestSubjectId: String(payload.best_subject_id || '').trim(),
+        bestSubjectName: String(payload.best_subject_name || '').trim(),
+        bestSubjectNameChn: String(payload.best_subject_name_chn || payload.best_subject_name_zh || '').trim(),
+        secondSubjectId: String(payload.second_subject_id || '').trim(),
+        secondSubjectName: String(payload.second_subject_name || '').trim(),
+      };
+
+      const note = String(payload.note || '').trim();
+      if (note) {
+        const tokens = note.split(/[;|]/);
+        for (const token of tokens) {
+          const [rawKey, ...rest] = token.split('=');
+          if (!rawKey || rest.length === 0) {
+            continue;
+          }
+          const key = rawKey.trim();
+          const value = rest.join('=').trim();
+          if (!value) {
+            continue;
+          }
+          if (key === 'best_subject_id' && !candidate.bestSubjectId) {
+            candidate.bestSubjectId = value;
+          }
+          if (key === 'best_subject_name' && !candidate.bestSubjectName) {
+            candidate.bestSubjectName = value;
+          }
+          if (key === 'best_subject_name_chn' && !candidate.bestSubjectNameChn) {
+            candidate.bestSubjectNameChn = value;
+          }
+          if (key === 'best_subject_name_zh' && !candidate.bestSubjectNameChn) {
+            candidate.bestSubjectNameChn = value;
+          }
+          if (key === 'second_subject_id' && !candidate.secondSubjectId) {
+            candidate.secondSubjectId = value;
+          }
+          if (key === 'second_subject_name' && !candidate.secondSubjectName) {
+            candidate.secondSubjectName = value;
+          }
+        }
+      }
+
+      if (!candidate.bestSubjectName && candidate.bestSubjectId) {
+        candidate.bestSubjectName = candidate.bestSubjectId;
+      }
+      if (!candidate.secondSubjectName && candidate.secondSubjectId) {
+        candidate.secondSubjectName = candidate.secondSubjectId;
+      }
+      return candidate;
+    }
+
+    function wsBase() {
+      const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+      return `${protocol}://${location.host}`;
+    }
+
+    function parseAutoIgnoredSiblings(messageText) {
+      const matched = String(messageText || '').match(/auto_ignored_siblings=(\d+)/i);
+      if (!matched) {
+        return 0;
+      }
+      const count = Number(matched[1]);
+      return Number.isFinite(count) && count > 0 ? count : 0;
+    }
+
+    function addCleanupInfoItem(count) {
+      if (!count || count <= 0) {
+        return;
+      }
+      const li = document.createElement('li');
+      li.className = 'event-ignored';
+      li.textContent = `[${new Date().toISOString()}] 已自动清理 ${count} 条重复抓拍`;
+      liveFeed.prepend(li);
+      while (liveFeed.children.length > 120) {
+        liveFeed.removeChild(liveFeed.lastChild);
+      }
+    }
+
+    function addLiveItem(payload) {
+      const li = document.createElement('li');
+      const ts = payload.timestamp || '-';
+      const eventType = payload.event_type || 'check_in';
+      const method = payload.method || '-';
+      const name = payload.member_name || payload.subject_id || '-';
+      const memberKey = String(payload.member_id || payload.subject_id || '').trim();
+      const dayKey = toLocalDayKey(ts);
+      const dedupeKey = memberKey && dayKey ? `${memberKey}|${dayKey}` : '';
+
+      if (eventType === 'check_in' && dedupeKey) {
+        if (seenDailyCheckins.has(dedupeKey)) {
+          return;
+        }
+        seenDailyCheckins.add(dedupeKey);
+      }
+
+      let cls = method === 'manual_reception' ? 'event-manual' : 'event-auto';
+      let text = `[${ts}] ${name} · ${method}`;
+      if (eventType === 'check_in_ignored') {
+        const reason = payload.persist_status || 'ignored';
+        if (dedupeKey && seenDailyCheckins.has(dedupeKey)) {
+          return;
+        }
+        if (dedupeKey) {
+          const ignoredKey = `${dedupeKey}|${reason}`;
+          if (seenDailyIgnored.has(ignoredKey)) {
+            return;
+          }
+          seenDailyIgnored.add(ignoredKey);
+        }
+        cls = 'event-ignored';
+        const detail = payload.detail || '';
+        text = `[${ts}] ${name} · 已忽略(${reason}) ${detail}`.trim();
+      }
+      li.className = cls;
+      li.textContent = text;
+      liveFeed.prepend(li);
+      while (liveFeed.children.length > 120) {
+        liveFeed.removeChild(liveFeed.lastChild);
+      }
+    }
+
+    async function loadLiveFeed() {
+      try {
+        const res = await fetch('/reception/feed?limit=120');
+        const data = await res.json();
+        liveFeed.innerHTML = '';
+        seenDailyCheckins.clear();
+        seenDailyIgnored.clear();
+        const items = Array.isArray(data.items) ? data.items : [];
+        for (const item of items.slice().reverse()) {
+          if (item && item.payload) {
+            addLiveItem(item.payload);
+          }
+        }
+      } catch (err) {
+        console.warn('feed load error', err);
+      }
+    }
+
+    function upsertUnknownCard(payload) {
+      const caseId = payload.case_id || payload.id || `tmp-${Date.now()}-${Math.random()}`;
+      if (queueCards.has(caseId)) {
+        return;
+      }
+      const candidate = parseUnknownCandidate(payload);
+
+      const card = document.createElement('div');
+      card.className = 'unknown-card';
+      card.dataset.caseId = caseId;
+      card.dataset.dayKey = toLocalDayKey(payload.timestamp || '') || '';
+      card.dataset.bestSubjectId = candidate.bestSubjectId || '';
+      card.dataset.bestSubjectName = candidate.bestSubjectName || '';
+
+      const img = document.createElement('img');
+      img.alt = 'unknown face';
+      if (payload.image_base64) {
+        img.src = `data:image/jpeg;base64,${payload.image_base64}`;
+      }
+
+
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const meta = document.createElement('div');
+      meta.className = 'tiny';
+      meta.textContent = `${payload.timestamp || '-'} | reason: ${payload.reason || 'unknown'}`;
+
+      const candidateInfo = document.createElement('div');
+      candidateInfo.className = 'candidate tiny';
+      if (candidate.bestSubjectName || candidate.bestSubjectNameChn) {
+        const primary = candidate.bestSubjectName || candidate.bestSubjectNameChn;
+        const chn = candidate.bestSubjectNameChn || '';
+        const displayName = (primary && chn && primary !== chn) ? `${primary} (${chn})` : primary;
+        candidateInfo.textContent = `首选候选: ${displayName}`;
+      } else {
+        candidateInfo.textContent = '首选候选: 暂无';
+      }
+
+      const noBtn = document.createElement('button');
+      noBtn.textContent = '否';
+      noBtn.className = 'alt';
+      noBtn.onclick = async () => {
+        if (!String(caseId).startsWith('tmp-')) {
+          const res = await fetch(`/reception/queue/unknown/${encodeURIComponent(caseId)}/ignore`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note: null })
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            alert(`忽略失败: ${err.detail || res.status}`);
+            return;
+          }
+        }
+        queueCards.delete(caseId);
+        card.remove();
+      };
+
+      const yesBtn = document.createElement('button');
+      yesBtn.textContent = '是';
+      yesBtn.className = 'ok';
+      yesBtn.onclick = async () => {
+        if (String(caseId).startsWith('tmp-')) {
+          alert('该抓拍尚未持久化，请稍后再试');
+          return;
+        }
+        let memberId = candidate.bestSubjectId;
+        let memberName = candidate.bestSubjectName;
+        if (!isUuid(memberId)) {
+          if (!selectedMember) {
+            alert('未识别到可靠候选，请先在上方搜索并选择成员后再点“是”');
+            return;
+          }
+          memberId = selectedMember.id;
+          memberName = selectedMember.name;
+        }
+        try {
+          const selectedEvent = eventSelect.value.trim();
+          const reqBody = {
+            member_id: memberId,
+            event_id: selectedEvent || null,
+            note: null
+          };
+          const res = await fetch(`/reception/queue/unknown/${encodeURIComponent(caseId)}/resolve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reqBody)
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.detail || 'resolve failed');
+          }
+          const autoIgnoredCount = parseAutoIgnoredSiblings(data.message);
+          if (data.status === 'ignored') {
+            addCleanupInfoItem(autoIgnoredCount);
+            queueCards.delete(caseId);
+            card.remove();
+            await loadUnknownQueue();
+            alert('当前日期不是主日，已自动忽略该抓拍');
+            return;
+          }
+          if (data.message) {
+            alert(`提示: ${data.message}`);
+          }
+          addLiveItem({
+            timestamp: data.case?.handled_at || new Date().toISOString(),
+            method: 'manual_reception',
+            member_name: memberName || memberId,
+            member_id: memberId,
+          });
+          addCleanupInfoItem(autoIgnoredCount);
+
+          const resolvedMemberId = String(data.case?.member_id || memberId || '').trim();
+          const targetBestId = String(card.dataset.bestSubjectId || memberId || '').trim();
+          const targetBestName = card.dataset.bestSubjectName || memberName || '';
+
+          await pruneSiblingUnknownCardsByPrimary({
+            dayKey: card.dataset.dayKey || toLocalDayKey(data.case?.timestamp || '') || '',
+            resolvedMemberId,
+            resolvedMemberName: memberName || '',
+            targetBestId,
+            targetBestName,
+            keepCaseId: caseId,
+          });
+
+          queueCards.delete(caseId);
+          card.remove();
+          await loadUnknownQueue();
+        } catch (err) {
+          alert(`补签失败: ${err}`);
+        }
+      };
+
+      row.appendChild(meta);
+
+      const btnRow = document.createElement('div');
+      btnRow.className = 'unknown-actions';
+      btnRow.appendChild(noBtn);
+      btnRow.appendChild(yesBtn);
+
+      const imageFrame = document.createElement('div');
+      imageFrame.className = 'unknown-image-frame';
+      imageFrame.appendChild(img);
+
+      card.appendChild(imageFrame);
+      card.appendChild(candidateInfo);
+      card.appendChild(row);
+      card.appendChild(btnRow);
+      unknownQueue.prepend(card);
+      queueCards.set(caseId, card);
+      while (unknownQueue.children.length > 40) {
+        const last = unknownQueue.lastChild;
+        if (!last) {
+          break;
+        }
+        queueCards.delete(last.dataset.caseId);
+        unknownQueue.removeChild(last);
+      }
+    }
+
+    function renderMembers(items) {
+      memberCardsContainer.innerHTML = '';
+      if (!items.length) {
+        memberCardsContainer.textContent = '未找到成员';
+        return;
+      }
+
+      for (const item of items) {
+        const card = document.createElement('div');
+        card.className = 'member-card';
+
+        const photoDiv = document.createElement('div');
+        photoDiv.className = 'member-photo';
+        if (item.has_photo) {
+          const img = document.createElement('img');
+          img.alt = item.name;
+          // fetch member photo list and use the first photo's download endpoint
+          (async () => {
+            try {
+              const r = await fetch(`/face-library/members/${item.id}/photos?active_only=true`);
+              if (!r.ok) throw new Error('no photos');
+              const j = await r.json();
+              if (j.items && j.items.length) {
+                const pid = j.items[0].id;
+                img.src = `/face-library/photos/${pid}/download`;
+              } else {
+                photoDiv.textContent = '📷';
+              }
+            } catch (e) {
+              photoDiv.textContent = '📷';
+            }
+          })();
+          photoDiv.appendChild(img);
+        } else {
+          photoDiv.textContent = '📷';
+        }
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'member-info';
+        infoDiv.textContent = `${item.name}${item.name_chn ? '\n' + item.name_chn : ''}`;
+
+        const statusDiv = document.createElement('div');
+        const refreshStatusBadge = () => {
+          const uiText = getAttendanceUiText(item.attendance_status);
+          statusDiv.textContent = `签到状态：${uiText}`;
+          statusDiv.className = 'member-status';
+          if (item.attendance_status === 'checked_in') {
+            statusDiv.classList.add('checked-in');
+          } else if (item.attendance_status === 'not_checked_in') {
+            statusDiv.classList.add('not-checked-in');
+          } else {
+            statusDiv.classList.add('unknown');
+          }
+        };
+        refreshStatusBadge();
+
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'member-group';
+        groupDiv.textContent = item.group || '未分组';
+
+        const checkinBtn = document.createElement('button');
+        const refreshCardButton = () => {
+          checkinBtn.textContent = item.attendance_status === 'checked_in' ? '取消签到' : '签到';
+          checkinBtn.className = item.attendance_status === 'checked_in' ? 'warn' : 'ok';
+        };
+        refreshCardButton();
+        checkinBtn.onclick = async (evt) => {
+          evt.stopPropagation();
+          try {
+            const eventId = getActiveSearchEventId() || null;
+            if (!eventId) {
+              alert('请先选择场次或等待当前场次加载完成');
+              return;
+            }
+
+            if (item.attendance_status === 'checked_in' && item.attendance_record_id) {
+              const resp = await fetch(`/attendance/history/${item.attendance_record_id}`, { method: 'DELETE' });
+              const data = await resp.json().catch(() => ({}));
+              if (!resp.ok) {
+                throw new Error(data.detail || resp.status);
+              }
+              addLiveItem({
+                timestamp: data.record?.check_in_time || new Date().toISOString(),
+                method: 'manual_reception',
+                member_name: item.name,
+                member_id: item.id,
+                event_type: 'check_in_ignored',
+                persist_status: 'cancelled',
+                detail: 'manual_reception_cancelled',
+              });
+              item.attendance_status = 'not_checked_in';
+              item.attendance_record_id = null;
+              item.attendance_event_id = eventId;
+              refreshStatusBadge();
+              refreshCardButton();
+              alert('已取消签到');
+              return;
+            }
+
+            const body = { member_id: item.id, event_id: eventId, note: 'manual_reception_fallback' };
+            const res = await fetch('/attendance/manual-checkin', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.detail || res.status);
+            }
+            item.attendance_status = 'checked_in';
+            item.attendance_record_id = data.record?.id || item.attendance_record_id;
+            item.attendance_event_id = data.record?.event_id || eventId;
+            refreshStatusBadge();
+            refreshCardButton();
+            addLiveItem({
+              timestamp: data.record?.check_in_time || data.handled_at || new Date().toISOString(),
+              method: 'manual_reception',
+              member_name: item.name,
+              member_id: item.id,
+            });
+            alert('签到成功');
+            document.getElementById('memberQuery').value = '';
+            memberCardsContainer.innerHTML = '';
+            await refreshStatus();
+            await refreshCurrentService();
+          } catch (err) {
+            alert(`签到失败: ${err}`);
+          }
+        };
+
+        card.appendChild(photoDiv);
+        card.appendChild(infoDiv);
+        card.appendChild(groupDiv);
+        card.appendChild(statusDiv);
+        card.appendChild(checkinBtn);
+
+        // clicking card selects the member for unknown-face resolution
+        card.addEventListener('click', (evt) => {
+          if (evt.target === checkinBtn) return;
+          selectedMember = item;
+        });
+
+        memberCardsContainer.appendChild(card);
+      }
+    }
+
+    // Debounce helper for live search
+    function debounce(fn, wait) {
+      let t = null;
+      return function(...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), wait);
+      };
+    }
+
+    const liveSearch = debounce(async () => {
+      const q = document.getElementById('memberQuery').value.trim();
+      if (!q) {
+        memberCardsContainer.innerHTML = '';
+        return;
+      }
+      try {
+        const eventId = getActiveSearchEventId();
+        const url = eventId
+          ? `/members/search?q=${encodeURIComponent(q)}&limit=30&event_id=${encodeURIComponent(eventId)}`
+          : `/members/search?q=${encodeURIComponent(q)}&limit=30`;
+        const res = await fetch(url);
+        const data = await res.json();
+        renderMembers(data.items || []);
+      } catch (err) {
+        console.error('search error', err);
+      }
+    }, 250);
+
+    async function transliterateToPinyin(inputText) {
+      const text = String(inputText || '').trim();
+      if (!text) {
+        return '';
+      }
+      if (!/[\u4e00-\u9fff]/.test(text)) {
+        return text;
+      }
+
+      try {
+        const res = await fetch(`/members/transliterate?q=${encodeURIComponent(text)}`);
+        const data = await res.json();
+        const pinyin = String(data.pinyin || '').trim();
+        return pinyin || text;
+      } catch {
+        return text;
+      }
+    }
+
+    // Voice input using Web Speech API
+    let recognition = null;
+    let isListening = false;
+    const voiceBtn = document.getElementById('voiceBtn');
+    const setVoiceStatus = (text) => {
+      if (!voiceStatus) return;
+      voiceStatus.textContent = text || '';
+    };
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const isSecure = window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      if (!isSecure) {
+        voiceBtn.disabled = true;
+        setVoiceStatus('语音输入需要 https 或 localhost');
+      } else {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SR();
+        recognition.lang = 'zh-CN';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        recognition.onstart = () => {
+          isListening = true;
+          voiceBtn.textContent = '听取中…';
+          voiceBtn.classList.add('listening');
+          setVoiceStatus('正在听取，请说出会友姓名');
+        };
+        recognition.onresult = (evt) => {
+          const txt = (evt.results[0][0].transcript || '').trim();
+          if (txt) {
+            (async () => {
+              const normalized = await transliterateToPinyin(txt);
+              document.getElementById('memberQuery').value = normalized;
+              setVoiceStatus('语音输入待命');
+              liveSearch();
+            })();
+          }
+        };
+        recognition.onerror = (e) => {
+          const errKey = (e && e.error) ? String(e.error) : 'unknown';
+          let msg = '语音输入失败';
+          if (errKey === 'not-allowed' || errKey === 'service-not-allowed') {
+            msg = '语音输入失败：未获得麦克风权限';
+          } else if (errKey === 'no-speech') {
+            msg = '语音输入失败：未检测到语音';
+          } else if (errKey === 'audio-capture') {
+            msg = '语音输入失败：无法访问麦克风';
+          }
+          console.warn('voice err', e);
+          isListening = false;
+          voiceBtn.textContent = '🎤';
+          voiceBtn.classList.remove('listening');
+          setVoiceStatus(msg);
+        };
+        recognition.onend = () => {
+          isListening = false;
+          voiceBtn.textContent = '🎤';
+          voiceBtn.classList.remove('listening');
+          if (voiceStatus && voiceStatus.textContent && voiceStatus.textContent.startsWith('语音输入失败')) {
+            return;
+          }
+          if (voiceStatus && voiceStatus.textContent === '正在请求麦克风权限…') {
+            setVoiceStatus('语音输入待命');
+            return;
+          }
+          setVoiceStatus('语音输入待命');
+        };
+        voiceBtn.addEventListener('click', () => {
+          if (!recognition) return;
+          try {
+            if (isListening || voiceBtn.classList.contains('listening')) {
+              setVoiceStatus('已取消语音输入');
+              recognition.abort();
+              return;
+            }
+            setVoiceStatus('正在请求麦克风权限…');
+            recognition.start();
+          } catch (e) {
+            console.warn(e);
+            setVoiceStatus('语音输入失败：无法启动识别');
+          }
+        });
+      }
+    } else {
+      voiceBtn.style.display = 'none';
+      setVoiceStatus('当前浏览器不支持语音输入');
+    }
+
+    async function searchMembers() {
+      const q = document.getElementById('memberQuery').value.trim();
+      if (!q) {
+        memberCardsContainer.innerHTML = '';
+        return;
+      }
+      try {
+        const eventId = getActiveSearchEventId();
+        const url = eventId
+          ? `/members/search?q=${encodeURIComponent(q)}&limit=30&event_id=${encodeURIComponent(eventId)}`
+          : `/members/search?q=${encodeURIComponent(q)}&limit=30`;
+        const res = await fetch(url);
+        const data = await res.json();
+        renderMembers(data.items || []);
+      } catch (err) {
+        console.error('search error', err);
+      }
+    }
+
+    async function loadEvents() {
+      const res = await fetch('/events?include_archived=false&limit=100');
+      const data = await res.json();
+      const items = data.items || [];
+      while (eventSelect.options.length > 1) {
+        eventSelect.remove(1);
+      }
+      for (const item of items) {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = `${item.event_date} | ${item.event_name}`;
+        eventSelect.appendChild(opt);
+      }
+    }
+
+    async function loadUnknownQueue() {
+      const res = await fetch('/reception/queue/unknown?status=pending&limit=80');
+      const data = await res.json();
+      unknownQueue.innerHTML = '';
+      queueCards.clear();
+      for (const item of (data.items || [])) {
+        upsertUnknownCard(item);
+      }
+    }
+
+    async function refreshStatus() {
+      try {
+        const res = await fetch('/system/status');
+        const data = await res.json();
+        const rt = data.runtime || {};
+        statusText.textContent = `stream=${rt.stream_running} camera=${rt.camera_running} recognition=${rt.recognition_running} wsA=${(data.websocket || {}).channel_a_connections ?? '-'} wsB=${(data.websocket || {}).channel_b_connections ?? '-'}`;
+      } catch (err) {
+        statusText.textContent = `状态读取失败: ${err}`;
+      }
+    }
+
+    async function refreshCurrentService() {
+      try {
+        const res = await fetch('/attendance/current-service');
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || res.status);
+        }
+        currentServiceEventId = data.event_id || '';
+        currentServiceText.textContent = `当前场次: ${data.display_text || '非主日'}`;
+        if (document.getElementById('memberQuery').value.trim()) {
+          await liveSearch();
+        }
+      } catch (err) {
+        currentServiceText.textContent = `当前场次读取失败: ${err}`;
+      }
+    }
+
+    function connectChannelA() {
+      const ws = new WebSocket(`${wsBase()}/ws/channel-a`);
+      ws.onmessage = (evt) => {
+        let payload;
+        try {
+          payload = JSON.parse(evt.data);
+        } catch {
+          return;
+        }
+
+        if (payload.event_type === 'check_in') {
+          addLiveItem(payload);
+          return;
+        }
+
+        if (payload.event_type === 'check_in_ignored') {
+          addLiveItem(payload);
+          return;
+        }
+
+        if (payload.event_type === 'unknown_face') {
+          upsertUnknownCard(payload);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectChannelA, 2500);
+      };
+
+      setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send('ping');
+        }
+      }, 15000);
+    }
+
+    // searchBtn removed - search triggered by input debounce instead
+    document.getElementById('refreshQueueBtn').addEventListener('click', loadUnknownQueue);
+    document.getElementById('refreshBtn').addEventListener('click', async () => {
+      await refreshStatus();
+      await refreshCurrentService();
+    });
+    document.getElementById('clearFeedBtn').addEventListener('click', async () => {
+      try {
+        const res = await fetch('/reception/feed/clear', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || res.status);
+        }
+        liveFeed.innerHTML = '';
+        seenDailyCheckins.clear();
+        seenDailyIgnored.clear();
+      } catch (err) {
+        alert(`清空失败: ${err}`);
+      }
+    });
+    eventSelect.addEventListener('change', () => {
+      const text = eventSelect.options[eventSelect.selectedIndex]?.textContent || '';
+      eventHint.textContent = eventSelect.value ? `当前补签场次: ${text}` : '当前补签场次: 自动按抓拍日期匹配';
+      if (document.getElementById('memberQuery').value.trim()) {
+        liveSearch();
+      }
+    });
+    document.getElementById('memberQuery').addEventListener('keydown', (evt) => {
+      if (evt.key === 'Enter') {
+        evt.preventDefault();
+      }
+    });
+    document.getElementById('clearUnknownBtn').addEventListener('click', async () => {
+      try {
+        const res = await fetch('/reception/queue/unknown/clear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ note: 'bulk_clear_from_reception' })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || 'clear failed');
+        }
+        queueCards.clear();
+        unknownQueue.innerHTML = '';
+        await loadUnknownQueue();
+      } catch (err) {
+        alert(`清空失败: ${err}`);
+      }
+    });
+
+    // Setup member query input for live search
+    document.getElementById('memberQuery').addEventListener('input', liveSearch);
+
+    // Clear search button
+    document.getElementById('clearSearchBtn').addEventListener('click', () => {
+      document.getElementById('memberQuery').value = '';
+      memberCardsContainer.innerHTML = '';
+    });
+
+    loadEvents();
+    loadUnknownQueue();
+    refreshStatus();
+    refreshCurrentService();
+    loadLiveFeed();
+    connectChannelA();
+  </script>
+</body>
+</html>

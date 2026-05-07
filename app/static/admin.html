@@ -1,0 +1,1654 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>事工管理后台</title>
+  <style>
+    :root {
+      --bg: #eef4fb;
+      --panel: #ffffff;
+      --ink: #15243a;
+      --sub: #4f6280;
+      --line: #cfdbed;
+      --pri: #1e4f9c;
+      --danger: #8a2f42;
+      --ok: #216d4f;
+      --alt: #5d6f8f;
+      --warm: #ba7a1d;
+      --tab-bg: #dfe8f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Source Han Sans SC", "PingFang SC", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 16%, #dce8ff 0%, transparent 35%),
+        radial-gradient(circle at 82% 20%, #e5f0ff 0%, transparent 38%),
+        var(--bg);
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 1240px;
+      margin: 20px auto;
+      padding: 0 16px 24px;
+      display: grid;
+      gap: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 10px 24px rgba(11, 39, 87, 0.08);
+    }
+    h1 { margin: 0 0 6px; }
+    h2 { margin: 0 0 8px; font-size: 16px; color: var(--sub); }
+    h3 { margin: 6px 0; font-size: 14px; color: #3f5782; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    input, select {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      min-width: 120px;
+      color: var(--ink);
+      background: #fff;
+    }
+    input[disabled] {
+      background: #f5f8ff;
+      color: #4e6284;
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 12px;
+      color: #fff;
+      background: var(--pri);
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.ok { background: var(--ok); }
+    button.warn { background: var(--danger); }
+    button.alt { background: var(--alt); }
+    button.warm { background: var(--warm); }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 13px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f4f8ff; color: #35517e; }
+    tr:last-child td { border-bottom: 0; }
+    .mini { font-size: 12px; color: var(--sub); }
+    .back-home {
+      color: var(--pri);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .linkrow a {
+      color: var(--pri);
+      margin-right: 12px;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .tab-btn {
+      background: var(--tab-bg);
+      color: #234574;
+      border: 1px solid #bfd0ec;
+      font-weight: 700;
+    }
+    .tab-btn.active {
+      background: var(--pri);
+      color: #fff;
+      border-color: var(--pri);
+    }
+    .tab-panel {
+      display: none;
+      gap: 12px;
+    }
+    .tab-panel.active {
+      display: grid;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(160px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #f7fbff;
+      padding: 8px;
+    }
+    .stat .label {
+      font-size: 12px;
+      color: #506a95;
+    }
+    .stat .value {
+      margin-top: 4px;
+      font-size: 22px;
+      font-weight: 700;
+      color: #1c3c73;
+    }
+    .board-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .daily-bars {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px;
+      background: #fbfdff;
+      max-height: 260px;
+      overflow: auto;
+      display: grid;
+      gap: 6px;
+    }
+    .bar-row {
+      display: grid;
+      grid-template-columns: 92px 1fr 45px;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #4f6280;
+    }
+    .bar-track {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: #e4edf9;
+      overflow: hidden;
+    }
+    .bar {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #2e70c7, #529be6);
+    }
+    .small {
+      padding: 6px 9px;
+      font-size: 12px;
+      margin-right: 6px;
+    }
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    th.sortable:hover {
+      background: #eaf2ff;
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .status-pill.active {
+      background: #def3e7;
+      color: #196245;
+    }
+    .status-pill.inactive {
+      background: #f7dfe4;
+      color: #7a2236;
+    }
+    .member-row {
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    .member-row:hover {
+      background: #f7fbff;
+    }
+    .event-row {
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    .event-row:hover {
+      background: #f7fbff;
+    }
+    .event-row.active {
+      background: #e8f1ff;
+    }
+    .event-history-grid {
+      display: grid;
+      grid-template-columns: 0.78fr 1.52fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .event-list {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fbfdff;
+      max-height: 580px;
+      overflow: auto;
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+    }
+    .event-list-item {
+      border: 1px solid #d4e1f4;
+      border-radius: 9px;
+      padding: 8px 10px;
+      background: #ffffff;
+      text-align: left;
+      color: #234574;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    .event-list-item:hover {
+      background: #f3f8ff;
+    }
+    .event-list-item.active {
+      background: #dcebff;
+      border-color: #8bb0e5;
+      color: #173e75;
+    }
+    .event-list-meta {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #56719b;
+    }
+    .history-table {
+      table-layout: fixed;
+    }
+    .history-table th,
+    .history-table td {
+      padding: 12px 10px;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    .history-table th:last-child,
+    .history-table td:last-child {
+      width: 96px;
+      text-align: center;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 21, 44, 0.48);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 90;
+      padding: 16px;
+    }
+    .overlay.show {
+      display: flex;
+    }
+    .modal {
+      width: min(980px, 100%);
+      max-height: 95vh;
+      overflow: auto;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #bfd0ec;
+      box-shadow: 0 24px 52px rgba(6, 21, 48, 0.28);
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }
+    .modal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .field {
+      display: grid;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--sub);
+    }
+    .field input {
+      min-width: 0;
+      width: 100%;
+    }
+    .photo-thumb {
+      width: 56px;
+      height: 56px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #f2f7ff;
+    }
+    .hidden {
+      display: none;
+    }
+    @media (max-width: 980px) {
+      .stats-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      .board-grid { grid-template-columns: 1fr; }
+      .modal-grid { grid-template-columns: 1fr; }
+      .event-history-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>事工管理后台</h1>
+      <div class="mini">会友与照片管理 + 场次签到与统计（Tab 分页）</div>
+      <div style="margin-top:6px;"><a class="back-home" href="/">返回首页</a></div>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="memberTab">会友 / 照片管理</button>
+        <button class="tab-btn" data-tab="opsTab">场次 / 签到 / 报表 / 统计</button>
+      </div>
+    </div>
+
+    <div id="memberTab" class="tab-panel active">
+      <div class="card">
+        <h2>新增会友</h2>
+        <div class="toolbar">
+          <input id="name" placeholder="姓名" />
+          <input id="nameChn" placeholder="中文名(可空)" />
+          <input id="birthday" type="date" />
+          <input id="group" placeholder="分组(可空)" />
+          <input id="note" placeholder="备注(可空)" />
+          <button id="createBtn" class="ok">新增</button>
+          <button id="reloadBtn">刷新列表</button>
+          <button id="syncAllBtn" class="alt">同步全部照片到 CompreFace</button>
+        </div>
+        <div class="mini">说明：停用为逻辑停用，不会删除历史签到记录。</div>
+      </div>
+
+      <div class="card">
+        <h2>会友列表（点击行打开详情）</h2>
+        <div class="toolbar">
+          <input id="memberSearchInput" placeholder="搜索 姓名/中文名/拼音全拼/首字母/分组/备注" />
+          <select id="memberStatusFilter">
+            <option value="active" selected>仅 active</option>
+            <option value="all">全部</option>
+            <option value="inactive">仅 inactive</option>
+          </select>
+          <select id="memberPhotoFilter">
+            <option value="all" selected>照片: 全部</option>
+            <option value="with">照片: 仅有照片</option>
+            <option value="without">照片: 仅无照片</option>
+          </select>
+          <select id="memberGroupFilter">
+            <option value="all" selected>分组: 全部</option>
+            <option value="__empty__">分组: 未分组</option>
+          </select>
+          <div class="mini">点击表头可排序，再次点击切换升降序</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th class="sortable" data-sort="name">姓名</th>
+              <th class="sortable" data-sort="name_chn">中文名</th>
+              <th class="sortable" data-sort="birthday">生日</th>
+              <th class="sortable" data-sort="age">年龄</th>
+              <th class="sortable" data-sort="has_photo">照片</th>
+              <th class="sortable" data-sort="group">分组</th>
+              <th class="sortable" data-sort="note">备注</th>
+              <th class="sortable" data-sort="status">状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="memberRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="opsTab" class="tab-panel">
+      <div class="card">
+        <h2>场次/签到数据看板</h2>
+        <div class="toolbar">
+          <input id="dashboardDays" type="number" min="1" max="180" value="14" />
+          <button id="dashboardRefreshBtn" class="alt">刷新看板</button>
+        </div>
+        <div class="stats-grid">
+          <div class="stat"><div class="label">活跃会友</div><div id="statMembers" class="value">0</div></div>
+          <div class="stat"><div class="label">活跃场次</div><div id="statEvents" class="value">0</div></div>
+          <div class="stat"><div class="label">签到总数</div><div id="statCheckins" class="value">0</div></div>
+          <div class="stat"><div class="label">自动签到</div><div id="statAuto" class="value">0</div></div>
+          <div class="stat"><div class="label">手动补签</div><div id="statManual" class="value">0</div></div>
+          <div class="stat"><div class="label">待处理异常抓拍</div><div id="statUnknown" class="value">0</div></div>
+          <div class="stat"><div class="label">今年平均签到（中文）</div><div id="statAvgZh" class="value">0</div></div>
+          <div class="stat"><div class="label">今年平均签到（意语）</div><div id="statAvgIt" class="value">0</div></div>
+        </div>
+        <div class="board-grid">
+          <div>
+            <h3>近 N 个主日签到趋势</h3>
+            <div id="dailyBars" class="daily-bars"></div>
+          </div>
+          <div>
+            <h3>热门场次 Top</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>场次</th>
+                  <th>日期</th>
+                  <th>签到数</th>
+                </tr>
+              </thead>
+              <tbody id="boardTopEvents"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>场次与历史报表</h2>
+        <div class="toolbar">
+          <select id="eventYearFilter">
+            <option value="">年份: 全部</option>
+          </select>
+          <select id="eventLanguageFilter">
+            <option value="all" selected>语言: 全部</option>
+            <option value="zh">语言: 中文</option>
+            <option value="it">语言: 意语</option>
+            <option value="other">语言: 其他</option>
+          </select>
+          <select id="eventLimit">
+            <option value="20">最多 20 条</option>
+            <option value="50" selected>最多 50 条</option>
+            <option value="100">最多 100 条</option>
+            <option value="300">最多 300 条</option>
+          </select>
+          <button id="eventReloadBtn">刷新场次</button>
+        </div>
+        <div class="mini">左侧为只读场次列表，点击场次后右侧刷新该场次签到记录。</div>
+        <div class="event-history-grid">
+          <div>
+            <h3>场次列表（只读）</h3>
+            <div id="eventRows" class="event-list"></div>
+          </div>
+          <div>
+            <h3 id="historyEventTitle">未选择场次</h3>
+            <div class="toolbar">
+              <select id="historyLimit">
+                <option value="20">每页 20 条</option>
+                <option value="50">每页 50 条</option>
+                <option value="100" selected>每页 100 条</option>
+              </select>
+              <button id="historyQueryBtn">刷新记录</button>
+              <a id="historyExportLink" href="/attendance/history/export.csv" target="_blank" rel="noreferrer">导出当前场次 CSV</a>
+            </div>
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th class="sortable" data-sort="check_in_time">签到时间</th>
+                  <th class="sortable" data-sort="member_name">会友姓名</th>
+                  <th class="sortable" data-sort="member_name_chn">中文名</th>
+                  <th class="sortable" data-sort="method">方式</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="historyRows"></tbody>
+            </table>
+            <div id="historyPagination" class="toolbar" style="justify-content:center; margin-top:8px;">
+              <button id="historyPrevBtn" class="small">上一页</button>
+              <div id="historyPageInfo" class="mini" style="padding:8px 12px"></div>
+              <button id="historyNextBtn" class="small">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="memberModalOverlay" class="overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="会友详情">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalTitle">会友详情</h2>
+          <div id="modalSub" class="mini"></div>
+        </div>
+        <button id="closeMemberModalBtn" class="alt">关闭</button>
+      </div>
+
+      <div class="modal-grid">
+        <label class="field">
+          姓名
+          <input id="modalName" />
+        </label>
+        <label class="field">
+          中文名
+          <input id="modalNameChn" />
+        </label>
+        <label class="field">
+          生日
+          <input id="modalBirthday" type="date" />
+        </label>
+        <label class="field">
+          年龄（自动计算）
+          <input id="modalAge" disabled />
+        </label>
+        <label class="field">
+          分组
+          <input id="modalGroup" />
+        </label>
+        <label class="field">
+          备注
+          <input id="modalNote" />
+        </label>
+        <div class="field">
+          状态
+          <div id="modalStatus"></div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button id="memberEditBtn" class="ok">修改</button>
+        <button id="memberSaveBtn" class="hidden">保存修改</button>
+        <button id="memberCancelEditBtn" class="alt hidden">取消编辑</button>
+        <button id="memberDeactivateBtn" class="warn">停用会友</button>
+        <button id="memberRestoreBtn" class="alt hidden">恢复 active</button>
+        <button id="memberSyncBtn" class="warm">仅同步该会友照片</button>
+      </div>
+
+      <div class="card" style="box-shadow:none; margin:0;">
+        <h3>照片管理</h3>
+        <div class="toolbar">
+          <input id="photoUploadInput" type="file" accept="image/*" />
+          <button id="photoUploadBtn" class="ok">上传新照片</button>
+          <button id="photoReloadBtn" class="alt">刷新照片</button>
+          <input id="photoReplaceInput" type="file" accept="image/*" class="hidden" />
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>预览</th>
+              <th>文件名</th>
+              <th>Remote Face ID</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="photoRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const rowsEl = document.getElementById('memberRows');
+    const memberSearchInputEl = document.getElementById('memberSearchInput');
+    const memberStatusFilterEl = document.getElementById('memberStatusFilter');
+    const memberPhotoFilterEl = document.getElementById('memberPhotoFilter');
+    const memberGroupFilterEl = document.getElementById('memberGroupFilter');
+    const eventRowsEl = document.getElementById('eventRows');
+    const historyRowsEl = document.getElementById('historyRows');
+    const historyEventTitleEl = document.getElementById('historyEventTitle');
+    const historyLimitEl = document.getElementById('historyLimit');
+    const historyExportLinkEl = document.getElementById('historyExportLink');
+    const eventYearFilterEl = document.getElementById('eventYearFilter');
+    const eventLanguageFilterEl = document.getElementById('eventLanguageFilter');
+    const eventLimitEl = document.getElementById('eventLimit');
+
+    const photoRowsEl = document.getElementById('photoRows');
+    const photoUploadInputEl = document.getElementById('photoUploadInput');
+    const photoReplaceInputEl = document.getElementById('photoReplaceInput');
+
+    const memberModalOverlayEl = document.getElementById('memberModalOverlay');
+    const modalTitleEl = document.getElementById('modalTitle');
+    const modalSubEl = document.getElementById('modalSub');
+    const modalNameEl = document.getElementById('modalName');
+    const modalNameChnEl = document.getElementById('modalNameChn');
+    const modalGroupEl = document.getElementById('modalGroup');
+    const modalBirthdayEl = document.getElementById('modalBirthday');
+    const modalAgeEl = document.getElementById('modalAge');
+    const modalNoteEl = document.getElementById('modalNote');
+    const modalStatusEl = document.getElementById('modalStatus');
+
+    const memberEditBtn = document.getElementById('memberEditBtn');
+    const memberSaveBtn = document.getElementById('memberSaveBtn');
+    const memberCancelEditBtn = document.getElementById('memberCancelEditBtn');
+    const memberDeactivateBtn = document.getElementById('memberDeactivateBtn');
+    const memberRestoreBtn = document.getElementById('memberRestoreBtn');
+
+    const boardTopEventsEl = document.getElementById('boardTopEvents');
+    const dailyBarsEl = document.getElementById('dailyBars');
+
+    const eventMap = new Map();
+    const memberById = new Map();
+    let allMembers = [];
+    let selectedEventId = '';
+    let currentMember = null;
+    let pendingReplacePhotoId = null;
+    let memberEditMode = false;
+    let memberSortState = { key: 'name', direction: 'asc' };
+    let memberQuerySeq = 0;
+    let memberSearchDebounceTimer = null;
+
+    function refreshEventYearOptions(items) {
+      const previous = eventYearFilterEl.value || '';
+      const years = [...new Set((items || [])
+        .map((e) => Number((e.event_date || '').slice(0, 4)))
+        .filter((y) => Number.isInteger(y) && y > 0)
+      )].sort((a, b) => b - a);
+
+      eventYearFilterEl.innerHTML = '<option value="">年份: 全部</option>';
+      for (const y of years) {
+        const opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = `年份: ${y}`;
+        eventYearFilterEl.appendChild(opt);
+      }
+
+      const hasPrevious = Array.from(eventYearFilterEl.options).some((o) => o.value === previous);
+      eventYearFilterEl.value = hasPrevious ? previous : '';
+    }
+
+    function inferEventLanguage(eventName) {
+      const name = (eventName || '').toLowerCase();
+      const hasZh = name.includes('中文') || name.includes('华语') || name.includes('chinese') || name.includes('mandarin');
+      const hasIt = name.includes('意语') || name.includes('意大利') || name.includes('italian') || name.includes('ita');
+      if (hasZh) {
+        return 'zh';
+      }
+      if (hasIt) {
+        return 'it';
+      }
+      return 'other';
+    }
+
+    function normalizeSortValue(member, key) {
+      if (key === 'status') {
+        return member.status ? 1 : 0;
+      }
+      if (key === 'has_photo') {
+        return member.has_photo ? 1 : 0;
+      }
+      if (key === 'age') {
+        const age = getDisplayAge(member);
+        return age == null ? -1 : age;
+      }
+      return (member[key] || '').toString().toLowerCase();
+    }
+
+    function computeAgeFromBirthday(birthday) {
+      if (!birthday) {
+        return null;
+      }
+      const birthDate = new Date(`${birthday}T00:00:00`);
+      if (Number.isNaN(birthDate.getTime())) {
+        return null;
+      }
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age -= 1;
+      }
+      if (age < 0 || age > 130) {
+        return null;
+      }
+      return age;
+    }
+
+    function getDisplayAge(member) {
+      return computeAgeFromBirthday(member.birthday);
+    }
+
+    function updateSortHeaders() {
+      for (const th of document.querySelectorAll('th.sortable')) {
+        const key = th.dataset.sort;
+        if (!key) {
+          continue;
+        }
+        const base = th.textContent.replace(/\s*[↑↓]$/, '');
+        if (memberSortState.key === key) {
+          th.textContent = `${base} ${memberSortState.direction === 'asc' ? '↑' : '↓'}`;
+        } else {
+          th.textContent = base;
+        }
+      }
+    }
+
+    function getFilteredSortedMembers() {
+      let rows = [...allMembers];
+
+      const statusFilter = memberStatusFilterEl.value;
+      if (statusFilter === 'active') {
+        rows = rows.filter((m) => !!m.status);
+      } else if (statusFilter === 'inactive') {
+        rows = rows.filter((m) => !m.status);
+      }
+
+      const photoFilter = memberPhotoFilterEl.value;
+      if (photoFilter === 'with') {
+        rows = rows.filter((m) => !!m.has_photo);
+      } else if (photoFilter === 'without') {
+        rows = rows.filter((m) => !m.has_photo);
+      }
+
+      const groupFilter = memberGroupFilterEl.value;
+      if (groupFilter === '__empty__') {
+        rows = rows.filter((m) => !(m.group || '').trim());
+      } else if (groupFilter !== 'all') {
+        rows = rows.filter((m) => (m.group || '').trim() === groupFilter);
+      }
+
+      rows.sort((a, b) => {
+        const left = normalizeSortValue(a, memberSortState.key);
+        const right = normalizeSortValue(b, memberSortState.key);
+        if (left < right) {
+          return memberSortState.direction === 'asc' ? -1 : 1;
+        }
+        if (left > right) {
+          return memberSortState.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+      return rows;
+    }
+
+    function renderGroupFilterOptions() {
+      const previous = memberGroupFilterEl.value || 'all';
+      const groups = [...new Set(
+        allMembers
+          .map((m) => (m.group || '').trim())
+          .filter((g) => g.length > 0)
+      )].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+
+      memberGroupFilterEl.innerHTML = '<option value="all">分组: 全部</option><option value="__empty__">分组: 未分组</option>';
+      for (const g of groups) {
+        const opt = document.createElement('option');
+        opt.value = g;
+        opt.textContent = `分组: ${g}`;
+        memberGroupFilterEl.appendChild(opt);
+      }
+
+      const hasPrevious = Array.from(memberGroupFilterEl.options).some((o) => o.value === previous);
+      memberGroupFilterEl.value = hasPrevious ? previous : 'all';
+    }
+
+    function initTabs() {
+      const buttons = Array.from(document.querySelectorAll('.tab-btn'));
+      const panels = Array.from(document.querySelectorAll('.tab-panel'));
+      for (const btn of buttons) {
+        btn.addEventListener('click', () => {
+          for (const b of buttons) {
+            b.classList.toggle('active', b === btn);
+          }
+          const target = btn.dataset.tab;
+          for (const panel of panels) {
+            panel.classList.toggle('active', panel.id === target);
+          }
+        });
+      }
+    }
+
+    function setHistoryExportLink() {
+      const params = new URLSearchParams();
+      if (selectedEventId) {
+        params.set('event_id', selectedEventId);
+      }
+      params.set('limit', String(Math.max(1, Math.min(20000, Number(historyLimitEl.value || '100')))));
+      const base = '/attendance/history/export.csv';
+      historyExportLinkEl.href = params.toString() ? `${base}?${params.toString()}` : base;
+    }
+
+    function setMemberEditState(enabled) {
+      memberEditMode = enabled;
+      modalNameEl.disabled = !enabled;
+      modalNameChnEl.disabled = !enabled;
+      modalGroupEl.disabled = !enabled;
+      modalBirthdayEl.disabled = !enabled;
+      modalAgeEl.disabled = true;
+      modalNoteEl.disabled = !enabled;
+
+      memberEditBtn.classList.toggle('hidden', enabled);
+      memberSaveBtn.classList.toggle('hidden', !enabled);
+      memberCancelEditBtn.classList.toggle('hidden', !enabled);
+    }
+
+    function fillMemberModal(member) {
+      modalTitleEl.textContent = `会友详情：${member.name || ''}`;
+      modalSubEl.textContent = `Member ID: ${member.id}`;
+      modalNameEl.value = member.name || '';
+      modalNameChnEl.value = member.name_chn || '';
+      modalGroupEl.value = member.group || '';
+      modalBirthdayEl.value = member.birthday || '';
+      modalAgeEl.value = getDisplayAge(member) ?? '';
+      modalNoteEl.value = member.note || '';
+      modalStatusEl.innerHTML = member.status
+        ? '<span class="status-pill active">active</span>'
+        : '<span class="status-pill inactive">inactive</span>';
+      memberDeactivateBtn.classList.toggle('hidden', !member.status);
+      memberRestoreBtn.classList.toggle('hidden', !!member.status);
+      setMemberEditState(false);
+    }
+
+    function openMemberModal(member) {
+      currentMember = member;
+      fillMemberModal(member);
+      memberModalOverlayEl.classList.add('show');
+      loadMemberPhotos();
+    }
+
+    function closeMemberModal() {
+      memberModalOverlayEl.classList.remove('show');
+      currentMember = null;
+      pendingReplacePhotoId = null;
+      setMemberEditState(false);
+      photoUploadInputEl.value = '';
+      photoReplaceInputEl.value = '';
+      photoRowsEl.innerHTML = '';
+    }
+
+    function renderMemberRows() {
+      rowsEl.innerHTML = '';
+      renderGroupFilterOptions();
+
+      const rows = getFilteredSortedMembers();
+      for (const m of rows) {
+        const tr = document.createElement('tr');
+        tr.className = 'member-row';
+        const displayAge = getDisplayAge(m);
+        tr.innerHTML = `
+          <td>${m.name || ''}</td>
+          <td>${m.name_chn || '-'}</td>
+          <td>${m.birthday || '-'}</td>
+          <td>${displayAge == null ? '-' : displayAge}</td>
+          <td>${m.has_photo ? '<span class="status-pill active">有照片</span>' : '<span class="status-pill inactive">无照片</span>'}</td>
+          <td>${m.group || '-'}</td>
+          <td>${m.note || '-'}</td>
+          <td>${m.status ? '<span class="status-pill active">active</span>' : '<span class="status-pill inactive">inactive</span>'}</td>
+          <td></td>
+        `;
+
+        tr.addEventListener('click', (ev) => {
+          if (ev.target && ev.target.tagName === 'BUTTON') {
+            ev.stopPropagation();
+          }
+          openMemberModal(m);
+        });
+
+        const actionTd = tr.children[8];
+        const detailBtn = document.createElement('button');
+        detailBtn.textContent = '查看详情';
+        detailBtn.className = 'small';
+        detailBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          openMemberModal(m);
+        });
+        const deactivateBtn = document.createElement('button');
+        deactivateBtn.textContent = '停用';
+        deactivateBtn.className = 'small warn';
+        deactivateBtn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          if (!confirm(`确认停用 ${m.name} ?\n停用为逻辑删除，系统会保留历史签到记录。`)) {
+            return;
+          }
+          const r = await fetch(`/members/${m.id}`, { method: 'DELETE' });
+          if (!r.ok) {
+            const err = await r.json();
+            alert(`停用失败: ${err.detail || r.status}`);
+            return;
+          }
+          await listMembers();
+          await loadDashboard();
+        });
+
+        const restoreBtn = document.createElement('button');
+        restoreBtn.textContent = '恢复';
+        restoreBtn.className = 'small ok';
+        restoreBtn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const r = await fetch(`/members/${m.id}/restore`, { method: 'POST' });
+          if (!r.ok) {
+            const err = await r.json();
+            alert(`恢复失败: ${err.detail || r.status}`);
+            return;
+          }
+          await listMembers();
+          await loadDashboard();
+        });
+
+        actionTd.appendChild(detailBtn);
+        if (m.status) {
+          actionTd.appendChild(deactivateBtn);
+        } else {
+          actionTd.appendChild(restoreBtn);
+        }
+
+        rowsEl.appendChild(tr);
+      }
+      updateSortHeaders();
+      setHistoryExportLink();
+    }
+
+    function buildMemberListUrl() {
+      const keyword = (memberSearchInputEl.value || '').trim();
+      if (!keyword) {
+        return '/members?limit=500&active_only=false';
+      }
+      const params = new URLSearchParams();
+      params.set('q', keyword);
+      params.set('active_only', 'false');
+      params.set('limit', '200');
+      return `/members/search?${params.toString()}`;
+    }
+
+    async function listMembers() {
+      const querySeq = ++memberQuerySeq;
+      const res = await fetch(buildMemberListUrl());
+      if (!res.ok) {
+        let detail = `${res.status}`;
+        try {
+          const err = await res.json();
+          detail = err.detail || detail;
+        } catch {
+          detail = res.statusText || detail;
+        }
+        throw new Error(`成员查询失败: ${detail}`);
+      }
+      const data = await res.json();
+      if (querySeq !== memberQuerySeq) {
+        return;
+      }
+      allMembers = data.items || [];
+      memberById.clear();
+      for (const m of allMembers) {
+        memberById.set(String(m.id), m);
+      }
+      renderMemberRows();
+    }
+
+    async function saveCurrentMember() {
+      if (!currentMember) {
+        return;
+      }
+      const payload = {
+        name: modalNameEl.value.trim(),
+        name_chn: modalNameChnEl.value.trim() || null,
+        group: modalGroupEl.value.trim() || null,
+        birthday: modalBirthdayEl.value || null,
+        note: modalNoteEl.value.trim() || null
+      };
+      if (!payload.name) {
+        alert('姓名不能为空');
+        return;
+      }
+      const r = await fetch(`/members/${currentMember.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) {
+        const err = await r.json();
+        alert(`保存失败: ${err.detail || r.status}`);
+        return;
+      }
+      const updated = await r.json();
+      currentMember = updated;
+      fillMemberModal(updated);
+      await listMembers();
+      await loadDashboard();
+    }
+
+    async function deactivateCurrentMember() {
+      if (!currentMember) {
+        return;
+      }
+      const ok = confirm(`确认停用 ${currentMember.name} ?\n停用为逻辑删除，系统会保留历史签到记录。`);
+      if (!ok) {
+        return;
+      }
+      const r = await fetch(`/members/${currentMember.id}`, { method: 'DELETE' });
+      if (!r.ok) {
+        const err = await r.json();
+        alert(`停用失败: ${err.detail || r.status}`);
+        return;
+      }
+      closeMemberModal();
+      await listMembers();
+      await loadDashboard();
+    }
+
+    async function restoreCurrentMember() {
+      if (!currentMember) {
+        return;
+      }
+      const r = await fetch(`/members/${currentMember.id}/restore`, { method: 'POST' });
+      if (!r.ok) {
+        const err = await r.json();
+        alert(`恢复失败: ${err.detail || r.status}`);
+        return;
+      }
+      const updated = await r.json();
+      currentMember = updated;
+      fillMemberModal(updated);
+      await listMembers();
+      await loadDashboard();
+    }
+
+    async function runSyncRequest(queryString) {
+      const paths = [
+        `/face-library/sync/rebuild${queryString}`,
+        `/face-library/sync${queryString}`,
+        `/face-library/rebuild-sync${queryString}`,
+      ];
+
+      let lastError = null;
+      for (const path of paths) {
+        const response = await fetch(path, { method: 'POST' });
+        if (response.status === 404) {
+          lastError = { detail: 'Not Found' };
+          continue;
+        }
+        if (!response.ok) {
+          let errorPayload = {};
+          try {
+            errorPayload = await response.json();
+          } catch {
+            errorPayload = { detail: response.statusText || response.status };
+          }
+          throw new Error(errorPayload.detail || response.status);
+        }
+        return response.json();
+      }
+
+      throw new Error((lastError && lastError.detail) || 'Not Found');
+    }
+
+    async function syncAllMembersPhotos() {
+      try {
+        const data = await runSyncRequest('?active_only=true');
+        const s = data.summary || {};
+        alert(`同步完成\nprocessed=${s.processed || 0}\nsynced=${s.synced || 0}\nfailed=${s.failed || 0}\nmissing_files=${s.missing_files || 0}`);
+        if (currentMember) {
+          await loadMemberPhotos(String(Date.now()));
+        }
+      } catch (error) {
+        alert(`同步失败: ${error}`);
+      }
+    }
+
+    async function syncCurrentMemberPhotos() {
+      if (!currentMember) {
+        return;
+      }
+      try {
+        const data = await runSyncRequest(`?active_only=true&member_id=${encodeURIComponent(currentMember.id)}`);
+        const s = data.summary || {};
+        alert(`该会友同步完成\nprocessed=${s.processed || 0}\nsynced=${s.synced || 0}\nfailed=${s.failed || 0}\nmissing_files=${s.missing_files || 0}`);
+        await loadMemberPhotos(String(Date.now()));
+      } catch (error) {
+        alert(`同步失败: ${error}`);
+      }
+    }
+
+    function buildPhotoPreviewUrl(photoId, cacheKey = '') {
+      const base = `/face-library/photos/${photoId}/download`;
+      if (!cacheKey) {
+        return base;
+      }
+      return `${base}?t=${encodeURIComponent(cacheKey)}`;
+    }
+
+    async function loadMemberPhotos(cacheKey = '') {
+      if (!currentMember) {
+        photoRowsEl.innerHTML = '';
+        return;
+      }
+
+      const res = await fetch(`/face-library/members/${currentMember.id}/photos?active_only=true`);
+      const data = await res.json();
+      const items = data.items || [];
+      const effectiveCacheKey = cacheKey || String(Date.now());
+      photoRowsEl.innerHTML = '';
+
+      for (const p of items) {
+        const tr = document.createElement('tr');
+        const previewUrl = buildPhotoPreviewUrl(p.id, `${effectiveCacheKey}-${p.remote_face_id || ''}`);
+        tr.innerHTML = `
+          <td><img class="photo-thumb" src="${previewUrl}" alt="photo" /></td>
+          <td>${p.original_filename || ''}</td>
+          <td>${p.remote_face_id || '-'}</td>
+          <td>${p.created_at || '-'}</td>
+          <td></td>
+        `;
+        const actionTd = tr.children[4];
+
+        const replaceBtn = document.createElement('button');
+        replaceBtn.textContent = '替换';
+        replaceBtn.className = 'small alt';
+        replaceBtn.onclick = () => {
+          pendingReplacePhotoId = p.id;
+          photoReplaceInputEl.value = '';
+          photoReplaceInputEl.click();
+        };
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = '删除';
+        deleteBtn.className = 'small warn';
+        deleteBtn.onclick = async () => {
+          if (!confirm(`确认删除照片 ${p.original_filename} ?`)) {
+            return;
+          }
+          const resp = await fetch(`/face-library/photos/${p.id}`, { method: 'DELETE' });
+          if (!resp.ok) {
+            const err = await resp.json();
+            alert(`删除失败: ${err.detail || resp.status}`);
+            return;
+          }
+          await loadMemberPhotos();
+          await listMembers();
+        };
+
+        actionTd.appendChild(replaceBtn);
+        actionTd.appendChild(deleteBtn);
+        photoRowsEl.appendChild(tr);
+      }
+    }
+
+    async function compressImage(file) {
+      const maxSize = 1 * 1024 * 1024;
+      if (file.size <= maxSize) {
+        return file;
+      }
+
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            let quality = 0.9;
+            let canvas = document.createElement('canvas');
+            let ctx = canvas.getContext('2d');
+            let width = img.width;
+            let height = img.height;
+
+            const doCompress = () => {
+              canvas.width = width;
+              canvas.height = height;
+              ctx.drawImage(img, 0, 0, width, height);
+              canvas.toBlob(
+                (blob) => {
+                  if (blob.size <= maxSize || quality <= 0.1) {
+                    const compressedFile = new File([blob], file.name, {
+                      type: 'image/jpeg',
+                      lastModified: Date.now()
+                    });
+                    resolve(compressedFile);
+                  } else {
+                    quality -= 0.1;
+                    doCompress();
+                  }
+                },
+                'image/jpeg',
+                quality
+              );
+            };
+
+            doCompress();
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function uploadNewPhoto() {
+      if (!currentMember) {
+        alert('请先在会友列表中打开一个会友');
+        return;
+      }
+      const file = photoUploadInputEl.files[0];
+      if (!file) {
+        alert('请先选择一张图片');
+        return;
+      }
+
+      const compressedFile = await compressImage(file);
+      const formData = new FormData();
+      formData.append('file', compressedFile);
+      const resp = await fetch(`/face-library/members/${currentMember.id}/photos`, {
+        method: 'POST',
+        body: formData
+      });
+      if (!resp.ok) {
+        const err = await resp.json();
+        alert(`上传失败: ${err.detail || resp.status}`);
+        return;
+      }
+      photoUploadInputEl.value = '';
+      await loadMemberPhotos(String(Date.now()));
+      await listMembers();
+    }
+
+    async function replacePhoto(file) {
+      if (!pendingReplacePhotoId || !file) {
+        return;
+      }
+      const compressedFile = await compressImage(file);
+      const formData = new FormData();
+      formData.append('file', compressedFile);
+      const resp = await fetch(`/face-library/photos/${pendingReplacePhotoId}`, {
+        method: 'PUT',
+        body: formData
+      });
+      if (!resp.ok) {
+        const err = await resp.json();
+        alert(`替换失败: ${err.detail || resp.status}`);
+        return;
+      }
+      pendingReplacePhotoId = null;
+      await loadMemberPhotos(String(Date.now()));
+    }
+
+    async function listEvents() {
+      const allRes = await fetch('/events?include_archived=true&limit=1000');
+      const allData = await allRes.json();
+      refreshEventYearOptions(allData.items || []);
+
+      const selectedYear = Number(eventYearFilterEl.value || '0');
+      const selectedLanguage = eventLanguageFilterEl.value || 'all';
+      const selectedLimit = Math.max(1, Math.min(1000, Number(eventLimitEl.value || '50')));
+
+      let items = (allData.items || []).slice();
+      if (selectedYear > 0) {
+        items = items.filter((e) => Number((e.event_date || '').slice(0, 4)) === selectedYear);
+      }
+      if (selectedLanguage !== 'all') {
+        items = items.filter((e) => inferEventLanguage(e.event_name) === selectedLanguage);
+      }
+      items.sort((a, b) => {
+        if (a.event_date === b.event_date) {
+          return (a.event_name || '').localeCompare(b.event_name || '', 'zh-Hans-CN');
+        }
+        return String(b.event_date || '').localeCompare(String(a.event_date || ''));
+      });
+      items = items.slice(0, selectedLimit);
+
+      eventRowsEl.innerHTML = '';
+      eventMap.clear();
+
+      if (!items.length) {
+        selectedEventId = '';
+        historyEventTitleEl.textContent = '未选择场次';
+        historyRowsEl.innerHTML = '';
+        eventRowsEl.innerHTML = '<div class="mini">当前筛选下没有场次</div>';
+        setHistoryExportLink();
+        return;
+      }
+
+      for (const e of items) {
+        eventMap.set(e.id, e);
+
+        const itemEl = document.createElement('button');
+        itemEl.type = 'button';
+        itemEl.className = 'event-list-item';
+        itemEl.dataset.eventId = e.id;
+        itemEl.innerHTML = `
+          <div>${e.event_name || `${e.event_date}`}</div>
+          <div class="event-list-meta">${e.event_date}${e.is_archived ? ' · 已归档' : ''}</div>
+        `;
+
+        itemEl.addEventListener('click', async () => {
+          selectedEventId = e.id;
+          for (const rowEl of eventRowsEl.querySelectorAll('.event-list-item')) {
+            rowEl.classList.toggle('active', rowEl.dataset.eventId === e.id);
+          }
+          historyEventTitleEl.textContent = e.event_name || `${e.event_date}`;
+          setHistoryExportLink();
+          await loadHistory();
+        });
+
+        eventRowsEl.appendChild(itemEl);
+      }
+
+      if (!selectedEventId || !eventMap.has(selectedEventId)) {
+        selectedEventId = items[0].id;
+      }
+
+      for (const rowEl of eventRowsEl.querySelectorAll('.event-list-item')) {
+        rowEl.classList.toggle('active', rowEl.dataset.eventId === selectedEventId);
+      }
+
+      const selectedEvent = eventMap.get(selectedEventId);
+      historyEventTitleEl.textContent = selectedEvent
+        ? (selectedEvent.event_name || `${selectedEvent.event_date}`)
+        : '未选择场次';
+      setHistoryExportLink();
+    }
+
+    let historyItems = [];
+    let historyPageSize = Number(historyLimitEl.value || '100');
+    let historyPageIndex = 1;
+    let historySortState = { key: 'check_in_time', direction: 'desc' };
+
+    function renderHistoryPage() {
+      historyRowsEl.innerHTML = '';
+      if (!historyItems || !historyItems.length) {
+        historyRowsEl.innerHTML = '<tr><td colspan="5" class="mini">当前没有签到记录</td></tr>';
+        document.getElementById('historyPageInfo').textContent = '';
+        return;
+      }
+
+      const items = [...historyItems];
+      const key = historySortState.key;
+      const dir = historySortState.direction === 'asc' ? 1 : -1;
+
+      items.sort((a, b) => {
+        let left = '';
+        let right = '';
+        if (key === 'check_in_time') {
+          left = a.check_in_time || '';
+          right = b.check_in_time || '';
+        } else if (key === 'member_name') {
+          left = (a.member_name || '').toLowerCase();
+          right = (b.member_name || '').toLowerCase();
+        } else if (key === 'member_name_chn') {
+          left = ((memberById.get(String(a.member_id)) || {}).name_chn || '').toLowerCase();
+          right = ((memberById.get(String(b.member_id)) || {}).name_chn || '').toLowerCase();
+        } else if (key === 'method') {
+          left = (a.method || '').toLowerCase();
+          right = (b.method || '').toLowerCase();
+        }
+        if (left < right) return -1 * dir;
+        if (left > right) return 1 * dir;
+        return 0;
+      });
+
+      const total = items.length;
+      const pageSize = historyPageSize;
+      const maxPage = Math.max(1, Math.ceil(total / pageSize));
+      if (historyPageIndex > maxPage) historyPageIndex = maxPage;
+      if (historyPageIndex < 1) historyPageIndex = 1;
+
+      const start = (historyPageIndex - 1) * pageSize;
+      const pageItems = items.slice(start, start + pageSize);
+
+      for (const item of pageItems) {
+        const member = memberById.get(String(item.member_id));
+        const memberChn = member && member.name_chn ? member.name_chn : '-';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${item.check_in_time}</td>
+          <td>${item.member_name}</td>
+          <td>${memberChn}</td>
+          <td>${item.method}</td>
+          <td></td>
+        `;
+
+        const actionTd = tr.children[4];
+        const undoBtn = document.createElement('button');
+        undoBtn.textContent = '取消签到';
+        undoBtn.className = 'small warn';
+        undoBtn.addEventListener('click', async () => {
+          if (!confirm(`确认取消 ${item.member_name} 的这条签到记录？`)) {
+            return;
+          }
+          const resp = await fetch(`/attendance/history/${item.id}`, { method: 'DELETE' });
+          if (!resp.ok) {
+            let err = null;
+            try {
+              err = await resp.json();
+            } catch {
+              err = { detail: resp.statusText || resp.status };
+            }
+            alert(`取消失败: ${err.detail || resp.status}`);
+            return;
+          }
+          // remove locally and re-render
+          historyItems = historyItems.filter((x) => x.id !== item.id);
+          if ((historyItems.length <= (historyPageIndex - 1) * historyPageSize) && historyPageIndex > 1) {
+            historyPageIndex -= 1;
+          }
+          renderHistoryPage();
+          await loadDashboard();
+        });
+        actionTd.appendChild(undoBtn);
+
+        historyRowsEl.appendChild(tr);
+      }
+
+      document.getElementById('historyPageInfo').textContent = `第 ${historyPageIndex} / ${maxPage} 页 · 共 ${total} 条`;
+      setHistoryExportLink();
+    }
+
+    async function loadHistory() {
+      if (!selectedEventId) {
+        historyItems = [];
+        renderHistoryPage();
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set('event_id', selectedEventId);
+      // fetch up to 1000 items (server max) and paginate client-side
+      params.set('limit', String(1000));
+
+      const res = await fetch(`/attendance/history?${params.toString()}`);
+      const data = await res.json();
+      historyItems = data.items || [];
+      historyPageSize = Number(historyLimitEl.value || '100');
+      historyPageIndex = 1;
+      renderHistoryPage();
+    }
+
+    function renderDailyBars(points) {
+      dailyBarsEl.innerHTML = '';
+      const sundayOnly = (points || []).filter((p) => {
+        const d = new Date(`${p.event_date}T12:00:00`);
+        if (Number.isNaN(d.getTime())) {
+          return false;
+        }
+        return d.getDay() === 0;
+      });
+      const max = Math.max(1, ...sundayOnly.map((p) => Number(p.checkins || 0)));
+      for (const p of sundayOnly) {
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        const width = Math.max(0, Math.round((Number(p.checkins || 0) / max) * 100));
+        row.innerHTML = `
+          <div>${p.event_date}</div>
+          <div class="bar-track"><div class="bar" style="width:${width}%"></div></div>
+          <div>${p.checkins}</div>
+        `;
+        dailyBarsEl.appendChild(row);
+      }
+    }
+
+    async function loadDashboard() {
+      const days = Math.max(1, Math.min(180, Number(document.getElementById('dashboardDays').value || '14')));
+      const res = await fetch(`/attendance/dashboard?days=${days}&top_events_limit=8`);
+      const data = await res.json();
+      const summary = data.summary || {};
+
+      document.getElementById('statMembers').textContent = summary.active_members ?? 0;
+      document.getElementById('statEvents').textContent = summary.active_events ?? 0;
+      document.getElementById('statCheckins').textContent = summary.total_checkins ?? 0;
+      document.getElementById('statAuto').textContent = summary.auto_checkins ?? 0;
+      document.getElementById('statManual').textContent = summary.manual_checkins ?? 0;
+      document.getElementById('statUnknown').textContent = summary.pending_unknown_cases ?? 0;
+      document.getElementById('statAvgZh').textContent = summary.avg_this_year_zh ?? 0;
+      document.getElementById('statAvgIt').textContent = summary.avg_this_year_it ?? 0;
+
+      renderDailyBars(data.daily || []);
+
+      boardTopEventsEl.innerHTML = '';
+      for (const row of (data.top_events || [])) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.event_name}</td>
+          <td>${row.event_date}</td>
+          <td>${row.checkins}</td>
+        `;
+        boardTopEventsEl.appendChild(tr);
+      }
+    }
+
+    document.getElementById('createBtn').addEventListener('click', async () => {
+      const payload = {
+        name: document.getElementById('name').value.trim(),
+        name_chn: document.getElementById('nameChn').value.trim() || null,
+        group: document.getElementById('group').value.trim() || null,
+        birthday: document.getElementById('birthday').value || null,
+        note: document.getElementById('note').value.trim() || null,
+        status: true
+      };
+      if (!payload.name) {
+        alert('姓名不能为空');
+        return;
+      }
+      const res = await fetch('/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(`创建失败: ${err.detail || res.status}`);
+        return;
+      }
+      document.getElementById('name').value = '';
+      document.getElementById('nameChn').value = '';
+      document.getElementById('group').value = '';
+      document.getElementById('birthday').value = '';
+      document.getElementById('note').value = '';
+      await listMembers();
+      await loadDashboard();
+    });
+
+    document.getElementById('reloadBtn').addEventListener('click', listMembers);
+    document.getElementById('syncAllBtn').addEventListener('click', syncAllMembersPhotos);
+    memberSearchInputEl.addEventListener('input', () => {
+      clearTimeout(memberSearchDebounceTimer);
+      memberSearchDebounceTimer = setTimeout(() => {
+        listMembers().catch((err) => {
+          console.error('listMembers search error', err);
+        });
+      }, 220);
+    });
+    memberStatusFilterEl.addEventListener('change', renderMemberRows);
+    memberPhotoFilterEl.addEventListener('change', renderMemberRows);
+    memberGroupFilterEl.addEventListener('change', renderMemberRows);
+
+    for (const th of document.querySelectorAll('th.sortable')) {
+      th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (!key) {
+          return;
+        }
+        if (memberSortState.key === key) {
+          memberSortState.direction = memberSortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          memberSortState.key = key;
+          memberSortState.direction = 'asc';
+        }
+        renderMemberRows();
+      });
+    }
+
+    document.getElementById('closeMemberModalBtn').addEventListener('click', closeMemberModal);
+    memberModalOverlayEl.addEventListener('click', (ev) => {
+      if (ev.target === memberModalOverlayEl) {
+        closeMemberModal();
+      }
+    });
+
+    memberEditBtn.addEventListener('click', () => setMemberEditState(true));
+    memberCancelEditBtn.addEventListener('click', () => {
+      if (currentMember) {
+        fillMemberModal(currentMember);
+      }
+    });
+    memberSaveBtn.addEventListener('click', saveCurrentMember);
+    memberDeactivateBtn.addEventListener('click', deactivateCurrentMember);
+    memberRestoreBtn.addEventListener('click', restoreCurrentMember);
+    document.getElementById('memberSyncBtn').addEventListener('click', syncCurrentMemberPhotos);
+
+    document.getElementById('photoUploadBtn').addEventListener('click', uploadNewPhoto);
+    document.getElementById('photoReloadBtn').addEventListener('click', loadMemberPhotos);
+    photoReplaceInputEl.addEventListener('change', async () => {
+      const file = photoReplaceInputEl.files[0];
+      await replacePhoto(file);
+    });
+
+    document.getElementById('eventReloadBtn').addEventListener('click', async () => {
+      await listEvents();
+      await loadHistory();
+    });
+    eventYearFilterEl.addEventListener('change', async () => {
+      await listEvents();
+      await loadHistory();
+    });
+    eventLanguageFilterEl.addEventListener('change', async () => {
+      await listEvents();
+      await loadHistory();
+    });
+    eventLimitEl.addEventListener('change', async () => {
+      await listEvents();
+      await loadHistory();
+    });
+
+    historyLimitEl.addEventListener('change', () => {
+      historyPageSize = Number(historyLimitEl.value || '100');
+      historyPageIndex = 1;
+      renderHistoryPage();
+      setHistoryExportLink();
+    });
+    document.getElementById('historyPrevBtn').addEventListener('click', () => {
+      historyPageIndex = Math.max(1, historyPageIndex - 1);
+      renderHistoryPage();
+    });
+    document.getElementById('historyNextBtn').addEventListener('click', () => {
+      historyPageIndex = historyPageIndex + 1;
+      renderHistoryPage();
+    });
+
+    // sortable headers for history table
+    for (const th of document.querySelectorAll('.history-table th.sortable')) {
+      th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (!key) return;
+        if (historySortState.key === key) {
+          historySortState.direction = historySortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          historySortState.key = key;
+          historySortState.direction = 'asc';
+        }
+        renderHistoryPage();
+      });
+    }
+    document.getElementById('historyQueryBtn').addEventListener('click', loadHistory);
+    document.getElementById('dashboardRefreshBtn').addEventListener('click', loadDashboard);
+
+    async function initPage() {
+      initTabs();
+      await listMembers();
+      await listEvents();
+      await loadHistory();
+      await loadDashboard();
+    }
+
+    initPage();
+  </script>
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>系统调试工作台</title>
+  <style>
+    :root {
+      --bg: #f3f6ef;
+      --panel: #ffffff;
+      --ink: #102a17;
+      --sub: #4f6655;
+      --ok: #2a8f4d;
+      --warn: #bd7c25;
+      --line: #c8d8c7;
+      --accent: #0a5c36;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 10%, #dfeedd 0%, transparent 35%),
+        radial-gradient(circle at 90% 20%, #d8ebe2 0%, transparent 40%),
+        var(--bg);
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 0 16px 24px;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 10px 24px rgba(12, 34, 17, 0.06);
+    }
+    h1 { margin: 0 0 10px; font-size: 22px; }
+    h2 { margin: 0 0 10px; font-size: 16px; color: var(--sub); }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    input {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      min-width: 120px;
+      background: #fff;
+      color: var(--ink);
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 12px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.alt { background: #36554a; }
+    button.warn { background: #8a5a2d; }
+    .muted { color: var(--sub); font-size: 13px; }
+    .back-home {
+      display: inline-block;
+      margin-top: 8px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .status { font-size: 13px; line-height: 1.5; }
+    .status b.ok { color: var(--ok); }
+    .status b.warn { color: var(--warn); }
+    #debugFrame {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #1d1f1f;
+      min-height: 280px;
+      object-fit: contain;
+    }
+    #events {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      max-height: 320px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fbfdf8;
+    }
+    #events li {
+      padding: 8px 10px;
+      border-bottom: 1px dashed var(--line);
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    #events li:last-child { border-bottom: 0; }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>系统调试工作台</h1>
+      <div class="muted">用于联调 Phase E：流媒体控制、参数热更新、双通道 WebSocket 观察。</div>
+      <a class="back-home" href="/">返回首页</a>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>流媒体控制</h2>
+        <div class="row">
+          <input id="source" placeholder="RTSP 或摄像头索引(如 0)" />
+          <button id="startBtn">启动流</button>
+          <button id="stopBtn" class="warn">停止流</button>
+          <button id="refreshBtn" class="alt">刷新状态</button>
+        </div>
+        <div id="status" class="status" style="margin-top:10px">状态读取中...</div>
+      </div>
+
+      <div class="card">
+        <h2>超参数热更新</h2>
+        <div class="row">
+          <input id="threshold" placeholder="threshold" />
+          <input id="margin" placeholder="margin" />
+          <input id="frame_skip" placeholder="frame_skip" />
+          <input id="dedupe_seconds" placeholder="dedupe_seconds" />
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="vote_min_samples" placeholder="vote_min_samples" />
+          <input id="vote_window_sec" placeholder="vote_window_sec" />
+          <input id="vote_ratio" placeholder="vote_ratio" />
+          <input id="unknown_min_similarity" placeholder="unknown_min_similarity" />
+          <input id="unknown_min_face_size" placeholder="unknown_min_face_size" />
+          <button id="updateParamsBtn">更新参数</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Channel A（签到/事件）</h2>
+        <ul id="events"></ul>
+      </div>
+      <div class="card">
+        <h2>Channel B（调试视频）</h2>
+        <img id="debugFrame" alt="debug frame" />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const eventsEl = document.getElementById('events');
+    const imgEl = document.getElementById('debugFrame');
+
+    const api = {
+      async getStatus() {
+        const res = await fetch('/system/status');
+        return res.json();
+      },
+      async startStream(source) {
+        const res = await fetch('/system/stream/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: source || null })
+        });
+        return res.json();
+      },
+      async stopStream() {
+        const res = await fetch('/system/stream/stop', { method: 'POST' });
+        return res.json();
+      },
+      async updateParams(payload) {
+        const res = await fetch('/system/hyperparameters', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        return res.json();
+      }
+    };
+
+    function wsBase() {
+      const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+      return `${protocol}://${location.host}`;
+    }
+
+    function addEvent(event) {
+      const li = document.createElement('li');
+      li.textContent = JSON.stringify(event, null, 2);
+      eventsEl.prepend(li);
+      while (eventsEl.children.length > 80) {
+        eventsEl.removeChild(eventsEl.lastChild);
+      }
+    }
+
+    function renderStatus(data) {
+      const rt = data.runtime || {};
+      const stream = rt.stream_running ? '<b class="ok">运行中</b>' : '<b class="warn">未运行</b>';
+      statusEl.innerHTML = `
+        流状态: ${stream}<br/>
+        摄像头线程: ${rt.camera_running}<br/>
+        识别线程: ${rt.recognition_running}<br/>
+        帧队列: ${rt.frame_queue_size} | 事件队列: ${rt.event_queue_size}
+      `;
+    }
+
+    async function refreshStatus() {
+      try {
+        const data = await api.getStatus();
+        renderStatus(data);
+      } catch (e) {
+        statusEl.textContent = `状态获取失败: ${e}`;
+      }
+    }
+
+    function parseNum(id, parser) {
+      const raw = document.getElementById(id).value.trim();
+      if (!raw) return undefined;
+      const v = parser(raw);
+      return Number.isFinite(v) ? v : undefined;
+    }
+
+    function connectChannelA() {
+      const ws = new WebSocket(`${wsBase()}/ws/channel-a`);
+      ws.onopen = () => addEvent({ info: 'Channel A 已连接' });
+      ws.onmessage = (evt) => {
+        try {
+          addEvent(JSON.parse(evt.data));
+        } catch {
+          addEvent({ raw: evt.data });
+        }
+      };
+      ws.onclose = () => {
+        addEvent({ warn: 'Channel A 断开，3秒后重连' });
+        setTimeout(connectChannelA, 3000);
+      };
+      setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send('ping');
+        }
+      }, 15000);
+    }
+
+    function connectChannelB() {
+      const ws = new WebSocket(`${wsBase()}/ws/channel-b`);
+      ws.onmessage = (evt) => {
+        try {
+          const payload = JSON.parse(evt.data);
+          if (payload.image_base64) {
+            imgEl.src = `data:image/jpeg;base64,${payload.image_base64}`;
+          }
+        } catch {
+          // ignore malformed payload
+        }
+      };
+      ws.onclose = () => {
+        setTimeout(connectChannelB, 3000);
+      };
+      setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send('ping');
+        }
+      }, 15000);
+    }
+
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      const source = document.getElementById('source').value.trim();
+      const data = await api.startStream(source);
+      addEvent({ action: 'start_stream', data });
+      renderStatus(data);
+    });
+
+    document.getElementById('stopBtn').addEventListener('click', async () => {
+      const data = await api.stopStream();
+      addEvent({ action: 'stop_stream', data });
+      renderStatus(data);
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', refreshStatus);
+
+    document.getElementById('updateParamsBtn').addEventListener('click', async () => {
+      const payload = {
+        threshold: parseNum('threshold', parseFloat),
+        margin: parseNum('margin', parseFloat),
+        frame_skip: parseNum('frame_skip', Number),
+        dedupe_seconds: parseNum('dedupe_seconds', Number),
+        vote_min_samples: parseNum('vote_min_samples', Number),
+        vote_window_sec: parseNum('vote_window_sec', parseFloat),
+        vote_ratio: parseNum('vote_ratio', parseFloat),
+        unknown_min_similarity: parseNum('unknown_min_similarity', parseFloat),
+        unknown_min_face_size: parseNum('unknown_min_face_size', Number)
+      };
+      Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
+      if (Object.keys(payload).length === 0) {
+        addEvent({ warn: '未填写任何参数' });
+        return;
+      }
+      const data = await api.updateParams(payload);
+      addEvent({ action: 'update_hyperparameters', data });
+      await refreshStatus();
+    });
+
+    refreshStatus();
+    connectChannelA();
+    connectChannelB();
+  </script>
+</body>
+</html>

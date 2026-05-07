@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>教会自动签到系统</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: rgba(255, 255, 255, 0.92);
+      --ink: #10233d;
+      --sub: #556783;
+      --line: #d7e1ee;
+      --pri: #184a8d;
+      --pri-2: #2b77d2;
+      --acc: #0f7a4a;
+      --warn: #9a5a18;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Source Han Sans SC", "PingFang SC", sans-serif;
+      background:
+        radial-gradient(circle at 12% 15%, #dbe8ff 0%, transparent 32%),
+        radial-gradient(circle at 88% 20%, #e0f4ef 0%, transparent 30%),
+        radial-gradient(circle at 50% 88%, #f4e6d1 0%, transparent 30%),
+        linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+    }
+    .shell {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 18px 32px;
+    }
+    .hero {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 28px;
+      background: linear-gradient(135deg, rgba(255,255,255,.96), rgba(245,249,255,.9));
+      box-shadow: 0 18px 40px rgba(17, 39, 72, 0.08);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: #e5eefb;
+      color: var(--pri);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .04em;
+    }
+    h1 {
+      margin: 14px 0 10px;
+      font-size: clamp(30px, 4vw, 50px);
+      line-height: 1.08;
+    }
+    .lead {
+      margin: 0;
+      max-width: 760px;
+      color: var(--sub);
+      font-size: 16px;
+      line-height: 1.8;
+    }
+    .meta {
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--sub);
+      font-size: 13px;
+    }
+    .meta span {
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.8);
+    }
+    .grid {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 190px;
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: 0 12px 28px rgba(16, 35, 61, 0.06);
+      text-decoration: none;
+      color: inherit;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 34px rgba(16, 35, 61, 0.1);
+      border-color: #b9cbe3;
+    }
+    .card h2 {
+      margin: 0;
+      font-size: 22px;
+    }
+    .card p {
+      margin: 0;
+      color: var(--sub);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+    .badge {
+      align-self: flex-start;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .03em;
+      color: #fff;
+    }
+    .badge.admin { background: var(--pri); }
+    .badge.debug { background: var(--warn); }
+    .badge.reception { background: var(--acc); }
+    .warn {
+      margin-top: auto;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #efcfaa;
+      background: #fff6ea;
+      color: #8b4c0f;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .footer {
+      margin-top: 16px;
+      color: var(--sub);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .linkbar {
+      margin-top: 16px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .linkbar a {
+      color: var(--pri);
+      text-decoration: none;
+      font-weight: 700;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">Church Auto Check-in System</div>
+      <h1>自动签到系统入口</h1>
+      <p class="lead">
+        这是系统总首页，用来进入三个工作台：事工管理后台、系统调试工作台、接待同工工作台。
+        首页由 FastAPI 提供，Nginx 只负责把根路径和 WebSocket / API 反代到后端。
+      </p>
+      <div class="meta">
+        <span>主页：/</span>
+        <span>管理台：/admin</span>
+        <span>调试台：/debug</span>
+        <span>接待台：/reception</span>
+      </div>
+      <div class="grid">
+        <a class="card" href="/reception">
+          <div class="badge reception">RECEPTION</div>
+          <h2>接待同工工作台</h2>
+          <p>查看实时签到、异常抓拍队列、快捷搜索与手动补签。</p>
+        </a>
+        <a class="card" href="/admin">
+          <div class="badge admin">ADMIN</div>
+          <h2>事工管理后台</h2>
+          <p>会友管理、照片库管理、场次与历史签到查询、统计看板。</p>
+        </a>
+        <a class="card" href="/debug" id="debugCard" aria-label="系统调试工作台（技术同工专用）">
+          <div class="badge debug">OPS</div>
+          <h2>系统调试工作台</h2>
+          <p>查看 Channel A / B、控制流媒体、热更新识别超参数。仅技术同工可进入。</p>
+          <div class="warn">TECH ONLY · 需要本机口令验证</div>
+        </a>
+      </div>
+      <div class="linkbar">
+        <a href="/health">健康检查</a>
+        <a href="/system/status">系统状态</a>
+        <a href="/docs">API 文档</a>
+      </div>
+      <div class="footer">
+        如果你在 Nginx 前面部署，请保持根路径反代到 FastAPI；API 与 WebSocket 也继续由后端处理。调试台启用了技术同工认证。
+      </div>
+    </section>
+  </main>
+</body>
+</html>
