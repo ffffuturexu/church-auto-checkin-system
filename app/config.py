@@ -20,9 +20,12 @@ class Config:
         # Script Settings
         self.MODE = self.config.get('Script', 'Mode', fallback='camera').lower()
         self.THRESHOLD = self.config.getfloat('Script', 'Threshold', fallback=0.70)
-        self.MARGIN = self.config.getfloat('Script', 'Margin', fallback=0.20)
+        self.MARGIN = self.config.getfloat('Script', 'Margin', fallback=0.18)
         self.DEDUPE_SECONDS = self.config.getint('Script', 'DedupeSeconds', fallback=60)
         self.FRAME_SKIP = self.config.getint('Script', 'FrameSkip', fallback=2)
+        self.VOTE_WINDOW_SEC = self.config.getfloat('Script', 'VoteWindowSec', fallback=1.5)
+        self.VOTE_MIN_SAMPLES = self.config.getint('Script', 'VoteMinSamples', fallback=5)
+        self.VOTE_RATIO = self.config.getfloat('Script', 'VoteRatio', fallback=0.65)
         self.UNKNOWN_MIN_SIMILARITY = self.config.getfloat('Script', 'UnknownMinSimilarity', fallback=0.65)
         self.UNKNOWN_MIN_FACE_SIZE = self.config.getint('Script', 'UnknownMinFaceSize', fallback=64)
         self.MAX_QUEUE_SIZE = self.config.getint('Script', 'MaxQueueSize', fallback=3)

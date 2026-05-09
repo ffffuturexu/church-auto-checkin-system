@@ -184,6 +184,9 @@ class EventDispatcher:
             payload["event_id"] = str(event_id)
         if attendance_record_id is not None:
             payload["attendance_record_id"] = str(attendance_record_id)
+        # Ensure large base64 image fields are not sent over Channel A
+        payload.pop("face_image_base64", None)
+        payload.pop("image_base64", None)
         return payload
 
     def _persist_orphaned_checkin_as_unknown(
@@ -240,8 +243,8 @@ class EventDispatcher:
             "queue_status": UnknownCaseStatus.PENDING.value,
             "note": row.note,
         }
-        if image_base64:
-            payload["image_base64"] = image_base64
+        # Do not include the base64 image in websocket payloads for Channel A
+        # to avoid large strings polluting the reception/check-in views.
         return payload
 
     def _persist_recognition_log_event(self, event: dict) -> None:
@@ -259,6 +262,8 @@ class EventDispatcher:
             db.commit()
 
     def _persist_unknown_event(self, event: dict) -> dict | None:
+        # Start with a copy of the event but we will explicitly remove
+        # any embedded images before returning the payload to Channel A.
         payload = dict(event)
         reason = (str(event.get("reason", "")).strip() or None)
         is_already_logged_failure = reason in {"failed_threshold", "failed_margin"}
@@ -309,6 +314,9 @@ class EventDispatcher:
             payload["second_subject_id"] = second_subject_id
             payload["second_subject_name"] = second_subject_name
             payload["note"] = row.note
+            # Remove any base64 image data from the outgoing payload.
+            payload.pop("image_base64", None)
+            payload.pop("face_image_base64", None)
             return payload
 
     def _should_suppress_unknown_after_successful_checkin(

@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from app.config import settings
+from app.core.time_utils import now_local
 from app.services.camera_service import CameraService
 from app.services.recognition_engine import RecognitionEngine, RecognitionHyperParams
 
@@ -15,10 +16,15 @@ class RuntimeState:
     stream_running: bool
     camera_running: bool
     recognition_running: bool
+    camera_stream_healthy: bool
     frame_queue_size: int
     event_queue_size: int
     camera_stats: dict[str, Any]
+    recognition_stats: dict[str, Any]
     hyperparams: dict[str, Any]
+    camera_source: str | int
+    camera_last_frame_age_sec: float | None
+    recognition_last_debug_frame_age_sec: float | None
 
 
 class RuntimePipeline:
@@ -76,14 +82,20 @@ class RuntimePipeline:
         return self.recognition.read_event_nowait()
 
     def state(self) -> RuntimeState:
+        camera_last_frame_age_sec = self._camera_last_frame_age_sec()
         return RuntimeState(
             stream_running=bool(self._pump_thread and self._pump_thread.is_alive()),
             camera_running=self.camera.is_running(),
             recognition_running=self.recognition.is_running(),
+            camera_stream_healthy=self.camera.is_running() and camera_last_frame_age_sec is not None and camera_last_frame_age_sec <= 8.0,
             frame_queue_size=self.camera.frame_queue.qsize(),
             event_queue_size=self.recognition.event_queue.qsize(),
             camera_stats=asdict(self.camera.stats),
+            recognition_stats=self.recognition.get_runtime_stats(),
             hyperparams=self.recognition.get_hyperparams(),
+            camera_source=self.camera.source,
+            camera_last_frame_age_sec=camera_last_frame_age_sec,
+            recognition_last_debug_frame_age_sec=self._recognition_last_debug_frame_age_sec(),
         )
 
     def _pump_frames(self) -> None:
@@ -93,3 +105,21 @@ class RuntimePipeline:
                 time.sleep(0.01)
                 continue
             self.recognition.submit_frame(frame)
+
+    def _camera_last_frame_age_sec(self) -> float | None:
+        last_frame_at = self.camera.stats.last_frame_captured_at
+        if last_frame_at is None:
+            return None
+        return max(0.0, (now_local() - last_frame_at).total_seconds())
+
+    def _recognition_last_debug_frame_age_sec(self) -> float | None:
+        last_debug_frame_at = self.recognition.get_runtime_stats().get("last_debug_frame_at")
+        if not last_debug_frame_at:
+            return None
+        try:
+            from datetime import datetime
+
+            parsed = datetime.fromisoformat(last_debug_frame_at)
+        except Exception:
+            return None
+        return max(0.0, (now_local() - parsed).total_seconds())

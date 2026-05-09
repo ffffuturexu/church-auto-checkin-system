@@ -80,6 +80,41 @@
     .status { font-size: 13px; line-height: 1.5; }
     .status b.ok { color: var(--ok); }
     .status b.warn { color: var(--warn); }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .status-tile {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfdf8;
+      padding: 12px;
+      min-height: 92px;
+    }
+    .status-tile .label {
+      font-size: 12px;
+      color: var(--sub);
+      margin-bottom: 6px;
+      letter-spacing: 0.02em;
+    }
+    .status-tile .value {
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: 4px;
+    }
+    .status-tile .detail {
+      font-size: 12px;
+      color: var(--sub);
+      line-height: 1.45;
+    }
+    .status-tile.ok .value { color: var(--ok); }
+    .status-tile.warn .value { color: var(--warn); }
+    .status-tile.neutral .value { color: var(--ink); }
+    .status-tile.hot .value { color: #a14c00; }
+    .full { grid-column: 1 / -1; }
     #debugFrame {
       width: 100%;
       border-radius: 10px;
@@ -106,8 +141,34 @@
       word-break: break-word;
     }
     #events li:last-child { border-bottom: 0; }
+    .hyperparams-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+    .hyperparams-grid label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .param-label {
+      font-size: 12px;
+      color: var(--sub);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .hyperparams-grid input {
+      min-width: 100%;
+    }
+    .params-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
     @media (max-width: 900px) {
       .grid { grid-template-columns: 1fr; }
+      .hyperparams-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
     }
   </style>
 </head>
@@ -133,21 +194,54 @@
 
       <div class="card">
         <h2>超参数热更新</h2>
-        <div class="row">
-          <input id="threshold" placeholder="threshold" />
-          <input id="margin" placeholder="margin" />
-          <input id="frame_skip" placeholder="frame_skip" />
-          <input id="dedupe_seconds" placeholder="dedupe_seconds" />
+        <div class="hyperparams-grid">
+          <label>
+            <span class="param-label">阈值 (threshold)</span>
+            <input id="threshold" type="number" step="0.01" min="0" max="1" />
+          </label>
+          <label>
+            <span class="param-label">差值 (margin)</span>
+            <input id="margin" type="number" step="0.01" min="0" max="1" />
+          </label>
+          <label>
+            <span class="param-label">帧跳 (frame_skip)</span>
+            <input id="frame_skip" type="number" step="1" min="1" />
+          </label>
+          <label>
+            <span class="param-label">去重秒数 (dedupe_seconds)</span>
+            <input id="dedupe_seconds" type="number" step="1" min="1" />
+          </label>
+          <label>
+            <span class="param-label">投票最少样本 (vote_min_samples)</span>
+            <input id="vote_min_samples" type="number" step="1" min="1" />
+          </label>
+          <label>
+            <span class="param-label">投票窗口秒数 (vote_window_sec)</span>
+            <input id="vote_window_sec" type="number" step="0.1" min="0.1" />
+          </label>
+          <label>
+            <span class="param-label">投票比例 (vote_ratio)</span>
+            <input id="vote_ratio" type="number" step="0.01" min="0" max="1" />
+          </label>
+          <label>
+            <span class="param-label">未知人脸阈值 (unknown_min_similarity)</span>
+            <input id="unknown_min_similarity" type="number" step="0.01" min="0" max="1" />
+          </label>
+          <label>
+            <span class="param-label">最小人脸尺寸 (unknown_min_face_size)</span>
+            <input id="unknown_min_face_size" type="number" step="1" min="1" />
+          </label>
         </div>
-        <div class="row" style="margin-top:8px">
-          <input id="vote_min_samples" placeholder="vote_min_samples" />
-          <input id="vote_window_sec" placeholder="vote_window_sec" />
-          <input id="vote_ratio" placeholder="vote_ratio" />
-          <input id="unknown_min_similarity" placeholder="unknown_min_similarity" />
-          <input id="unknown_min_face_size" placeholder="unknown_min_face_size" />
+        <div class="params-actions">
           <button id="updateParamsBtn">更新参数</button>
         </div>
       </div>
+    </div>
+
+    <div class="card full">
+      <h2>运行状态总览</h2>
+      <div class="muted">重点看摄像头是否持续出帧、识别端是否持续产出调试帧，以及系统资源是否异常。</div>
+      <div id="statusGrid" class="status-grid"></div>
     </div>
 
     <div class="grid">
@@ -164,6 +258,7 @@
 
   <script>
     const statusEl = document.getElementById('status');
+    const statusGridEl = document.getElementById('statusGrid');
     const eventsEl = document.getElementById('events');
     const imgEl = document.getElementById('debugFrame');
 
@@ -210,19 +305,131 @@
 
     function renderStatus(data) {
       const rt = data.runtime || {};
+      const system = data.system || {};
+      const websocket = data.websocket || {};
+      const cameraStats = rt.camera_stats || {};
+      const recognitionStats = rt.recognition_stats || {};
       const stream = rt.stream_running ? '<b class="ok">运行中</b>' : '<b class="warn">未运行</b>';
+      const cameraHealth = rt.camera_stream_healthy ? '正常' : '告警';
+      const cameraAge = formatAge(rt.camera_last_frame_age_sec);
+      const recognitionAge = formatAge(rt.recognition_last_debug_frame_age_sec);
+      const loadAvg = formatLoadAvg(system);
+      const rss = formatNumber(system.rss_mb, 1, ' MB');
+      const cpuSeconds = formatNumber(system.cpu_seconds, 1, ' s');
+      const gpuUsed = formatNumber(system.gpu_memory_used_mib, 0, ' MiB');
+      const gpuTotal = formatNumber(system.gpu_memory_total_mib, 0, ' MiB');
+      const gpuUtil = formatNumber(system.gpu_utilization_percent, 0, '%');
+      const gpuTemp = formatNumber(system.gpu_temperature_c, 0, '°C');
+      const gpuPower = formatGpuPower(system);
+      const gpuUsageRatio = getGpuUsageRatio(system);
+      const gpuTileClass = gpuUsageRatio === null ? 'neutral' : gpuUsageRatio >= 0.95 ? 'warn' : gpuUsageRatio >= 0.85 ? 'hot' : 'ok';
+      const pendingRequests = recognitionStats.pending_requests ?? 'N/A';
       statusEl.innerHTML = `
         流状态: ${stream}<br/>
         摄像头线程: ${rt.camera_running}<br/>
         识别线程: ${rt.recognition_running}<br/>
         帧队列: ${rt.frame_queue_size} | 事件队列: ${rt.event_queue_size}
       `;
+
+      statusGridEl.innerHTML = `
+        <div class="status-tile ${rt.camera_stream_healthy ? 'ok' : 'warn'}">
+          <div class="label">摄像头状态</div>
+          <div class="value">${cameraHealth}</div>
+          <div class="detail">源: ${escapeHtml(String(rt.camera_source ?? 'unknown'))}<br/>最后一帧: ${cameraAge}<br/>捕获: ${cameraStats.frames_captured ?? 'N/A'} | 重连: ${cameraStats.reconnect_count ?? 'N/A'}</div>
+        </div>
+        <div class="status-tile ${rt.recognition_running ? 'ok' : 'warn'}">
+          <div class="label">识别状态</div>
+          <div class="value">${rt.recognition_running ? '运行中' : '未运行'}</div>
+          <div class="detail">最后调试帧: ${recognitionAge}<br/>待处理请求: ${pendingRequests}<br/>最后错误: ${recognitionStats.last_error_at || '无'}</div>
+        </div>
+        <div class="status-tile ${(websocket.channel_b_connections ?? 0) > 0 ? 'ok' : 'warn'}">
+          <div class="label">调试视频通道</div>
+          <div class="value">${websocket.channel_b_connections ?? 0} 个连接</div>
+          <div class="detail">Channel A: ${websocket.channel_a_connections ?? 0}<br/>如果这里为 0，前端不会收到新画面。</div>
+        </div>
+        <div class="status-tile neutral">
+          <div class="label">系统资源</div>
+          <div class="value">${loadAvg}</div>
+          <div class="detail">RSS: ${rss}<br/>CPU: ${cpuSeconds}<br/>PID: ${system.pid ?? 'N/A'}</div>
+        </div>
+        <div class="status-tile ${gpuTileClass}">
+          <div class="label">GPU 状态</div>
+          <div class="value">${gpuUsed} / ${gpuTotal}</div>
+          <div class="detail">显存占用: ${formatPercent(gpuUsageRatio)}<br/>Util: ${gpuUtil}<br/>温度: ${gpuTemp}<br/>功耗: ${gpuPower}<br/>名称: ${escapeHtml(String(system.gpu_name ?? 'N/A'))}</div>
+        </div>
+      `;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function formatAge(value) {
+      if (value === null || value === undefined) return '无';
+      const seconds = Number(value);
+      if (!Number.isFinite(seconds)) return String(value);
+      if (seconds < 1) return '刚刚';
+      return `${seconds.toFixed(seconds < 10 ? 1 : 0)} 秒前`;
+    }
+
+    function formatNumber(value, digits, suffix = '') {
+      if (value === null || value === undefined) return 'N/A';
+      const num = Number(value);
+      if (!Number.isFinite(num)) return 'N/A';
+      return `${num.toFixed(digits)}${suffix}`;
+    }
+
+    function formatLoadAvg(system) {
+      const one = system.load_avg_1m;
+      const five = system.load_avg_5m;
+      const fifteen = system.load_avg_15m;
+      if ([one, five, fifteen].some((v) => v === null || v === undefined)) return 'N/A';
+      return `${Number(one).toFixed(2)} / ${Number(five).toFixed(2)} / ${Number(fifteen).toFixed(2)}`;
+    }
+
+    function formatPercent(value) {
+      if (value === null || value === undefined) return 'N/A';
+      return `${Math.round(value * 100)}%`;
+    }
+
+    function getGpuUsageRatio(system) {
+      const used = Number(system.gpu_memory_used_mib);
+      const total = Number(system.gpu_memory_total_mib);
+      if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) {
+        return null;
+      }
+      return used / total;
+    }
+
+    function formatGpuPower(system) {
+      const draw = system.gpu_power_usage_w;
+      const limit = system.gpu_power_limit_w;
+      if (draw === null || draw === undefined || limit === null || limit === undefined) {
+        return 'N/A';
+      }
+      return `${Number(draw).toFixed(0)} / ${Number(limit).toFixed(0)} W`;
     }
 
     async function refreshStatus() {
       try {
         const data = await api.getStatus();
         renderStatus(data);
+        // 填充超参数输入框
+        const params = data.hyperparams || {};
+        if (params.threshold !== undefined) document.getElementById('threshold').value = params.threshold;
+        if (params.margin !== undefined) document.getElementById('margin').value = params.margin;
+        if (params.frame_skip !== undefined) document.getElementById('frame_skip').value = params.frame_skip;
+        if (params.dedupe_seconds !== undefined) document.getElementById('dedupe_seconds').value = params.dedupe_seconds;
+        if (params.vote_min_samples !== undefined) document.getElementById('vote_min_samples').value = params.vote_min_samples;
+        if (params.vote_window_sec !== undefined) document.getElementById('vote_window_sec').value = params.vote_window_sec;
+        if (params.vote_ratio !== undefined) document.getElementById('vote_ratio').value = params.vote_ratio;
+        if (params.unknown_min_similarity !== undefined) document.getElementById('unknown_min_similarity').value = params.unknown_min_similarity;
+        if (params.unknown_min_face_size !== undefined) document.getElementById('unknown_min_face_size').value = params.unknown_min_face_size;
       } catch (e) {
         statusEl.textContent = `状态获取失败: ${e}`;
       }
@@ -318,6 +525,7 @@
     refreshStatus();
     connectChannelA();
     connectChannelB();
+    setInterval(refreshStatus, 3000);
   </script>
 </body>
 </html>

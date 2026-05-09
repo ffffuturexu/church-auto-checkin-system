@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 
 from app.core.database import SessionLocal
+from app.core.process_metrics import get_process_metrics
 
 from app.services.runtime_pipeline import RuntimePipeline
 
@@ -93,6 +94,8 @@ async def system_status(request: Request) -> dict[str, Any]:
     feed_cleanup_service = getattr(request.app.state, "feed_cleanup_service", None)
 
     payload: dict[str, Any] = {"status": "ok", "runtime": state}
+    payload["system"] = get_process_metrics().__dict__
+    payload["hyperparams"] = runtime.recognition.get_hyperparams()
     if ws_manager is not None:
         payload["websocket"] = (await ws_manager.get_stats()).__dict__
     if cleanup_service is not None:

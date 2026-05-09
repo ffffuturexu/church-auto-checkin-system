@@ -2,7 +2,7 @@
 
 一个基于人脸识别技术的教堂自动签到系统，提供实时签到、人脸库管理、接待工作台和管理后台功能。
 
-[English](./README.en.md) | 中文
+中文
 
 ## 📋 目录
 
@@ -41,6 +41,7 @@
 - 阈值 + Margin 双重防护，减少误识别
 - 自动去重，同场次仅记录一次签到
 - 非主日自动忽略，主日下午 3 点后切换意语场次
+- 识别链路并发处理，降低高峰时段阻塞
 
 ### 2. 人脸库管理
 - 会友照片本地存储与版本管理
@@ -65,6 +66,7 @@
 - 流媒体启动/停止
 - 超参数热更新（阈值、Margin、投票数等）
 - 自检诊断（数据库、运行时、WebSocket 等）
+- 进程级监控指标（CPU、内存、GPU、系统负载）
 - 自动清理过期日志与接待记录
 
 ---
@@ -150,7 +152,7 @@
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/your-org/church-auto-checkin-system.git
+   git clone https://github.com/ffffuturexu/church-auto-checkin-system.git
    cd church-auto-checkin-system
    ```
 
@@ -171,19 +173,30 @@
    
    创建 `config.ini`：
    ```ini
-   [compreface]
-   BASE_URL = http://compreface-host:8000
-   API_KEY = your-api-key
-   PREDICTION_COUNT = 5
-   
-   [recognition]
-   THRESHOLD = 0.85
-   MARGIN = 0.05
-   UNKNOWN_MIN_SIMILARITY = 0.65
-   UNKNOWN_MIN_FACE_SIZE = 24
-   
-   [camera]
-   CAMERA_SOURCE = rtsp://camera-url  # 或 0 表示本地摄像头
+   [CompreFace]
+   ApiKey = your-api-key
+   BaseUrl = http://compreface-host:8000
+
+   [Script]
+   Threshold = 0.70
+   Margin = 0.18
+   DedupeSeconds = 60
+   FrameSkip = 2
+   VoteWindowSec = 1.5
+   VoteMinSamples = 5
+   VoteRatio = 0.65
+   UnknownMinSimilarity = 0.65
+   UnknownMinFaceSize = 64
+   MaxQueueSize = 3
+   PredictionCount = 5
+
+   [DataSource]
+   RTSP_URL = rtsp://camera-url
+   CameraIndex = 0
+   RtspTcp = true
+
+   [GUI]
+   Preview = true
    ```
 
 5. **初始化数据库**
@@ -233,8 +246,8 @@
 - ✅ **体验优化**: 
   - 接待工作台降噪处理（每人每天去重、图片压缩）
   - 手动查找会友（拼音、首字母、语音输入）
-  - 识别参数调优（阈值 0.70、Margin 0.20）
-- ✅ **数据支持**: 历史签到已入库，完整统计数据看板
+   - 识别参数调优（阈值 0.70、Margin 0.18）
+- ✅ **数据支持**: 历史签到已入库（11790+ 行），完整统计数据看板
 - ✅ **系统诊断**: 完整的自检诊断与日志清理机制
 
 ### 📌 后续计划
@@ -274,6 +287,7 @@ church-auto-checkin-system/
 │   ├── core/
 │   │   ├── config.py               # 配置加载
 │   │   ├── database.py             # SQLAlchemy 设置与会话
+│   │   ├── process_metrics.py      # 进程与GPU监控指标
 │   │   ├── websocket_manager.py    # WebSocket 管理器
 │   │   ├── service_event.py        # 事件定义
 │   │   └── time_utils.py           # 时间工具函数
@@ -377,15 +391,16 @@ church-auto-checkin-system/
 ### 系统控制
 - `GET /health` - 服务健康检查
 - `GET /system/self-check` - 系统自检诊断
+- `GET /system/status` - 系统状态与资源指标
 - `POST /system/stream/start` - 启动流媒体
 - `POST /system/stream/stop` - 停止流媒体
-- `POST /system/config/update` - 热更新超参数
+- `PUT /system/hyperparameters` - 热更新超参数
 
 ### WebSocket
 - `WS /ws/channel-a` - 实时签到事件（Channel A）
 - `WS /ws/channel-b` - 调试视频帧（Channel B）
 
-详见 [API 文档](#)（待完善）
+详见 FastAPI 自动文档：`/docs` 和 `/redoc`
 
 ---
 
@@ -464,6 +479,6 @@ pytest tests/ --cov=app --cov-report=html
 
 ---
 
-**最后更新**: 2026-05-07  
+**最后更新**: 2026-05-09  
 **维护者**: Weilai Xu@Rugiada
-**仓库**: [github.com/your-org/church-auto-checkin-system](https://github.com)
+**仓库**: [github.com/ffffuturexu/church-auto-checkin-system](https://github.com/ffffuturexu/church-auto-checkin-system)

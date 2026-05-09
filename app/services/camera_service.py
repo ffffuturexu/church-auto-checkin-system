@@ -4,10 +4,13 @@ import os
 import queue
 import threading
 import time
+from datetime import datetime
 from dataclasses import dataclass
 from typing import Any
 
 import cv2
+
+from app.core.time_utils import now_local
 
 
 @dataclass
@@ -15,6 +18,9 @@ class CameraStats:
     frames_captured: int = 0
     reconnect_count: int = 0
     dropped_frames: int = 0
+    last_frame_captured_at: datetime | None = None
+    last_open_attempt_at: datetime | None = None
+    last_error_at: datetime | None = None
 
 
 class CameraService:
@@ -76,6 +82,7 @@ class CameraService:
     def _run(self) -> None:
         while not self._stop_event.is_set():
             if not self._ensure_capture():
+                self.stats.last_open_attempt_at = now_local()
                 time.sleep(self.reconnect_delay_sec)
                 continue
 
@@ -93,7 +100,9 @@ class CameraService:
 
                 self._push_latest_frame(frame)
                 self.stats.frames_captured += 1
+                self.stats.last_frame_captured_at = now_local()
             except Exception:
+                self.stats.last_error_at = now_local()
                 self._release_capture()
                 time.sleep(0.25)
 

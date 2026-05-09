@@ -1199,6 +1199,10 @@
       await refreshCurrentService();
     });
     document.getElementById('clearFeedBtn').addEventListener('click', async () => {
+      if (liveFeed && liveFeed.children && liveFeed.children.length > 0) {
+        const ok = confirm('确定要清空实时签到动态吗？此操作不可撤销。');
+        if (!ok) return;
+      }
       try {
         const res = await fetch('/reception/feed/clear', { method: 'POST' });
         const data = await res.json();
@@ -1225,6 +1229,10 @@
       }
     });
     document.getElementById('clearUnknownBtn').addEventListener('click', async () => {
+      if (unknownQueue && unknownQueue.children && unknownQueue.children.length > 0) {
+        const ok = confirm('确定要清空异常抓拍队列吗？此操作不可撤销。');
+        if (!ok) return;
+      }
       try {
         const res = await fetch('/reception/queue/unknown/clear', {
           method: 'POST',

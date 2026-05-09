@@ -20,12 +20,12 @@ from app.core.time_utils import now_local
 @dataclass
 class RecognitionHyperParams:
     threshold: float = 0.70
-    margin: float = 0.20
+    margin: float = 0.18
     dedupe_seconds: int = 60
     frame_skip: int = 2
     vote_window_sec: float = 1.5
     vote_min_samples: int = 5
-    vote_ratio: float = 0.7
+    vote_ratio: float = 0.65
     unknown_min_similarity: float = 0.65
     unknown_min_face_size: int = 64
 
@@ -55,6 +55,9 @@ class RecognitionEngine:
             margin=settings.MARGIN,
             dedupe_seconds=settings.DEDUPE_SECONDS,
             frame_skip=settings.FRAME_SKIP,
+            vote_window_sec=settings.VOTE_WINDOW_SEC,
+            vote_min_samples=settings.VOTE_MIN_SAMPLES,
+            vote_ratio=settings.VOTE_RATIO,
             unknown_min_similarity=settings.UNKNOWN_MIN_SIMILARITY,
             unknown_min_face_size=settings.UNKNOWN_MIN_FACE_SIZE,
         )
@@ -78,6 +81,10 @@ class RecognitionEngine:
             self._recognition_workers,
             int(max_inflight_requests if max_inflight_requests is not None else self._recognition_workers * 2),
         )
+        self._last_event_at: datetime | None = None
+        self._last_debug_frame_at: datetime | None = None
+        self._last_error_at: datetime | None = None
+        self._last_result_at: datetime | None = None
 
     def start(self) -> None:
         with self._lock:
@@ -138,6 +145,16 @@ class RecognitionEngine:
     def get_hyperparams(self) -> dict[str, Any]:
         with self._lock:
             return asdict(self.params)
+
+    def get_runtime_stats(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "pending_requests": len(self._pending_requests),
+                "last_event_at": self._format_timestamp(self._last_event_at),
+                "last_debug_frame_at": self._format_timestamp(self._last_debug_frame_at),
+                "last_error_at": self._format_timestamp(self._last_error_at),
+                "last_result_at": self._format_timestamp(self._last_result_at),
+            }
 
     def _run(self) -> None:
         try:
@@ -212,12 +229,15 @@ class RecognitionEngine:
                 payload = {}
             message = str(payload.get("message", ""))
             if payload.get("code") == 28 or "face is not found" in message.lower():
+                self._last_result_at = now_local()
                 self._emit_debug_frame(frame, box=None, best_subject_id="No Face", similarity=0.0, status="scanning")
                 return
+        self._last_error_at = now_local()
         self._emit_event("recognition_error", error=str(exc))
 
     def _handle_recognition_result(self, frame: Any, result: dict[str, Any]) -> None:
         detections = result.get("result", [])
+        self._last_result_at = now_local()
         if not detections:
             self._emit_debug_frame(frame, box=None, best_subject_id="No Face", similarity=0.0, status="scanning")
             return
@@ -301,7 +321,14 @@ class RecognitionEngine:
                 )
                 continue
 
-            self._add_vote_and_maybe_checkin(best_subject, best_similarity, frame=frame, box=box)
+            self._add_vote_and_maybe_checkin(
+                best_subject,
+                best_similarity,
+                frame=frame,
+                box=box,
+                second_subject_id=second_subject,
+                second_similarity=second_similarity,
+            )
             self._emit_debug_frame(
                 frame,
                 box=box,
@@ -316,6 +343,8 @@ class RecognitionEngine:
         similarity: float,
         frame: Any,
         box: dict[str, int] | None,
+        second_subject_id: str | None = None,
+        second_similarity: float | None = None,
     ) -> None:
         now = now_local()
         window = max(0.1, float(self.params.vote_window_sec))
@@ -340,10 +369,24 @@ class RecognitionEngine:
         self._vote_buffer.clear()
 
         if top_subject == subject:
-            self._commit_checkin(top_subject, final_similarity, frame=frame, box=box)
+            self._commit_checkin(
+                top_subject,
+                final_similarity,
+                frame=frame,
+                box=box,
+                second_subject_id=second_subject_id,
+                second_similarity=second_similarity,
+            )
             return
 
-        self._commit_checkin(top_subject, final_similarity, frame=None, box=None)
+        self._commit_checkin(
+            top_subject,
+            final_similarity,
+            frame=None,
+            box=None,
+            second_subject_id=None,
+            second_similarity=None,
+        )
 
     def _commit_checkin(
         self,
@@ -351,6 +394,8 @@ class RecognitionEngine:
         similarity: float,
         frame: Any | None,
         box: dict[str, int] | None,
+        second_subject_id: str | None = None,
+        second_similarity: float | None = None,
     ) -> None:
         now = now_local()
         dedupe_window = timedelta(seconds=max(0, int(self.params.dedupe_seconds)))
@@ -376,8 +421,8 @@ class RecognitionEngine:
             status="success",
             best_subject_id=subject_id,
             similarity=similarity,
-            second_subject_id=None,
-            second_similarity=None,
+            second_subject_id=second_subject_id,
+            second_similarity=second_similarity,
         )
         payload: dict[str, Any] = {
             "subject_id": subject_id,
@@ -478,6 +523,7 @@ class RecognitionEngine:
         similarity: float,
         status: str,
     ) -> None:
+        self._last_debug_frame_at = now_local()
         debug_frame = frame.copy()
         if box is not None:
             x_min = int(box.get("x_min", 0))
@@ -515,6 +561,7 @@ class RecognitionEngine:
         )
 
     def _emit_event(self, event_type: str, **payload: Any) -> None:
+        self._last_event_at = now_local()
         event = {
             "event_type": event_type,
             **payload,
@@ -528,6 +575,12 @@ class RecognitionEngine:
             self.event_queue.put_nowait(event)
         except queue.Full:
             pass
+
+    @staticmethod
+    def _format_timestamp(value: datetime | None) -> str | None:
+        if value is None:
+            return None
+        return value.isoformat(timespec="seconds")
 
     @staticmethod
     def _pick_best_two(subjects: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
