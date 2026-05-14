@@ -424,6 +424,7 @@ async def resolve_unknown_case(
             "subject_id": str(member.id),
             "member_id": str(member.id),
             "member_name": member.name,
+            "member_name_chn": member.name_chn,
             "event_id": str(event.id),
             "attendance_record_id": str(record.id),
             "persist_status": "ok",

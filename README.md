@@ -53,6 +53,8 @@
 - 实时展示签到动态
 - 未知人脸队列（包含相似度分析）
 - 支持搜索成员后关联补签
+- 支持姓名、中文名、拼音、首字母和性别筛选的快速检索
+- 支持带照片优先的选人场景（photo picker）
 - 现场异常抓拍归档
 
 ### 4. 管理后台
@@ -357,11 +359,13 @@ church-auto-checkin-system/
 
 ### 会友管理
 - `GET /members` - 列表会友（支持分页与筛选）
+- `GET /members?gender=` - 按性别筛选会友
 - `POST /members` - 新增会友
 - `GET /members/{member_id}` - 获取会友详情
 - `PUT /members/{member_id}` - 更新会友信息
 - `DELETE /members/{member_id}` - 停用会友
 - `GET /members/search?q=` - 快速搜索
+- `GET /members/photo-picker` - 接待/选图场景的候选会友列表
 
 ### 签到服务
 - `GET /attendance/current-service` - 获取当前服务信息
@@ -479,6 +483,6 @@ pytest tests/ --cov=app --cov-report=html
 
 ---
 
-**最后更新**: 2026-05-09  
+**最后更新**: 2026-05-14  
 **维护者**: Weilai Xu@Rugiada
 **仓库**: [github.com/ffffuturexu/church-auto-checkin-system](https://github.com/ffffuturexu/church-auto-checkin-system)

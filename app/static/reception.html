@@ -49,6 +49,79 @@
       color: var(--sub);
       font-size: 14px;
     }
+    .hero-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .hero-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 240px;
+    }
+    .home-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #6e4f1f;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 12px;
+      border: 1px solid rgba(110, 79, 31, 0.18);
+      border-radius: 999px;
+      background: rgba(255, 253, 248, 0.7);
+      box-shadow: 0 6px 16px rgba(70, 46, 18, 0.06);
+      white-space: nowrap;
+    }
+    .home-link:hover {
+      background: rgba(255, 248, 233, 0.95);
+    }
+    .hero-controls {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(110, 79, 31, 0.14);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .hero-controls .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .hero-service-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .hero-service {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hero-service-label {
+      font-size: 13px;
+      color: var(--sub);
+      letter-spacing: 0px;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .hero-service-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #5c4218;
+      background: rgba(255, 253, 248, 0.72);
+      border: 1px solid rgba(165, 121, 42, 0.25);
+      border-radius: 8px;
+      padding: 5px 10px;
+      display: inline-flex;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(70, 46, 18, 0.06);
+    }
     .back-home {
       display: inline-block;
       margin-top: 8px;
@@ -187,6 +260,9 @@
       flex-wrap: wrap;
       align-items: center;
     }
+    .toolbar .feed-mode-control {
+      margin-right: auto;
+    }
     input, select {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -300,11 +376,47 @@
       font-weight: 600;
       margin-top: 6px;
     }
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .segmented button {
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .segmented button.active {
+      background: #6e4f1f;
+      color: #fff;
+    }
+    .feed-mode-label {
+      font-size: 12px;
+      color: var(--sub);
+      font-weight: 600;
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+    .photo-picker-panel {
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      background: #fffaf2;
+    }
+    .photo-picker-panel .toolbar {
+      width: 100%;
+    }
     @keyframes fadeUp {
       from { transform: translateY(6px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
-    @media (max-width: 980px) {
+    @media (max-width: 640px) {
       .grid { grid-template-columns: 1fr; }
     }
   </style>
@@ -312,9 +424,27 @@
 <body>
   <div class="wrap">
     <div class="hero">
-      <h1>接待同工工作台</h1>
-      <div class="sub">实时签到动态 + 异常抓拍队列 + 快捷手动补签（不展示视频流）</div>
-      <a class="back-home" href="/">返回首页</a>
+      <div class="hero-top">
+        <div class="hero-title-wrap">
+          <h1>接待同工工作台</h1>
+          <div class="sub">照片查找、快速补签、异常抓拍确认和实时签到动态统一放在这一页，默认优先展示近期活跃且未签到的带照片会友。</div>
+        </div>
+        <a class="home-link" href="/">🏠 返回首页</a>
+      </div>
+      <div class="hero-controls">
+        <div class="hero-service-stack">
+          <div class="hero-service">
+            <div class="hero-service-label">当前场次：</div>
+            <div id="currentServiceText" class="hero-service-value">读取中</div>
+          </div>
+          <div class="hero-service">
+            <div class="hero-service-label">当前补签场次：</div>
+            <select id="eventSelect" style="flex:1;min-width:200px;max-width:320px;border:1px solid rgba(165,121,42,0.25);border-radius:8px;padding:5px 8px;background:rgba(255,253,248,0.72);font-size:13px;">
+              <option value="">按抓拍日期自动匹配</option>
+            </select>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="grid">
@@ -327,15 +457,33 @@
               <input id="memberQuery" placeholder="输入姓名/电话/组别搜索成员" style="flex:1;" />
               <button id="clearSearchBtn" title="清空" style="padding: 8px 10px; font-size: 12px; background: #9a7c5c;">✕</button>
               <button id="voiceBtn" title="语音输入">🎤</button>
+              <button id="photoPickerBtn" class="alt" title="按照片查找" style="padding: 8px 10px; font-size: 12px;">按照片查找</button>
             </div>
           </div>
           <div id="voiceStatus" class="tiny">语音输入待命</div>
+          <div id="photoPickerPanel" class="photo-picker-panel" hidden>
+            <div class="toolbar">
+              <div id="photoGenderFilter" class="segmented" role="tablist">
+                <button type="button" class="active" data-gender="" role="tab" aria-selected="true">全部</button>
+                <button type="button" data-gender="male" role="tab" aria-selected="false">男</button>
+                <button type="button" data-gender="female" role="tab" aria-selected="false">女</button>
+              </div>
+              <div id="photoPickerStatus" class="tiny">准备就绪</div>
+            </div>
+          </div>
           <div class="member-cards-grid" id="memberCardsContainer"></div>
         </div>
 
         <div class="card">
           <h2>实时签到动态（Channel A）</h2>
           <div class="toolbar" style="margin-bottom:8px">
+            <div class="feed-mode-control" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span class="feed-mode-label">显示模式：</span>
+              <div id="liveFeedModeSwitch" class="segmented" role="tablist" aria-label="实时签到动态显示模式">
+                <button type="button" class="active" data-mode="checkin" role="tab" aria-selected="true">签到模式</button>
+                <button type="button" data-mode="full" role="tab" aria-selected="false">完整模式</button>
+              </div>
+            </div>
             <button id="refreshBtn" class="alt">刷新系统状态</button>
             <button id="clearFeedBtn" class="warn">清空动态</button>
             <span id="statusText" class="status">状态读取中...</span>
@@ -348,15 +496,10 @@
         <h2>异常抓拍队列（Unknown）</h2>
         <div class="toolbar">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <select id="eventSelect" style="flex:1;min-width:150px;">
-              <option value="">按抓拍日期自动匹配场次</option>
-            </select>
             <button id="refreshQueueBtn" class="alt">刷新队列</button>
             <button id="clearUnknownBtn" class="warn">清空队列</button>
           </div>
         </div>
-        <div class="tiny" id="eventHint" style="margin-top:6px">当前补签场次: 自动按抓拍日期匹配</div>
-        <div class="tiny" id="currentServiceText" style="margin-top:4px">当前场次读取中...</div>
         <div class="queue" id="unknownQueue" style="margin-top:10px"></div>
       </div>
     </div>
@@ -369,14 +512,27 @@
     const voiceStatus = document.getElementById('voiceStatus');
     const statusText = document.getElementById('statusText');
     const eventSelect = document.getElementById('eventSelect');
-    const eventHint = document.getElementById('eventHint');
     const currentServiceText = document.getElementById('currentServiceText');
+    const photoPickerBtn = document.getElementById('photoPickerBtn');
+    const photoPickerPanel = document.getElementById('photoPickerPanel');
+    const photoPickerStatus = document.getElementById('photoPickerStatus');
+    const photoGenderFilter = document.getElementById('photoGenderFilter');
+    const liveFeedModeSwitch = document.getElementById('liveFeedModeSwitch');
 
     let selectedMember = null;
     let currentServiceEventId = '';
     const queueCards = new Map();
     const seenDailyCheckins = new Set();
     const seenDailyIgnored = new Set();
+    const memberPhotoCache = new Map();
+    const memberPhotoObservers = new Map();
+    let photoPickerOffset = 0;
+    let photoPickerGender = '';
+    let photoPickerLoading = false;
+    const photoPickerLimit = 20;
+    let photoPickerActive = false;
+    let photoPickerHasMore = true;
+    let liveFeedMode = 'checkin';
 
     function toLocalDayKey(timestampValue) {
       if (!timestampValue) {
@@ -398,6 +554,57 @@
       const m = String(date.getMonth() + 1).padStart(2, '0');
       const d = String(date.getDate()).padStart(2, '0');
       return `${y}-${m}-${d}`;
+    }
+
+    function formatTimestamp(timestampValue) {
+      if (!timestampValue) return '-';
+      const d = new Date(timestampValue);
+      if (Number.isNaN(d.getTime())) return String(timestampValue);
+      const Y = d.getFullYear();
+      const M = String(d.getMonth() + 1).padStart(2, '0');
+      const D = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      const ss = String(d.getSeconds()).padStart(2, '0');
+      return `${Y}-${M}-${D} ${hh}:${mm}:${ss}`;
+    }
+
+    function getDisplayName(payload) {
+      const primary = String(payload.member_name || payload.subject_id || '').trim();
+      const chn = String(payload.member_name_chn || payload.member_name_zh || payload.name_chn || '').trim();
+      if (primary && chn && primary !== chn) {
+        return `${primary} (${chn})`;
+      }
+      return primary || chn || '-';
+    }
+
+    function translateMethod(method) {
+      if (!method) return '未知';
+      const m = String(method);
+      if (m === 'manual_reception') return '人工补签';
+      if (m === 'manual') return '人工';
+      if (m === 'auto_face') return '人脸识别';
+      if (m === 'face_recognition' || m === 'recognition' || m === 'auto') return '人脸识别';
+      if (m === 'api') return 'API';
+      return m;
+    }
+
+    function translateDetail(detail) {
+      if (!detail) return '';
+      let s = String(detail || '');
+      // common tokens/phrases translation
+      s = s.replace(/auto_face/ig, '人脸自动识别');
+      s = s.replace(/non_sunday/ig, '非主日');
+      s = s.replace(/already_checked_in/ig, '已签到');
+      s = s.replace(/auto check-in is only persisted on Sunday/ig, '仅主日保存自动签到');
+      s = s.replace(/auto check-in/ig, '自动签到');
+      s = s.replace(/only persisted on Sunday/ig, '仅主日保存');
+      s = s.replace(/member already checked in for this event/ig, '该会友已在本场次签到');
+      s = s.replace(/member already checked in for selected event/ig, '该会友已在所选场次签到');
+      s = s.replace(/ignored/ig, '已忽略');
+      // remove repeated commas/whitespace
+      s = s.replace(/\s*,\s*/g, '，');
+      return s;
     }
 
     function getActiveSearchEventId() {
@@ -574,23 +781,64 @@
       if (!count || count <= 0) {
         return;
       }
+      if (liveFeedMode !== 'full') {
+        return;
+      }
       const li = document.createElement('li');
       li.className = 'event-ignored';
-      li.textContent = `[${new Date().toISOString()}] 已自动清理 ${count} 条重复抓拍`;
+      li.textContent = `[${formatTimestamp(new Date())}] 已自动清理 ${count} 条重复抓拍`;
       liveFeed.prepend(li);
       while (liveFeed.children.length > 120) {
         liveFeed.removeChild(liveFeed.lastChild);
       }
     }
 
+    function shouldShowFeedItem(payload) {
+      if (liveFeedMode === 'full') {
+        return true;
+      }
+      return (payload.event_type || 'check_in') === 'check_in';
+    }
+
+    function setLiveFeedMode(mode) {
+      const nextMode = mode === 'full' ? 'full' : 'checkin';
+      if (liveFeedMode === nextMode) {
+        return;
+      }
+      liveFeedMode = nextMode;
+      if (liveFeedModeSwitch) {
+        for (const btn of liveFeedModeSwitch.querySelectorAll('button[data-mode]')) {
+          const isActive = btn.dataset.mode === liveFeedMode;
+          btn.classList.toggle('active', isActive);
+          btn.setAttribute('aria-selected', String(isActive));
+        }
+      }
+      loadLiveFeed();
+    }
+
+    function schedulePhotoPickerLoadMore() {
+      if (!photoPickerActive || photoPickerLoading || !photoPickerHasMore) {
+        return;
+      }
+      const nearBottom = memberCardsContainer.scrollTop + memberCardsContainer.clientHeight >= memberCardsContainer.scrollHeight - 60;
+      if (nearBottom) {
+        loadPhotoPicker(false);
+      }
+    }
+
     function addLiveItem(payload) {
+      if (!shouldShowFeedItem(payload)) {
+        return;
+      }
       const li = document.createElement('li');
-      const ts = payload.timestamp || '-';
+      const rawTs = payload.timestamp || payload.handled_at || new Date().toISOString();
+      const ts = formatTimestamp(rawTs);
       const eventType = payload.event_type || 'check_in';
       const method = payload.method || '-';
-      const name = payload.member_name || payload.subject_id || '-';
+      const methodLabel = translateMethod(method);
+      const name = getDisplayName(payload);
       const memberKey = String(payload.member_id || payload.subject_id || '').trim();
-      const dayKey = toLocalDayKey(ts);
+      const dayKey = toLocalDayKey(rawTs);
       const dedupeKey = memberKey && dayKey ? `${memberKey}|${dayKey}` : '';
 
       if (eventType === 'check_in' && dedupeKey) {
@@ -601,9 +849,15 @@
       }
 
       let cls = method === 'manual_reception' ? 'event-manual' : 'event-auto';
-      let text = `[${ts}] ${name} · ${method}`;
+      let text = `[${ts}] ${name} · ${methodLabel}`;
+      // include any message/detail translated for clarity
+      const rawDetail = payload.detail || payload.message || '';
+      const translatedDetail = translateDetail(rawDetail);
+      if (translatedDetail) {
+        text += ` · ${translatedDetail}`;
+      }
       if (eventType === 'check_in_ignored') {
-        const reason = payload.persist_status || 'ignored';
+        const reason = translateDetail(payload.persist_status || 'ignored') || '已忽略';
         if (dedupeKey && seenDailyCheckins.has(dedupeKey)) {
           return;
         }
@@ -615,7 +869,7 @@
           seenDailyIgnored.add(ignoredKey);
         }
         cls = 'event-ignored';
-        const detail = payload.detail || '';
+        const detail = translateDetail(payload.detail || payload.message || '');
         text = `[${ts}] ${name} · 已忽略(${reason}) ${detail}`.trim();
       }
       li.className = cls;
@@ -654,7 +908,7 @@
       const card = document.createElement('div');
       card.className = 'unknown-card';
       card.dataset.caseId = caseId;
-      card.dataset.dayKey = toLocalDayKey(payload.timestamp || '') || '';
+      card.dataset.dayKey = toLocalDayKey(payload.timestamp || payload.handled_at || '') || '';
       card.dataset.bestSubjectId = candidate.bestSubjectId || '';
       card.dataset.bestSubjectName = candidate.bestSubjectName || '';
 
@@ -670,7 +924,7 @@
 
       const meta = document.createElement('div');
       meta.className = 'tiny';
-      meta.textContent = `${payload.timestamp || '-'} | reason: ${payload.reason || 'unknown'}`;
+      meta.textContent = `${formatTimestamp(payload.timestamp || payload.handled_at || '')} | reason: ${payload.reason || 'unknown'}`;
 
       const candidateInfo = document.createElement('div');
       candidateInfo.className = 'candidate tiny';
@@ -722,10 +976,9 @@
           memberName = selectedMember.name;
         }
         try {
-          const selectedEvent = eventSelect.value.trim();
           const reqBody = {
             member_id: memberId,
-            event_id: selectedEvent || null,
+            service_language: 'zh',
             note: null
           };
           const res = await fetch(`/reception/queue/unknown/${encodeURIComponent(caseId)}/resolve`, {
@@ -805,10 +1058,97 @@
       }
     }
 
-    function renderMembers(items) {
-      memberCardsContainer.innerHTML = '';
+    function setPhotoPickerStatus(text) {
+      if (!photoPickerStatus) return;
+      photoPickerStatus.textContent = text || '';
+    }
+
+    function getMemberPhotoObserver(root) {
+      const key = root || 'viewport';
+      if (memberPhotoObservers.has(key)) {
+        return memberPhotoObservers.get(key);
+      }
+      const observer = new IntersectionObserver(
+        (entries, obs) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) {
+              continue;
+            }
+            const img = entry.target;
+            obs.unobserve(img);
+            if (!img || img.dataset.loaded === '1') {
+              continue;
+            }
+            img.dataset.loaded = '1';
+            loadMemberPhoto(img, img.dataset.memberId || '');
+          }
+        },
+        { root: root || null, rootMargin: '120px', threshold: 0.01 }
+      );
+      memberPhotoObservers.set(key, observer);
+      return observer;
+    }
+
+    function observeMemberPhoto(img) {
+      const root = img.closest('.member-cards-grid');
+      const observer = getMemberPhotoObserver(root);
+      observer.observe(img);
+    }
+
+    async function getCachedMemberPhotoId(memberId) {
+      if (memberPhotoCache.has(memberId)) {
+        return memberPhotoCache.get(memberId);
+      }
+      const r = await fetch(`/face-library/members/${memberId}/photos?active_only=true`);
+      if (!r.ok) {
+        throw new Error('photo list failed');
+      }
+      const j = await r.json();
+      const photoId = (j.items && j.items.length) ? j.items[0].id : null;
+      memberPhotoCache.set(memberId, photoId);
+      return photoId;
+    }
+
+    function setMemberPhotoFallback(img) {
+      const photoDiv = img.parentElement;
+      if (!photoDiv) {
+        return;
+      }
+      if (photoDiv.contains(img)) {
+        photoDiv.removeChild(img);
+      }
+      photoDiv.textContent = '📷';
+    }
+
+    async function loadMemberPhoto(img, memberId) {
+      if (!memberId) {
+        setMemberPhotoFallback(img);
+        return;
+      }
+      try {
+        const photoId = await getCachedMemberPhotoId(memberId);
+        if (photoId) {
+          img.src = `/face-library/photos/${photoId}/download`;
+          return;
+        }
+      } catch (err) {
+        console.warn('photo load error', err);
+      }
+      setMemberPhotoFallback(img);
+    }
+
+    function renderMembers(items, options = {}) {
+      const container = options.container || memberCardsContainer;
+      const append = Boolean(options.append);
+      const showEmpty = options.showEmpty !== false;
+
+      if (!append) {
+        container.innerHTML = '';
+      }
       if (!items.length) {
-        memberCardsContainer.textContent = '未找到成员';
+        if (!append && showEmpty) {
+          container.textContent = '未找到成员';
+        }
         return;
       }
 
@@ -821,23 +1161,14 @@
         if (item.has_photo) {
           const img = document.createElement('img');
           img.alt = item.name;
-          // fetch member photo list and use the first photo's download endpoint
-          (async () => {
-            try {
-              const r = await fetch(`/face-library/members/${item.id}/photos?active_only=true`);
-              if (!r.ok) throw new Error('no photos');
-              const j = await r.json();
-              if (j.items && j.items.length) {
-                const pid = j.items[0].id;
-                img.src = `/face-library/photos/${pid}/download`;
-              } else {
-                photoDiv.textContent = '📷';
-              }
-            } catch (e) {
-              photoDiv.textContent = '📷';
-            }
-          })();
+          img.loading = 'lazy';
+          img.dataset.memberId = item.id;
           photoDiv.appendChild(img);
+          if ('IntersectionObserver' in window) {
+            observeMemberPhoto(img);
+          } else {
+            loadMemberPhoto(img, item.id);
+          }
         } else {
           photoDiv.textContent = '📷';
         }
@@ -925,7 +1256,6 @@
               member_name: item.name,
               member_id: item.id,
             });
-            alert('签到成功');
             document.getElementById('memberQuery').value = '';
             memberCardsContainer.innerHTML = '';
             await refreshStatus();
@@ -947,7 +1277,7 @@
           selectedMember = item;
         });
 
-        memberCardsContainer.appendChild(card);
+        container.appendChild(card);
       }
     }
 
@@ -962,6 +1292,9 @@
 
     const liveSearch = debounce(async () => {
       const q = document.getElementById('memberQuery').value.trim();
+      if (photoPickerActive) {
+        closePhotoPicker();
+      }
       if (!q) {
         memberCardsContainer.innerHTML = '';
         return;
@@ -1086,6 +1419,9 @@
 
     async function searchMembers() {
       const q = document.getElementById('memberQuery').value.trim();
+      if (photoPickerActive) {
+        closePhotoPicker();
+      }
       if (!q) {
         memberCardsContainer.innerHTML = '';
         return;
@@ -1103,6 +1439,130 @@
       }
     }
 
+    function openPhotoPicker() {
+      if (!photoPickerPanel) {
+        return;
+      }
+      photoPickerActive = true;
+      photoPickerPanel.hidden = false;
+      photoPickerOffset = 0;
+      photoPickerHasMore = true;
+      photoPickerLoading = false;
+      memberCardsContainer.innerHTML = '';
+      document.getElementById('memberQuery').value = '';
+      setPhotoPickerStatus('加载中...');
+      loadPhotoPicker(true);
+      // adjust unknown queue scroll height to match left column
+      setTimeout(adjustUnknownQueueHeight, 120);
+    }
+
+    function closePhotoPicker() {
+      if (!photoPickerPanel) {
+        return;
+      }
+      photoPickerActive = false;
+      photoPickerPanel.hidden = true;
+      setPhotoPickerStatus('准备就绪');
+      memberCardsContainer.innerHTML = '';
+      // restore/adjust unknown queue scroll height
+      setTimeout(adjustUnknownQueueHeight, 120);
+    }
+
+    function togglePhotoPicker() {
+      if (photoPickerActive) {
+        closePhotoPicker();
+        return;
+      }
+      openPhotoPicker();
+    }
+
+    async function loadPhotoPicker(reset = false) {
+      if (photoPickerLoading) {
+        return;
+      }
+      const eventId = getActiveSearchEventId();
+      if (!eventId) {
+        setPhotoPickerStatus('请先选择场次或等待当前场次加载完成');
+        return;
+      }
+
+      if (reset) {
+        photoPickerOffset = 0;
+        memberCardsContainer.innerHTML = '';
+      }
+
+      photoPickerLoading = true;
+      setPhotoPickerStatus('加载中...');
+
+      try {
+        const params = new URLSearchParams({
+          event_id: eventId,
+          limit: String(photoPickerLimit),
+          offset: String(photoPickerOffset),
+        });
+        if (photoPickerGender) {
+          params.append('gender', photoPickerGender);
+        }
+        const res = await fetch(`/members/photo-picker?${params.toString()}`);
+        const rawText = await res.text();
+        let data = {};
+        if (rawText) {
+          try {
+            data = JSON.parse(rawText);
+          } catch (err) {
+            if (!res.ok) {
+              throw new Error(rawText || res.statusText);
+            }
+            throw new Error('response parse failed');
+          }
+        }
+        if (!res.ok) {
+          throw new Error(data.detail || data.message || res.statusText);
+        }
+        const items = data.items || [];
+        renderMembers(items, {
+          container: memberCardsContainer,
+          append: !reset,
+          showEmpty: reset,
+        });
+        photoPickerOffset += items.length;
+        if (items.length < photoPickerLimit) {
+          photoPickerHasMore = false;
+          setPhotoPickerStatus(photoPickerOffset ? '已无更多' : '暂无可选成员');
+        } else {
+          photoPickerHasMore = true;
+          setPhotoPickerStatus(`已加载 ${photoPickerOffset} 位成员`);
+        }
+      } catch (err) {
+        setPhotoPickerStatus(`加载失败: ${err}`);
+      } finally {
+        photoPickerLoading = false;
+        // after members render, ensure unknown queue height matches
+        setTimeout(adjustUnknownQueueHeight, 60);
+      }
+    }
+
+    function adjustUnknownQueueHeight() {
+      try {
+        const leftCol = document.querySelector('.left-column');
+        const rightCard = unknownQueue ? unknownQueue.parentElement : null;
+        if (!leftCol || !rightCard || !unknownQueue) return;
+        const leftH = leftCol.getBoundingClientRect().height;
+        // match the visible scroll area to the left column height, but keep the natural layout when content is short.
+        const target = Math.max(420, Math.floor(leftH - 24));
+        unknownQueue.style.minHeight = '0px';
+        unknownQueue.style.maxHeight = `${target}px`;
+        unknownQueue.style.height = 'auto';
+        rightCard.style.minHeight = '';
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      setTimeout(adjustUnknownQueueHeight, 120);
+    });
+
     async function loadEvents() {
       const res = await fetch('/events?include_archived=false&limit=100');
       const data = await res.json();
@@ -1113,6 +1573,7 @@
       for (const item of items) {
         const opt = document.createElement('option');
         opt.value = item.id;
+        opt.dataset.eventDate = item.event_date || '';
         opt.textContent = `${item.event_date} | ${item.event_name}`;
         eventSelect.appendChild(opt);
       }
@@ -1123,7 +1584,13 @@
       const data = await res.json();
       unknownQueue.innerHTML = '';
       queueCards.clear();
-      for (const item of (data.items || [])) {
+      const items = Array.isArray(data.items) ? data.items.slice() : [];
+      items.sort((a, b) => {
+        const ta = new Date(a.timestamp || a.handled_at || 0).getTime() || 0;
+        const tb = new Date(b.timestamp || b.handled_at || 0).getTime() || 0;
+        return ta - tb; // ascending: oldest first so prepending results newest on top
+      });
+      for (const item of items) {
         upsertUnknownCard(item);
       }
     }
@@ -1150,6 +1617,9 @@
         currentServiceText.textContent = `当前场次: ${data.display_text || '非主日'}`;
         if (document.getElementById('memberQuery').value.trim()) {
           await liveSearch();
+        }
+        if (photoPickerActive) {
+          await loadPhotoPicker(true);
         }
       } catch (err) {
         currentServiceText.textContent = `当前场次读取失败: ${err}`;
@@ -1195,6 +1665,7 @@
     // searchBtn removed - search triggered by input debounce instead
     document.getElementById('refreshQueueBtn').addEventListener('click', loadUnknownQueue);
     document.getElementById('refreshBtn').addEventListener('click', async () => {
+      closePhotoPicker();
       await refreshStatus();
       await refreshCurrentService();
     });
@@ -1217,10 +1688,11 @@
       }
     });
     eventSelect.addEventListener('change', () => {
-      const text = eventSelect.options[eventSelect.selectedIndex]?.textContent || '';
-      eventHint.textContent = eventSelect.value ? `当前补签场次: ${text}` : '当前补签场次: 自动按抓拍日期匹配';
       if (document.getElementById('memberQuery').value.trim()) {
         liveSearch();
+      }
+      if (photoPickerActive) {
+        loadPhotoPicker(true);
       }
     });
     document.getElementById('memberQuery').addEventListener('keydown', (evt) => {
@@ -1253,12 +1725,47 @@
 
     // Setup member query input for live search
     document.getElementById('memberQuery').addEventListener('input', liveSearch);
+    memberCardsContainer.addEventListener('scroll', schedulePhotoPickerLoadMore);
 
     // Clear search button
     document.getElementById('clearSearchBtn').addEventListener('click', () => {
       document.getElementById('memberQuery').value = '';
+      closePhotoPicker();
       memberCardsContainer.innerHTML = '';
     });
+
+    if (photoPickerBtn) {
+      photoPickerBtn.addEventListener('click', togglePhotoPicker);
+    }
+    if (photoGenderFilter) {
+      photoGenderFilter.addEventListener('click', (evt) => {
+        const btn = evt.target;
+        if (!btn || !btn.dataset) {
+          return;
+        }
+        const gender = btn.dataset.gender || '';
+        photoPickerGender = gender;
+        for (const el of photoGenderFilter.querySelectorAll('button')) {
+          const isActive = el.dataset.gender === gender;
+          el.classList.toggle('active', isActive);
+          el.setAttribute('aria-selected', String(isActive));
+        }
+        if (photoPickerActive) {
+          loadPhotoPicker(true);
+        }
+      });
+    }
+    if (liveFeedModeSwitch) {
+      liveFeedModeSwitch.addEventListener('click', (evt) => {
+        const btn = evt.target;
+        if (!btn || !btn.dataset || !btn.dataset.mode) {
+          return;
+        }
+        setLiveFeedMode(btn.dataset.mode);
+      });
+    }
+
+    setLiveFeedMode('checkin');
 
     loadEvents();
     loadUnknownQueue();

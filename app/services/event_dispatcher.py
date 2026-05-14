@@ -157,6 +157,7 @@ class EventDispatcher:
             payload["persist_status"] = "ok"
             payload["member_id"] = str(member.id)
             payload["member_name"] = member.name
+            payload["member_name_chn"] = member.name_chn
             payload["event_id"] = str(event_row.id)
             payload["attendance_record_id"] = str(record.id)
             record_feed_event(db, payload, source="auto_face")
@@ -180,6 +181,7 @@ class EventDispatcher:
         payload["detail"] = detail
         payload["member_id"] = str(member.id)
         payload["member_name"] = member.name
+        payload["member_name_chn"] = member.name_chn
         if event_id is not None:
             payload["event_id"] = str(event_id)
         if attendance_record_id is not None:

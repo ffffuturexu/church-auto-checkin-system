@@ -88,6 +88,8 @@ def _apply_sqlite_migrations() -> None:
             conn.execute(text("ALTER TABLE members ADD COLUMN name_chn VARCHAR(120)"))
         if "has_photo" not in member_column_names:
             conn.execute(text("ALTER TABLE members ADD COLUMN has_photo BOOLEAN NOT NULL DEFAULT 0"))
+        if "gender" not in member_column_names:
+            conn.execute(text("ALTER TABLE members ADD COLUMN gender VARCHAR(16)"))
         if "age" in member_column_names:
             conn.execute(text("ALTER TABLE members DROP COLUMN age"))
         if "phone" in member_column_names:

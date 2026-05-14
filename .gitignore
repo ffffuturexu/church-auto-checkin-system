@@ -53,7 +53,5 @@ Thumbs.db
 
 # Generated/runtime files
 live_attendance.csv
-implementation_doc.md
-DEVELOPMENT_PROGRESS.md
-MAINTENANCE.md
+docs/
 *.log

@@ -12,6 +12,7 @@ class MemberOut(BaseModel):
     name_chn: str | None
     age: int | None
     has_photo: bool
+    gender: str | None
     group: str | None
     birthday: date | None
     note: str | None
@@ -29,6 +30,7 @@ class MemberSearchResponse(BaseModel):
 class MemberCreateRequest(BaseModel):
     name: str
     name_chn: str | None = None
+    gender: str | None = None
     group: str | None = None
     birthday: date | None = None
     note: str | None = None
@@ -38,6 +40,7 @@ class MemberCreateRequest(BaseModel):
 class MemberUpdateRequest(BaseModel):
     name: str | None = None
     name_chn: str | None = None
+    gender: str | None = None
     group: str | None = None
     birthday: date | None = None
     note: str | None = None

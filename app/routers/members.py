@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.time_utils import now_local_naive
 from app.models.models import Member
 from app.models.models import AttendanceRecord
 from app.schemas.member import (
@@ -48,6 +49,7 @@ def _to_member_out(member: Member) -> MemberOut:
         name_chn=member.name_chn,
         age=computed_age,
         has_photo=member.has_photo,
+        gender=member.gender,
         group=member.group,
         birthday=member.birthday,
         note=member.note,
@@ -131,6 +133,7 @@ def create_member(payload: MemberCreateRequest, db: Session = Depends(get_db)) -
     row = Member(
         name=payload.name.strip(),
         name_chn=(payload.name_chn.strip() if payload.name_chn else None),
+        gender=(payload.gender.strip().lower() if payload.gender else None),
         group=(payload.group.strip() if payload.group else None),
         birthday=payload.birthday,
         note=(payload.note.strip() if payload.note else None),
@@ -151,6 +154,7 @@ def list_members(
     status_filter: str = Query(default="active", pattern="^(all|active|inactive)$"),
     q: str = Query(default="", max_length=120),
     has_photo_filter: str = Query(default="all", pattern="^(all|with_photo|without_photo)$"),
+    gender: str | None = Query(default=None, max_length=16),
     group: str | None = Query(default=None, max_length=120),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=500),
@@ -183,6 +187,10 @@ def list_members(
         stmt = stmt.where(Member.has_photo.is_(True))
     elif has_photo_filter == "without_photo":
         stmt = stmt.where(Member.has_photo.is_(False))
+
+    gender_value = (gender or "").strip().lower()
+    if gender_value:
+        stmt = stmt.where(Member.gender == gender_value)
 
     group_name = (group or "").strip()
     if group_name:
@@ -252,6 +260,56 @@ def search_members(
     return MemberSearchResponse(total=len(items), items=items)
 
 
+@router.get("/photo-picker", response_model=MemberSearchResponse)
+def photo_picker_members(
+    event_id: UUID | None = Query(default=None),
+    gender: str | None = Query(default=None, max_length=16),
+    active_only: bool = Query(default=True),
+    limit: int = Query(default=20, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> MemberSearchResponse:
+    since = now_local_naive() - timedelta(days=90)
+    recent_count = func.count(AttendanceRecord.id).label("recent_count")
+    stmt: Select = (
+        select(Member, recent_count)
+        .outerjoin(
+            AttendanceRecord,
+            and_(
+                AttendanceRecord.member_id == Member.id,
+                AttendanceRecord.check_in_time >= since,
+            ),
+        )
+        .where(Member.has_photo.is_(True))
+        .group_by(Member.id)
+    )
+
+    if active_only:
+        stmt = stmt.where(Member.status.is_(True))
+
+    gender_value = (gender or "").strip().lower()
+    if gender_value:
+        stmt = stmt.where(Member.gender == gender_value)
+
+    if event_id is not None:
+        checked_in = select(AttendanceRecord.member_id).where(AttendanceRecord.event_id == event_id)
+        stmt = stmt.where(~Member.id.in_(checked_in))
+
+    stmt = stmt.order_by(recent_count.desc(), Member.name.asc()).offset(offset).limit(limit)
+    rows = db.execute(stmt).all()
+
+    items: list[MemberOut] = []
+    for row in rows:
+        member = row[0]
+        out = _to_member_out(member)
+        if event_id is not None:
+            out.attendance_status = "not_checked_in"
+            out.attendance_event_id = event_id
+        items.append(out)
+
+    return MemberSearchResponse(total=len(items), items=items)
+
+
 @router.get("/transliterate")
 def transliterate_text(q: str = Query(default="", max_length=120)) -> dict[str, str]:
     text = q.strip()
@@ -287,6 +345,8 @@ def update_member(member_id: UUID, payload: MemberUpdateRequest, db: Session = D
             raise HTTPException(status_code=400, detail="name cannot be empty")
     if "name_chn" in provided_fields:
         member.name_chn = payload.name_chn.strip() if payload.name_chn else None
+    if "gender" in provided_fields:
+        member.gender = payload.gender.strip().lower() if payload.gender else None
     if "group" in provided_fields:
         member.group = payload.group.strip() if payload.group else None
     if "birthday" in provided_fields:

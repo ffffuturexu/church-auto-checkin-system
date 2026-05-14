@@ -60,6 +60,7 @@ class Member(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     name_chn: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     has_photo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    gender: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
     group: Mapped[str | None] = mapped_column(String(120), nullable=True)
     birthday: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
