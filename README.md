@@ -181,7 +181,7 @@
 
    [Script]
    Threshold = 0.70
-   Margin = 0.18
+   Margin = 0.20
    DedupeSeconds = 60
    FrameSkip = 2
    VoteWindowSec = 1.5
@@ -483,6 +483,6 @@ pytest tests/ --cov=app --cov-report=html
 
 ---
 
-**最后更新**: 2026-05-14  
+**最后更新**: 2026-05-15  
 **维护者**: Weilai Xu@Rugiada
 **仓库**: [github.com/ffffuturexu/church-auto-checkin-system](https://github.com/ffffuturexu/church-auto-checkin-system)
