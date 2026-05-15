@@ -64,6 +64,18 @@ def _normalize_search_text(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+def _gender_filter_values(gender: str | None) -> list[str]:
+    gender_value = (gender or "").strip().lower()
+    if not gender_value:
+        return []
+
+    if gender_value in {"male", "m", "man", "男"}:
+        return ["male", "男"]
+    if gender_value in {"female", "f", "woman", "女"}:
+        return ["female", "女"]
+    return [gender_value]
+
+
 def _initials_from_text(value: str | None) -> str:
     raw = (value or "").strip()
     if not raw:
@@ -188,9 +200,9 @@ def list_members(
     elif has_photo_filter == "without_photo":
         stmt = stmt.where(Member.has_photo.is_(False))
 
-    gender_value = (gender or "").strip().lower()
-    if gender_value:
-        stmt = stmt.where(Member.gender == gender_value)
+    gender_values = _gender_filter_values(gender)
+    if gender_values:
+        stmt = stmt.where(Member.gender.in_(gender_values))
 
     group_name = (group or "").strip()
     if group_name:
@@ -287,9 +299,9 @@ def photo_picker_members(
     if active_only:
         stmt = stmt.where(Member.status.is_(True))
 
-    gender_value = (gender or "").strip().lower()
-    if gender_value:
-        stmt = stmt.where(Member.gender == gender_value)
+    gender_values = _gender_filter_values(gender)
+    if gender_values:
+        stmt = stmt.where(Member.gender.in_(gender_values))
 
     if event_id is not None:
         checked_in = select(AttendanceRecord.member_id).where(AttendanceRecord.event_id == event_id)

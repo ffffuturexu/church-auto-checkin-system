@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from datetime import date, datetime, timedelta
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import Select, func, not_, or_, select
+from sqlalchemy import Select, case, func, not_, or_, select
 from sqlalchemy.orm import Session
 from fastapi.responses import StreamingResponse
 
@@ -42,6 +44,12 @@ from app.schemas.attendance import (
 )
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
+
+
+def _sanitize_filename_part(value: str) -> str:
+    cleaned = re.sub(r'[\\/:*?"<>|\r\n\t]+', "_", value)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ._")
+    return cleaned or "签到记录"
 
 
 def _event_language_filters():
@@ -121,7 +129,7 @@ def _build_history_query(
     event_date: date | None,
 ) -> Select:
     stmt: Select = (
-        select(AttendanceRecord, Member.name)
+        select(AttendanceRecord, Member.name, Member.name_chn)
         .join(Member, AttendanceRecord.member_id == Member.id)
         .join(AttendanceEvent, AttendanceRecord.event_id == AttendanceEvent.id)
     )
@@ -262,7 +270,7 @@ def attendance_history(
 
     items: list[AttendanceRecordOut] = []
     for row in rows:
-        record, member_name = row
+        record, member_name, _member_name_chn = row
         items.append(_to_out(record, member_name))
 
     return AttendanceHistoryResponse(total=len(items), items=items)
@@ -282,15 +290,24 @@ def attendance_history_export_csv(
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["attendance_record_id", "event_id", "member_id", "member_name", "check_in_time", "method"])
+    writer.writerow([
+        "attendance_record_id",
+        "event_id",
+        "member_id",
+        "member_name",
+        "member_name_chn",
+        "check_in_time",
+        "method",
+    ])
     for row in rows:
-        record, member_name = row
+        record, member_name, member_name_chn = row
         writer.writerow(
             [
                 str(record.id),
                 str(record.event_id),
                 str(record.member_id),
                 member_name,
+                member_name_chn or "",
                 _to_display_checkin_time(record.check_in_time).strftime("%Y-%m-%d %H:%M:%S"),
                 record.method.value,
             ]
@@ -299,9 +316,27 @@ def attendance_history_export_csv(
     csv_text = buf.getvalue()
     buf.close()
 
-    filename = "attendance_history.csv"
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
-    return StreamingResponse(iter([csv_text]), media_type="text/csv; charset=utf-8", headers=headers)
+    filename_stem = "签到记录"
+    if event_id is not None:
+        event = db.get(AttendanceEvent, event_id)
+        if event is not None:
+            event_name = _sanitize_filename_part(event.event_name or "")
+            if event_name:
+                filename_stem = f"签到记录_{event_name}"
+    filename = f"{filename_stem}.csv"
+    filename_ascii = re.sub(r"[^A-Za-z0-9._-]+", "_", filename).strip("._") or "attendance.csv"
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"{filename_ascii}\"; "
+            f"filename*=UTF-8''{quote(filename)}"
+        )
+    }
+    csv_with_bom = f"\ufeff{csv_text}"
+    return StreamingResponse(
+        iter([csv_with_bom.encode("utf-8")]),
+        media_type="text/csv; charset=utf-8",
+        headers=headers,
+    )
 
 
 @router.delete("/history/{record_id}", response_model=AttendanceRecordDeleteResponse)
@@ -382,8 +417,18 @@ def attendance_dashboard(
         or 0
     )
 
+    zh_filter, it_filter = _event_language_filters()
+    zh_count_expr = func.sum(
+        case(
+            (it_filter, 0),
+            (or_(zh_filter, not_(it_filter)), 1),
+            else_=1,
+        )
+    )
+    it_count_expr = func.sum(case((it_filter, 1), else_=0))
+
     daily_rows = db.execute(
-        select(AttendanceEvent.event_date, func.count(AttendanceRecord.id))
+        select(AttendanceEvent.event_date, zh_count_expr, it_count_expr)
         .join(AttendanceRecord, AttendanceRecord.event_id == AttendanceEvent.id)
         .where(
             AttendanceEvent.event_date.in_(sunday_dates),
@@ -392,10 +437,25 @@ def attendance_dashboard(
         .group_by(AttendanceEvent.event_date)
         .order_by(AttendanceEvent.event_date.asc())
     ).all()
-    daily_map = {row[0]: int(row[1]) for row in daily_rows}
+    daily_map = {
+        row[0]: {
+            "checkins_zh": int(row[1] or 0),
+            "checkins_it": int(row[2] or 0),
+        }
+        for row in daily_rows
+    }
     daily: list[AttendanceDashboardDailyPoint] = []
     for sunday in sunday_dates:
-        daily.append(AttendanceDashboardDailyPoint(event_date=sunday, checkins=daily_map.get(sunday, 0)))
+        counts = daily_map.get(sunday, {"checkins_zh": 0, "checkins_it": 0})
+        total = counts["checkins_zh"] + counts["checkins_it"]
+        daily.append(
+            AttendanceDashboardDailyPoint(
+                event_date=sunday,
+                checkins=total,
+                checkins_zh=counts["checkins_zh"],
+                checkins_it=counts["checkins_it"],
+            )
+        )
 
     avg_this_year_zh = _calc_this_year_avg_attendance_by_language(db, today=today, language="zh")
     avg_this_year_it = _calc_this_year_avg_attendance_by_language(db, today=today, language="it")

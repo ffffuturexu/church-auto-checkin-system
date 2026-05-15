@@ -465,8 +465,8 @@
             <div class="toolbar">
               <div id="photoGenderFilter" class="segmented" role="tablist">
                 <button type="button" class="active" data-gender="" role="tab" aria-selected="true">全部</button>
-                <button type="button" data-gender="male" role="tab" aria-selected="false">男</button>
-                <button type="button" data-gender="female" role="tab" aria-selected="false">女</button>
+                <button type="button" data-gender="男" role="tab" aria-selected="false">男</button>
+                <button type="button" data-gender="女" role="tab" aria-selected="false">女</button>
               </div>
               <div id="photoPickerStatus" class="tiny">准备就绪</div>
             </div>
@@ -1256,8 +1256,6 @@
               member_name: item.name,
               member_id: item.id,
             });
-            document.getElementById('memberQuery').value = '';
-            memberCardsContainer.innerHTML = '';
             await refreshStatus();
             await refreshCurrentService();
           } catch (err) {

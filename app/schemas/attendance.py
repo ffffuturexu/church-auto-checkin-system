@@ -52,6 +52,8 @@ class AttendanceDashboardSummary(BaseModel):
 class AttendanceDashboardDailyPoint(BaseModel):
     event_date: date
     checkins: int
+    checkins_zh: int = 0
+    checkins_it: int = 0
 
 
 class AttendanceDashboardEventPoint(BaseModel):

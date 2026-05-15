@@ -91,15 +91,49 @@
       padding: 8px;
       text-align: left;
       vertical-align: top;
+      white-space: nowrap;
     }
-    th { background: #f4f8ff; color: #35517e; }
+    td.allow-wrap {
+      white-space: normal;
+      word-break: break-all;
+    }
+    th {
+      background: #f4f8ff;
+      color: #35517e;
+      text-align: center;
+    }
     tr:last-child td { border-bottom: 0; }
     .mini { font-size: 12px; color: var(--sub); }
-    .back-home {
-      color: var(--pri);
+    .hero-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .hero-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 240px;
+    }
+    .home-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #1e4f9c;
       text-decoration: none;
-      font-weight: 700;
       font-size: 13px;
+      font-weight: 700;
+      padding: 8px 12px;
+      border: 1px solid rgba(30, 79, 156, 0.18);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 6px 16px rgba(11, 39, 87, 0.06);
+      white-space: nowrap;
+    }
+    .home-link:hover {
+      background: rgba(247, 251, 255, 0.98);
     }
     .linkrow a {
       color: var(--pri);
@@ -158,20 +192,85 @@
       grid-template-columns: 1.2fr 1fr;
       gap: 10px;
       margin-top: 8px;
+      align-items: stretch;
+    }
+    .board-grid > div {
+      display: flex;
+      flex-direction: column;
+    }
+    .trend-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .trend-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .trend-tools input {
+      min-width: 88px;
+      width: 88px;
+      padding: 6px 8px;
+    }
+    .trend-tools button {
+      padding: 6px 10px;
+    }
+    .trend-legend {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: #4f6280;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(21, 36, 58, 0.15);
+    }
+    .legend-swatch.zh {
+      background: #2e70c7;
+    }
+    .legend-swatch.it {
+      background: #d7822b;
     }
     .daily-bars {
       border: 1px solid var(--line);
       border-radius: 10px;
       padding: 8px;
       background: #fbfdff;
-      max-height: 260px;
+      height: 260px;
       overflow: auto;
       display: grid;
       gap: 6px;
     }
+    .top-events-wrap {
+      height: 260px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+    }
+    .board-top-table {
+      margin-top: 0;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      height: 260px;
+    }
     .bar-row {
       display: grid;
-      grid-template-columns: 92px 1fr 45px;
+      grid-template-columns: 92px 1fr 68px;
       align-items: center;
       gap: 8px;
       font-size: 12px;
@@ -184,10 +283,20 @@
       background: #e4edf9;
       overflow: hidden;
     }
-    .bar {
+    .bar-fill {
       height: 100%;
       border-radius: 999px;
-      background: linear-gradient(90deg, #2e70c7, #529be6);
+      overflow: hidden;
+      display: flex;
+    }
+    .bar {
+      height: 100%;
+    }
+    .bar.zh {
+      background: #2e70c7;
+    }
+    .bar.it {
+      background: #d7822b;
     }
     .small {
       padding: 6px 9px;
@@ -345,6 +454,47 @@
     .hidden {
       display: none;
     }
+    /* 自定义紧凑下拉列表样式 */
+    .custom-select-container {
+      position: relative;
+      flex: 1;
+    }
+    .custom-select-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 100;
+      max-height: 180px;
+      overflow-y: auto;
+      margin-top: 4px;
+      display: none;
+    }
+    .custom-select-item {
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--ink);
+      line-height: 1.4;
+    }
+    .custom-select-item:hover {
+      background: #f0f5ff;
+      color: var(--pri);
+    }
+    .custom-select-arrow {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      font-size: 10px;
+      color: var(--sub);
+      opacity: 0.6;
+    }
     @media (max-width: 980px) {
       .stats-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
       .board-grid { grid-template-columns: 1fr; }
@@ -356,9 +506,13 @@
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>事工管理后台</h1>
-      <div class="mini">会友与照片管理 + 场次签到与统计（Tab 分页）</div>
-      <div style="margin-top:6px;"><a class="back-home" href="/">返回首页</a></div>
+      <div class="hero-top">
+        <div class="hero-title-wrap">
+          <h1>事工管理后台</h1>
+          <div class="mini">会友与照片管理 + 场次签到与统计（Tab 分页）</div>
+        </div>
+        <a class="home-link" href="/">🏠 返回首页</a>
+      </div>
       <div class="tabs">
         <button class="tab-btn active" data-tab="memberTab">会友 / 照片管理</button>
         <button class="tab-btn" data-tab="opsTab">场次 / 签到 / 报表 / 统计</button>
@@ -390,6 +544,12 @@
             <option value="all">全部</option>
             <option value="inactive">仅 inactive</option>
           </select>
+          <select id="memberGenderFilter">
+            <option value="all" selected>性别: 全部</option>
+            <option value="男">性别: 男</option>
+            <option value="女">性别: 女</option>
+            <option value="unknown">性别: 未知/未填</option>
+          </select>
           <select id="memberPhotoFilter">
             <option value="all" selected>照片: 全部</option>
             <option value="with">照片: 仅有照片</option>
@@ -399,13 +559,16 @@
             <option value="all" selected>分组: 全部</option>
             <option value="__empty__">分组: 未分组</option>
           </select>
+          <button id="memberClearFiltersBtn" class="alt">清除所有筛选条件</button>
           <div class="mini">点击表头可排序，再次点击切换升降序</div>
         </div>
+        <div id="memberFilterSummary" class="mini">当前筛选条件：-，共筛选出 0 条记录</div>
         <table>
           <thead>
             <tr>
               <th class="sortable" data-sort="name">姓名</th>
               <th class="sortable" data-sort="name_chn">中文名</th>
+              <th class="sortable" data-sort="gender">性别</th>
               <th class="sortable" data-sort="birthday">生日</th>
               <th class="sortable" data-sort="age">年龄</th>
               <th class="sortable" data-sort="has_photo">照片</th>
@@ -423,10 +586,6 @@
     <div id="opsTab" class="tab-panel">
       <div class="card">
         <h2>场次/签到数据看板</h2>
-        <div class="toolbar">
-          <input id="dashboardDays" type="number" min="1" max="180" value="14" />
-          <button id="dashboardRefreshBtn" class="alt">刷新看板</button>
-        </div>
         <div class="stats-grid">
           <div class="stat"><div class="label">活跃会友</div><div id="statMembers" class="value">0</div></div>
           <div class="stat"><div class="label">活跃场次</div><div id="statEvents" class="value">0</div></div>
@@ -439,21 +598,33 @@
         </div>
         <div class="board-grid">
           <div>
-            <h3>近 N 个主日签到趋势</h3>
+            <div class="trend-head">
+              <h3 id="trendTitle">近 14 个主日签到趋势</h3>
+              <div class="trend-tools">
+                <div class="trend-legend">
+                  <span class="legend-item"><span class="legend-swatch zh"></span>中文</span>
+                  <span class="legend-item"><span class="legend-swatch it"></span>意语</span>
+                </div>
+                <input id="dashboardDays" type="number" min="1" max="180" value="14" />
+                <button id="dashboardRefreshBtn" class="alt">刷新看板</button>
+              </div>
+            </div>
             <div id="dailyBars" class="daily-bars"></div>
           </div>
           <div>
             <h3>热门场次 Top</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>场次</th>
-                  <th>日期</th>
-                  <th>签到数</th>
-                </tr>
-              </thead>
-              <tbody id="boardTopEvents"></tbody>
-            </table>
+            <div class="top-events-wrap">
+              <table class="board-top-table">
+                <thead>
+                  <tr>
+                    <th>场次</th>
+                    <th>日期</th>
+                    <th>签到数</th>
+                  </tr>
+                </thead>
+                <tbody id="boardTopEvents"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -463,6 +634,9 @@
         <div class="toolbar">
           <select id="eventYearFilter">
             <option value="">年份: 全部</option>
+          </select>
+          <select id="eventMonthFilter">
+            <option value="">月份: 全部</option>
           </select>
           <select id="eventLanguageFilter">
             <option value="all" selected>语言: 全部</option>
@@ -538,6 +712,14 @@
           <input id="modalNameChn" />
         </label>
         <label class="field">
+          性别
+          <select id="modalGender">
+            <option value="">(未选择)</option>
+            <option value="男">男</option>
+            <option value="女">女</option>
+          </select>
+        </label>
+        <label class="field">
           生日
           <input id="modalBirthday" type="date" />
         </label>
@@ -547,7 +729,11 @@
         </label>
         <label class="field">
           分组
-          <input id="modalGroup" />
+          <div class="custom-select-container">
+            <input id="modalGroup" placeholder="输入或选择分组" autocomplete="off" />
+            <span class="custom-select-arrow">▼</span>
+            <div id="modalGroupList" class="custom-select-list"></div>
+          </div>
         </label>
         <label class="field">
           备注
@@ -596,14 +782,18 @@
     const rowsEl = document.getElementById('memberRows');
     const memberSearchInputEl = document.getElementById('memberSearchInput');
     const memberStatusFilterEl = document.getElementById('memberStatusFilter');
+    const memberGenderFilterEl = document.getElementById('memberGenderFilter');
     const memberPhotoFilterEl = document.getElementById('memberPhotoFilter');
     const memberGroupFilterEl = document.getElementById('memberGroupFilter');
+    const memberClearFiltersBtn = document.getElementById('memberClearFiltersBtn');
+    const memberFilterSummaryEl = document.getElementById('memberFilterSummary');
     const eventRowsEl = document.getElementById('eventRows');
     const historyRowsEl = document.getElementById('historyRows');
     const historyEventTitleEl = document.getElementById('historyEventTitle');
     const historyLimitEl = document.getElementById('historyLimit');
     const historyExportLinkEl = document.getElementById('historyExportLink');
     const eventYearFilterEl = document.getElementById('eventYearFilter');
+    const eventMonthFilterEl = document.getElementById('eventMonthFilter');
     const eventLanguageFilterEl = document.getElementById('eventLanguageFilter');
     const eventLimitEl = document.getElementById('eventLimit');
 
@@ -616,6 +806,7 @@
     const modalSubEl = document.getElementById('modalSub');
     const modalNameEl = document.getElementById('modalName');
     const modalNameChnEl = document.getElementById('modalNameChn');
+    const modalGenderEl = document.getElementById('modalGender');
     const modalGroupEl = document.getElementById('modalGroup');
     const modalBirthdayEl = document.getElementById('modalBirthday');
     const modalAgeEl = document.getElementById('modalAge');
@@ -630,6 +821,8 @@
 
     const boardTopEventsEl = document.getElementById('boardTopEvents');
     const dailyBarsEl = document.getElementById('dailyBars');
+    const dashboardDaysEl = document.getElementById('dashboardDays');
+    const trendTitleEl = document.getElementById('trendTitle');
 
     const eventMap = new Map();
     const memberById = new Map();
@@ -644,10 +837,16 @@
 
     function refreshEventYearOptions(items) {
       const previous = eventYearFilterEl.value || '';
+      const nowYear = String(new Date().getFullYear());
       const years = [...new Set((items || [])
         .map((e) => Number((e.event_date || '').slice(0, 4)))
         .filter((y) => Number.isInteger(y) && y > 0)
       )].sort((a, b) => b - a);
+
+      if (!years.includes(Number(nowYear))) {
+        years.unshift(Number(nowYear));
+      }
+      years.sort((a, b) => b - a);
 
       eventYearFilterEl.innerHTML = '<option value="">年份: 全部</option>';
       for (const y of years) {
@@ -658,7 +857,31 @@
       }
 
       const hasPrevious = Array.from(eventYearFilterEl.options).some((o) => o.value === previous);
-      eventYearFilterEl.value = hasPrevious ? previous : '';
+      if (hasPrevious && previous) {
+        eventYearFilterEl.value = previous;
+      } else {
+        eventYearFilterEl.value = nowYear;
+      }
+    }
+
+    function refreshEventMonthOptions() {
+      const previous = eventMonthFilterEl.value || '';
+      const nowMonth = String(new Date().getMonth() + 1);
+
+      eventMonthFilterEl.innerHTML = '<option value="">月份: 全部</option>';
+      for (let m = 1; m <= 12; m += 1) {
+        const opt = document.createElement('option');
+        opt.value = String(m);
+        opt.textContent = `月份: ${m}月`;
+        eventMonthFilterEl.appendChild(opt);
+      }
+
+      const hasPrevious = Array.from(eventMonthFilterEl.options).some((o) => o.value === previous);
+      if (hasPrevious && previous) {
+        eventMonthFilterEl.value = previous;
+      } else {
+        eventMonthFilterEl.value = nowMonth;
+      }
     }
 
     function inferEventLanguage(eventName) {
@@ -712,6 +935,61 @@
       return computeAgeFromBirthday(member.birthday);
     }
 
+    function describeMemberFilters() {
+      const parts = [];
+      const keyword = (memberSearchInputEl.value || '').trim();
+      const statusFilter = memberStatusFilterEl.value;
+      const genderFilter = memberGenderFilterEl.value;
+      const photoFilter = memberPhotoFilterEl.value;
+      const groupFilter = memberGroupFilterEl.value;
+
+      if (keyword) {
+        parts.push(`关键词: ${keyword}`);
+      }
+      if (statusFilter === 'active') {
+        parts.push('状态: 仅 active');
+      } else if (statusFilter === 'inactive') {
+        parts.push('状态: 仅 inactive');
+      } else {
+        parts.push('状态: 全部');
+      }
+
+      if (genderFilter === '男') {
+        parts.push('性别: 男');
+      } else if (genderFilter === '女') {
+        parts.push('性别: 女');
+      } else if (genderFilter === 'unknown') {
+        parts.push('性别: 未知/未填');
+      } else {
+        parts.push('性别: 全部');
+      }
+
+      if (photoFilter === 'with') {
+        parts.push('照片: 仅有照片');
+      } else if (photoFilter === 'without') {
+        parts.push('照片: 仅无照片');
+      } else {
+        parts.push('照片: 全部');
+      }
+
+      if (groupFilter === '__empty__') {
+        parts.push('分组: 未分组');
+      } else if (groupFilter !== 'all') {
+        parts.push(`分组: ${groupFilter}`);
+      } else {
+        parts.push('分组: 全部');
+      }
+
+      return parts.join(' / ');
+    }
+
+    function updateMemberFilterSummary(count) {
+      if (!memberFilterSummaryEl) {
+        return;
+      }
+      memberFilterSummaryEl.textContent = `当前筛选条件：${describeMemberFilters()}，共筛选出 ${count} 条记录`;
+    }
+
     function updateSortHeaders() {
       for (const th of document.querySelectorAll('th.sortable')) {
         const key = th.dataset.sort;
@@ -744,6 +1022,13 @@
         rows = rows.filter((m) => !m.has_photo);
       }
 
+      const genderFilter = memberGenderFilterEl.value;
+      if (genderFilter === '男' || genderFilter === '女') {
+        rows = rows.filter((m) => m.gender === genderFilter);
+      } else if (genderFilter === 'unknown') {
+        rows = rows.filter((m) => !m.gender);
+      }
+
       const groupFilter = memberGroupFilterEl.value;
       if (groupFilter === '__empty__') {
         rows = rows.filter((m) => !(m.group || '').trim());
@@ -774,11 +1059,25 @@
       )].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
 
       memberGroupFilterEl.innerHTML = '<option value="all">分组: 全部</option><option value="__empty__">分组: 未分组</option>';
+      const customList = document.getElementById('modalGroupList');
+      if (customList) customList.innerHTML = '';
+      
       for (const g of groups) {
         const opt = document.createElement('option');
         opt.value = g;
         opt.textContent = `分组: ${g}`;
         memberGroupFilterEl.appendChild(opt);
+
+        if (customList) {
+          const item = document.createElement('div');
+          item.className = 'custom-select-item';
+          item.textContent = g;
+          item.onclick = () => {
+            modalGroupEl.value = g;
+            customList.style.display = 'none';
+          };
+          customList.appendChild(item);
+        }
       }
 
       const hasPrevious = Array.from(memberGroupFilterEl.options).some((o) => o.value === previous);
@@ -815,10 +1114,28 @@
       memberEditMode = enabled;
       modalNameEl.disabled = !enabled;
       modalNameChnEl.disabled = !enabled;
+      modalGenderEl.disabled = !enabled;
       modalGroupEl.disabled = !enabled;
       modalBirthdayEl.disabled = !enabled;
       modalAgeEl.disabled = true;
       modalNoteEl.disabled = !enabled;
+
+      // 切换自定义下拉列表的可点击状态
+      const customList = document.getElementById('modalGroupList');
+      if (enabled) {
+        modalGroupEl.onclick = () => {
+          customList.style.display = customList.style.display === 'block' ? 'none' : 'block';
+        };
+        // 点击外部关闭
+        document.addEventListener('click', (e) => {
+          if (!modalGroupEl.contains(e.target) && !customList.contains(e.target)) {
+            customList.style.display = 'none';
+          }
+        }, { once: !enabled });
+      } else {
+        modalGroupEl.onclick = null;
+        if (customList) customList.style.display = 'none';
+      }
 
       memberEditBtn.classList.toggle('hidden', enabled);
       memberSaveBtn.classList.toggle('hidden', !enabled);
@@ -826,10 +1143,15 @@
     }
 
     function fillMemberModal(member) {
-      modalTitleEl.textContent = `会友详情：${member.name || ''}`;
+      let genderIcon = '';
+      if (member.gender === '男') genderIcon = ' <span style="color:#2b6cb0">♂</span>';
+      else if (member.gender === '女') genderIcon = ' <span style="color:#b83280">♀</span>';
+
+      modalTitleEl.innerHTML = `会友详情：${member.name || ''}${genderIcon}`;
       modalSubEl.textContent = `Member ID: ${member.id}`;
       modalNameEl.value = member.name || '';
       modalNameChnEl.value = member.name_chn || '';
+      modalGenderEl.value = member.gender || '';
       modalGroupEl.value = member.group || '';
       modalBirthdayEl.value = member.birthday || '';
       modalAgeEl.value = getDisplayAge(member) ?? '';
@@ -864,18 +1186,25 @@
       renderGroupFilterOptions();
 
       const rows = getFilteredSortedMembers();
+      updateMemberFilterSummary(rows.length);
       for (const m of rows) {
         const tr = document.createElement('tr');
         tr.className = 'member-row';
         const displayAge = getDisplayAge(m);
+        
+        let genderSpan = '-';
+        if (m.gender === '男') genderSpan = '<span style="color:#2b6cb0">男 ♂</span>';
+        else if (m.gender === '女') genderSpan = '<span style="color:#b83280">女 ♀</span>';
+
         tr.innerHTML = `
           <td>${m.name || ''}</td>
           <td>${m.name_chn || '-'}</td>
+          <td>${genderSpan}</td>
           <td>${m.birthday || '-'}</td>
           <td>${displayAge == null ? '-' : displayAge}</td>
           <td>${m.has_photo ? '<span class="status-pill active">有照片</span>' : '<span class="status-pill inactive">无照片</span>'}</td>
           <td>${m.group || '-'}</td>
-          <td>${m.note || '-'}</td>
+          <td class="allow-wrap">${m.note || '-'}</td>
           <td>${m.status ? '<span class="status-pill active">active</span>' : '<span class="status-pill inactive">inactive</span>'}</td>
           <td></td>
         `;
@@ -887,7 +1216,7 @@
           openMemberModal(m);
         });
 
-        const actionTd = tr.children[8];
+        const actionTd = tr.children[9];
         const detailBtn = document.createElement('button');
         detailBtn.textContent = '查看详情';
         detailBtn.className = 'small';
@@ -985,6 +1314,7 @@
       const payload = {
         name: modalNameEl.value.trim(),
         name_chn: modalNameChnEl.value.trim() || null,
+        gender: modalGenderEl.value || null,
         group: modalGroupEl.value.trim() || null,
         birthday: modalBirthdayEl.value || null,
         note: modalNoteEl.value.trim() || null
@@ -1265,14 +1595,19 @@
       const allRes = await fetch('/events?include_archived=true&limit=1000');
       const allData = await allRes.json();
       refreshEventYearOptions(allData.items || []);
+      refreshEventMonthOptions();
 
       const selectedYear = Number(eventYearFilterEl.value || '0');
+      const selectedMonth = Number(eventMonthFilterEl.value || '0');
       const selectedLanguage = eventLanguageFilterEl.value || 'all';
       const selectedLimit = Math.max(1, Math.min(1000, Number(eventLimitEl.value || '50')));
 
       let items = (allData.items || []).slice();
       if (selectedYear > 0) {
         items = items.filter((e) => Number((e.event_date || '').slice(0, 4)) === selectedYear);
+      }
+      if (selectedMonth > 0) {
+        items = items.filter((e) => Number((e.event_date || '').slice(5, 7)) === selectedMonth);
       }
       if (selectedLanguage !== 'all') {
         items = items.filter((e) => inferEventLanguage(e.event_name) === selectedLanguage);
@@ -1461,22 +1796,44 @@
         }
         return d.getDay() === 0;
       });
-      const max = Math.max(1, ...sundayOnly.map((p) => Number(p.checkins || 0)));
+      const max = Math.max(1, ...sundayOnly.map((p) => Number((p.checkins_zh || 0) + (p.checkins_it || 0) || p.checkins || 0)));
       for (const p of sundayOnly) {
+        const zhCount = Number(p.checkins_zh || 0);
+        const itCount = Number(p.checkins_it || 0);
+        const total = Number(zhCount + itCount || p.checkins || 0);
         const row = document.createElement('div');
         row.className = 'bar-row';
-        const width = Math.max(0, Math.round((Number(p.checkins || 0) / max) * 100));
+        const totalWidth = Math.max(0, Math.round((total / max) * 100));
+        const zhWidth = total > 0 ? Math.round((zhCount / total) * 100) : 0;
+        const itWidth = total > 0 ? (100 - zhWidth) : 0;
+        const countText = itCount > 0 ? `${zhCount}/${itCount}` : `${zhCount}`;
         row.innerHTML = `
           <div>${p.event_date}</div>
-          <div class="bar-track"><div class="bar" style="width:${width}%"></div></div>
-          <div>${p.checkins}</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${totalWidth}%">
+              <div class="bar zh" style="width:${zhWidth}%"></div>
+              <div class="bar it" style="width:${itWidth}%"></div>
+            </div>
+          </div>
+          <div>${countText}</div>
         `;
         dailyBarsEl.appendChild(row);
       }
     }
 
+    function getDashboardDays() {
+      const normalized = Math.max(1, Math.min(180, Number(dashboardDaysEl.value || '14')));
+      dashboardDaysEl.value = String(normalized);
+      return normalized;
+    }
+
+    function updateTrendTitle(days) {
+      trendTitleEl.textContent = `近 ${days} 个主日签到趋势`;
+    }
+
     async function loadDashboard() {
-      const days = Math.max(1, Math.min(180, Number(document.getElementById('dashboardDays').value || '14')));
+      const days = getDashboardDays();
+      updateTrendTitle(days);
       const res = await fetch(`/attendance/dashboard?days=${days}&top_events_limit=8`);
       const data = await res.json();
       const summary = data.summary || {};
@@ -1538,6 +1895,16 @@
 
     document.getElementById('reloadBtn').addEventListener('click', listMembers);
     document.getElementById('syncAllBtn').addEventListener('click', syncAllMembersPhotos);
+    memberClearFiltersBtn.addEventListener('click', () => {
+      memberSearchInputEl.value = '';
+      memberStatusFilterEl.value = 'active';
+      memberGenderFilterEl.value = 'all';
+      memberPhotoFilterEl.value = 'all';
+      memberGroupFilterEl.value = 'all';
+      listMembers().catch((err) => {
+        console.error('clear member filters error', err);
+      });
+    });
     memberSearchInputEl.addEventListener('input', () => {
       clearTimeout(memberSearchDebounceTimer);
       memberSearchDebounceTimer = setTimeout(() => {
@@ -1547,6 +1914,7 @@
       }, 220);
     });
     memberStatusFilterEl.addEventListener('change', renderMemberRows);
+    memberGenderFilterEl.addEventListener('change', renderMemberRows);
     memberPhotoFilterEl.addEventListener('change', renderMemberRows);
     memberGroupFilterEl.addEventListener('change', renderMemberRows);
 
@@ -1599,6 +1967,10 @@
       await listEvents();
       await loadHistory();
     });
+    eventMonthFilterEl.addEventListener('change', async () => {
+      await listEvents();
+      await loadHistory();
+    });
     eventLanguageFilterEl.addEventListener('change', async () => {
       await listEvents();
       await loadHistory();
@@ -1639,6 +2011,9 @@
     }
     document.getElementById('historyQueryBtn').addEventListener('click', loadHistory);
     document.getElementById('dashboardRefreshBtn').addEventListener('click', loadDashboard);
+    dashboardDaysEl.addEventListener('input', () => {
+      updateTrendTitle(getDashboardDays());
+    });
 
     async function initPage() {
       initTabs();
