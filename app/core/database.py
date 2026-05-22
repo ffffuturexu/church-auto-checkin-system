@@ -95,6 +95,25 @@ def _apply_sqlite_migrations() -> None:
         if "phone" in member_column_names:
             conn.execute(text("ALTER TABLE members DROP COLUMN phone"))
 
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_attendance_records_member_checkin_time "
+                "ON attendance_records (member_id, check_in_time)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_attendance_records_event_checkin_time "
+                "ON attendance_records (event_id, check_in_time)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_attendance_events_date_archived "
+                "ON attendance_events (event_date, is_archived)"
+            )
+        )
+
         _migrate_face_photos_to_member_fk(conn)
         _sync_member_has_photo(conn)
         _migrate_recognition_logs_fields(conn)

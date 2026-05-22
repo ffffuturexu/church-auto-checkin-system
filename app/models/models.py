@@ -38,6 +38,7 @@ class Base(DeclarativeBase):
 class CheckInMethod(str, enum.Enum):
     AUTO_FACE = "auto_face"
     MANUAL_RECEPTION = "manual_reception"
+    MANUAL_BACKFILL = "manual_backfill"
 
 
 class RecognitionStatus(str, enum.Enum):
@@ -115,7 +116,7 @@ class AttendanceRecord(Base):
         server_default=func.now(),
     )
     method: Mapped[CheckInMethod] = mapped_column(
-        Enum(CheckInMethod, native_enum=False, length=32),
+        Enum(CheckInMethod, native_enum=False, length=32, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
 

@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.database import init_db
 from app.routers.attendance import router as attendance_router
 from app.routers.admin import router as admin_router
+from app.routers.care import router as care_router
 from app.routers.debug import router as debug_router
 from app.routers.events import router as events_router
 from app.routers.face_library import router as face_library_router
@@ -62,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(members_router)
     app.include_router(face_library_router)
     app.include_router(attendance_router)
+    app.include_router(care_router)
     app.include_router(debug_router)
     app.include_router(reception_router)
     app.include_router(reception_feed_router)

@@ -165,6 +165,185 @@
     .tab-panel.active {
       display: grid;
     }
+    .care-grid {
+      display: grid;
+      gap: 12px;
+    }
+    .care-filters-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(120px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .care-filters-grid > label {
+      display: grid;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--sub);
+    }
+    .care-filters-grid .care-search {
+      grid-column: span 2;
+    }
+    .care-main-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 10px;
+    }
+    .care-sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    .care-sortable:hover {
+      background: #eaf2ff;
+    }
+    .care-member-item {
+      cursor: pointer;
+    }
+    .care-member-item:hover {
+      background: #f7fbff;
+    }
+    .care-member-item.active {
+      background: #e8f1ff;
+    }
+    .status-pill.high {
+      background: #f7dfe4;
+      color: #7a2236;
+    }
+    .status-pill.medium {
+      background: #fdeccc;
+      color: #895511;
+    }
+    .status-pill.low {
+      background: #def3e7;
+      color: #196245;
+    }
+    .care-profile-top {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 10px;
+      align-items: start;
+      margin-top: 8px;
+    }
+    .care-photo-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fbfdff;
+      padding: 8px;
+      display: grid;
+      gap: 8px;
+      min-height: 220px;
+      align-content: start;
+    }
+    .care-photo-frame {
+      width: 100%;
+      min-height: 170px;
+      border: 1px dashed #bfd0ec;
+      border-radius: 8px;
+      background: linear-gradient(180deg, #f9fcff 0%, #eef5ff 100%);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+    .care-photo-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .care-photo-placeholder {
+      color: var(--sub);
+      font-size: 13px;
+      padding: 12px;
+      text-align: center;
+    }
+    .care-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .care-cohort-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(160px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .care-cohort-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fbfdff;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+    }
+    .care-cohort-card .count {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1c3c73;
+    }
+    .care-cohort-card button {
+      width: 100%;
+    }
+    .care-dist-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .care-dist-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fbfdff;
+      padding: 8px;
+    }
+    .care-dist-list {
+      display: grid;
+      gap: 4px;
+      margin-top: 6px;
+      font-size: 13px;
+    }
+    .care-detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 0;
+    }
+    .care-detail-field {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 8px;
+      font-size: 12px;
+    }
+    .care-detail-field .k {
+      color: var(--sub);
+    }
+    .care-detail-field .v {
+      margin-top: 4px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #1b3b71;
+    }
+    .care-risk-value {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+    }
+    .care-empty {
+      color: var(--sub);
+      font-size: 12px;
+      padding: 8px 0;
+    }
+    .care-pagination {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(160px, 1fr));
@@ -451,6 +630,23 @@
       border: 1px solid var(--line);
       background: #f2f7ff;
     }
+    .care-monthly-table th,
+    .care-monthly-table td {
+      text-align: center;
+    }
+    .care-records-scroll {
+      height: 240px;
+      overflow-y: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fbfdff;
+    }
+    .care-records-scroll table {
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      margin: 0;
+    }
     .hidden {
       display: none;
     }
@@ -500,6 +696,14 @@
       .board-grid { grid-template-columns: 1fr; }
       .modal-grid { grid-template-columns: 1fr; }
       .event-history-grid { grid-template-columns: 1fr; }
+      .care-filters-grid { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+      .care-main-grid { grid-template-columns: 1fr; }
+      .care-summary-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      .care-cohort-grid { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
+      .care-dist-grid { grid-template-columns: 1fr; }
+      .care-detail-grid { grid-template-columns: 1fr; }
+      .care-profile-top { grid-template-columns: 1fr; }
+      .care-filters-grid .care-search { grid-column: span 3; }
     }
   </style>
 </head>
@@ -516,6 +720,7 @@
       <div class="tabs">
         <button class="tab-btn active" data-tab="memberTab">会友 / 照片管理</button>
         <button class="tab-btn" data-tab="opsTab">场次 / 签到 / 报表 / 统计</button>
+        <button class="tab-btn" data-tab="careTab">关怀中心（施工中）</button>
       </div>
     </div>
 
@@ -690,6 +895,192 @@
         </div>
       </div>
     </div>
+
+    <div id="careTab" class="tab-panel">
+      <div class="care-grid">
+        <div class="card">
+          <h2>关怀中心（施工中）</h2>
+          <div class="mini">筛选对象 + 单人参与状态 + 推荐关怀人群 + 汇总报告</div>
+        </div>
+
+        <div class="card">
+          <h2>筛选条件</h2>
+          <div class="care-filters-grid">
+            <label class="care-search">按姓名过滤
+              <input id="careNameFilter" type="text" placeholder="姓名 / 中文名 / 分组 / 备注" />
+            </label>
+            <label>最近 N 个月
+              <input id="careMonthsWindow" type="number" min="1" max="24" value="3" />
+            </label>
+            <label>最少签到次数
+              <input id="careMinCheckins" type="number" min="0" max="500" value="0" />
+            </label>
+            <label>最多签到次数
+              <input id="careMaxCheckins" type="number" min="0" max="500" value="" placeholder="不限" />
+            </label>
+            <label>状态
+              <select id="careStatusFilter">
+                <option value="active" selected>仅 active</option>
+                <option value="all">全部</option>
+                <option value="inactive">仅 inactive</option>
+              </select>
+            </label>
+            <label>分组
+              <select id="careGroupFilter">
+                <option value="">分组: 全部</option>
+                <option value="__empty__">分组: 未分组</option>
+              </select>
+            </label>
+            <label>照片
+              <select id="carePhotoFilter">
+                <option value="all" selected>照片: 全部</option>
+                <option value="with_photo">照片: 仅有照片</option>
+                <option value="without_photo">照片: 仅无照片</option>
+              </select>
+            </label>
+            <label>最少距上次签到天数
+              <input id="careMinDaysSince" type="number" min="0" max="5000" value="" placeholder="不限" />
+            </label>
+            <label>最多距上次签到天数
+              <input id="careMaxDaysSince" type="number" min="0" max="5000" value="" placeholder="不限" />
+            </label>
+            <label>快捷规则
+              <select id="careCohortKey">
+                <option value="" selected>无</option>
+                <option value="newcomer_active">新人且积极参与</option>
+                <option value="low_attendance_recent">近期低出席</option>
+                <option value="declining_engagement">参与度下滑</option>
+                <option value="active_but_unassigned">活跃但未分组</option>
+                <option value="no_photo_active">活跃但缺少照片</option>
+              </select>
+            </label>
+            <label>仅统计主日
+              <select id="careOnlySunday">
+                <option value="true" selected>是</option>
+                <option value="false">否</option>
+              </select>
+            </label>
+            <label>排序字段
+              <select id="careSortBy">
+                <option value="risk_score" selected>风险分</option>
+                <option value="last_checkin">最近签到</option>
+                <option value="checkins">签到次数</option>
+                <option value="name">姓名</option>
+              </select>
+            </label>
+            <label>排序方向
+              <select id="careSortDir">
+                <option value="desc" selected>降序</option>
+                <option value="asc">升序</option>
+              </select>
+            </label>
+          </div>
+          <div id="careRiskFormula" class="mini" style="margin-top:8px; line-height:1.5;"></div>
+          <div class="toolbar" style="margin-top:10px;">
+            <button id="careApplyBtn" class="ok">应用筛选</button>
+            <button id="careClearBtn" class="alt">重置条件</button>
+            <a id="careExportLink" href="/care/members/export.csv" target="_blank" rel="noreferrer">导出当前名单 CSV</a>
+            <div id="careFilterSummary" class="mini">当前筛选结果：0 人</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>推荐关怀人群</h2>
+          <div id="careCohortGrid" class="care-cohort-grid"></div>
+        </div>
+
+        <div class="care-main-grid">
+          <div class="card">
+            <h2>关怀候选名单</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th class="care-sortable" data-sort="name">姓名</th>
+                  <th class="care-sortable" data-sort="group">分组</th>
+                  <th class="care-sortable" data-sort="last_checkin_date">最近签到</th>
+                  <th class="care-sortable" data-sort="recent_checkins">近 3 个月签到</th>
+                  <th class="care-sortable" data-sort="sunday_absent_streak">连续主日缺席</th>
+                  <th class="care-sortable" data-sort="risk_score">风险</th>
+                </tr>
+              </thead>
+              <tbody id="careMemberRows"></tbody>
+            </table>
+            <div id="careMemberEmpty" class="care-empty">暂无数据</div>
+            <div class="care-pagination">
+              <select id="carePageSizeSelect">
+                <option value="20" selected>每页 20 条</option>
+                <option value="50">每页 50 条</option>
+                <option value="100">每页 100 条</option>
+              </select>
+              <button id="carePagePrevBtn" class="small alt" type="button">上一页</button>
+              <div id="carePageInfo" class="mini"></div>
+              <button id="carePageNextBtn" class="small alt" type="button">下一页</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>会友参与详情</h2>
+            <div id="careProfileEmpty" class="care-empty">请选择左侧会友查看详情</div>
+            <div id="careProfilePanel" style="display:none;">
+              <div class="care-profile-top">
+                <div class="care-photo-card">
+                  <div class="care-photo-frame">
+                    <img id="careProfilePhotoImg" alt="会友图片" class="hidden" />
+                    <div id="careProfilePhotoPlaceholder" class="care-photo-placeholder">暂无</div>
+                  </div>
+                </div>
+                <div class="care-detail-grid" id="careProfileSummaryGrid"></div>
+              </div>
+
+              <h3 style="margin-top:10px;">最近签到记录</h3>
+              <div class="care-records-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>日期</th>
+                      <th>场次</th>
+                      <th>时间</th>
+                      <th>方式</th>
+                    </tr>
+                  </thead>
+                  <tbody id="careProfileRecordsRows"></tbody>
+                </table>
+              </div>
+
+              <h3 style="margin-top:10px;">近月参与分布</h3>
+              <table class="care-monthly-table">
+                <thead>
+                  <tr>
+                    <th>月份</th>
+                    <th id="careMonthlyCheckinsHeader">签到次数</th>
+                  </tr>
+                </thead>
+                <tbody id="careProfileMonthlyRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>汇总报告</h2>
+          <div id="careSummaryGrid" class="care-summary-grid"></div>
+          <div class="care-dist-grid">
+            <div class="care-dist-card">
+              <h3>按分组分布</h3>
+              <div id="careGroupDistribution" class="care-dist-list"></div>
+            </div>
+            <div class="care-dist-card">
+              <h3>按风险分布</h3>
+              <div id="careRiskDistribution" class="care-dist-list"></div>
+            </div>
+            <div class="care-dist-card">
+              <h3>按参与度分布</h3>
+              <div id="careEngagementDistribution" class="care-dist-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="memberModalOverlay" class="overlay">
@@ -823,6 +1214,11 @@
     const dailyBarsEl = document.getElementById('dailyBars');
     const dashboardDaysEl = document.getElementById('dashboardDays');
     const trendTitleEl = document.getElementById('trendTitle');
+    const careNameFilterEl = document.getElementById('careNameFilter');
+    const careProfilePhotoImgEl = document.getElementById('careProfilePhotoImg');
+    const careProfilePhotoPlaceholderEl = document.getElementById('careProfilePhotoPlaceholder');
+    const careMonthlyCheckinsHeaderEl = document.getElementById('careMonthlyCheckinsHeader');
+    const careRiskFormulaEl = document.getElementById('careRiskFormula');
 
     const eventMap = new Map();
     const memberById = new Map();
@@ -1087,6 +1483,18 @@
     function initTabs() {
       const buttons = Array.from(document.querySelectorAll('.tab-btn'));
       const panels = Array.from(document.querySelectorAll('.tab-panel'));
+      
+      // Restore active tab from localStorage on page load
+      const savedTab = localStorage.getItem('adminActiveTab');
+      if (savedTab) {
+        for (const btn of buttons) {
+          btn.classList.toggle('active', btn.dataset.tab === savedTab);
+        }
+        for (const panel of panels) {
+          panel.classList.toggle('active', panel.id === savedTab);
+        }
+      }
+      
       for (const btn of buttons) {
         btn.addEventListener('click', () => {
           for (const b of buttons) {
@@ -1096,6 +1504,8 @@
           for (const panel of panels) {
             panel.classList.toggle('active', panel.id === target);
           }
+          // Save active tab to localStorage
+          localStorage.setItem('adminActiveTab', target);
         });
       }
     }
@@ -2015,12 +2425,549 @@
       updateTrendTitle(getDashboardDays());
     });
 
+    const careState = {
+      rows: [],
+      selectedMemberId: '',
+      profile: null,
+      photoUrl: '',
+      pageIndex: 1,
+      pageSize: 20,
+      tableSort: {
+        key: 'risk_score',
+        direction: 'desc',
+      },
+    };
+
+    function careToIntOrNull(v) {
+      const t = (v || '').toString().trim();
+      if (!t) return null;
+      const n = Number(t);
+      if (Number.isNaN(n)) return null;
+      return n;
+    }
+
+    function careGetFilters() {
+      return {
+        name_keyword: (careNameFilterEl.value || '').trim(),
+        months_window: Math.max(1, Math.min(24, Number(document.getElementById('careMonthsWindow').value || '3'))),
+        min_checkins: Math.max(0, Number(document.getElementById('careMinCheckins').value || '0')),
+        max_checkins: careToIntOrNull(document.getElementById('careMaxCheckins').value),
+        status_filter: document.getElementById('careStatusFilter').value || 'active',
+        group_filter: document.getElementById('careGroupFilter').value || '',
+        has_photo_filter: document.getElementById('carePhotoFilter').value || 'all',
+        min_days_since_last_checkin: careToIntOrNull(document.getElementById('careMinDaysSince').value),
+        max_days_since_last_checkin: careToIntOrNull(document.getElementById('careMaxDaysSince').value),
+        cohort_key: document.getElementById('careCohortKey').value || '',
+        only_sunday: document.getElementById('careOnlySunday').value === 'true',
+        sort_by: document.getElementById('careSortBy').value || 'risk_score',
+        sort_dir: document.getElementById('careSortDir').value || 'desc',
+        offset: 0,
+        limit: 300,
+      };
+    }
+
+    function careBuildQuery(params) {
+      const q = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => {
+        if (v === null || v === undefined || v === '') return;
+        q.set(k, String(v));
+      });
+      return q.toString();
+    }
+
+    function careSetExportLink(filters) {
+      const query = careBuildQuery({ ...filters, limit: 20000 });
+      const base = '/care/members/export.csv';
+      const href = query ? `${base}?${query}` : base;
+      document.getElementById('careExportLink').href = href;
+    }
+
+    function careNormalizeRowSortValue(row, key) {
+      if (key === 'recent_checkins' || key === 'sunday_absent_streak' || key === 'risk_score') {
+        return Number(row[key] || 0);
+      }
+      if (key === 'last_checkin_date') {
+        return row.last_checkin_date || '';
+      }
+      if (key === 'group') {
+        return (row.group || '').toLowerCase();
+      }
+      return (row.name || '').toLowerCase();
+    }
+
+    function careMatchesKeyword(row, keyword) {
+      const normalized = (keyword || '').trim().toLowerCase();
+      if (!normalized) {
+        return true;
+      }
+      const textHaystack = [
+        row.name,
+        row.name_chn,
+        row.group,
+        row.note,
+      ].map((value) => (value || '').toString().toLowerCase()).join(' ');
+
+      const compact = normalized.replace(/\s+/g, '');
+      if (textHaystack.includes(normalized) || textHaystack.replace(/\s+/g, '').includes(compact)) {
+        return true;
+      }
+
+      if (!compact || !/^[\da-z]+$/i.test(compact)) {
+        return false;
+      }
+
+      const candidates = [row.name, row.name_chn].filter(Boolean);
+      for (const candidate of candidates) {
+        const plain = (candidate || '').toString().toLowerCase();
+        const initials = plain
+          .replace(/[^\da-z\u00C0-\u024F]+/gi, ' ')
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((part) => part[0] || '')
+          .join('');
+        if (initials && compact === initials.toLowerCase()) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    function careRiskLevelText(level) {
+      if (level === 'high') {
+        return '高';
+      }
+      if (level === 'medium') {
+        return '中';
+      }
+      return '低';
+    }
+
+    function careRiskLevelClass(level) {
+      if (level === 'high' || level === 'medium') {
+        return level;
+      }
+      return 'low';
+    }
+
+    function careRenderRiskValue(level, score) {
+      const text = careRiskLevelText(level);
+      const levelClass = careRiskLevelClass(level);
+      return `<span class="care-risk-value"><span class="status-pill ${levelClass}">${text}</span><span class="mini">${score}</span></span>`;
+    }
+
+    function careUpdateRiskFormula() {
+      if (!careRiskFormulaEl) {
+        return;
+      }
+      careRiskFormulaEl.innerHTML = '风险分公式：近 N 个月签到（N 取当前筛选条件）<= 1 加 35 分，<= 3 加 20 分；距上次签到为空加 40 分，> 90 天加 30 分，> 60 天加 20 分，> 30 天加 10 分；连续主日缺席 >= 8 加 25 分，>= 4 加 15 分，>= 2 加 8 分；最近 30 天较前 60 天的参与趋势为负时按 <code>min(15, abs(趋势值) × 5)</code> 加分；active 且无图片再加 8 分。最终分数限制在 0 - 100，70 分及以上为高，40 - 69 分为中，40 分以下为低。';
+    }
+
+    function careUpdateMonthsLabels() {
+      const monthsWindow = careGetFilters().months_window;
+      const recentHeader = document.querySelector('th.care-sortable[data-sort="recent_checkins"]');
+      if (recentHeader) {
+        recentHeader.textContent = `近 ${monthsWindow} 个月签到`;
+      }
+      careMonthlyCheckinsHeaderEl.textContent = `近 ${monthsWindow} 个月签到次数`;
+    }
+
+    function careGetSortedRows() {
+      const rows = [...careState.rows];
+      const { key, direction } = careState.tableSort;
+      const dir = direction === 'asc' ? 1 : -1;
+      rows.sort((a, b) => {
+        const left = careNormalizeRowSortValue(a, key);
+        const right = careNormalizeRowSortValue(b, key);
+        if (left < right) return -1 * dir;
+        if (left > right) return 1 * dir;
+        return (a.name || '').localeCompare((b.name || ''), 'zh-Hans-CN');
+      });
+      return rows;
+    }
+
+    function careUpdateSortHeaders() {
+      for (const th of document.querySelectorAll('th.care-sortable')) {
+        const key = th.dataset.sort;
+        if (!key) continue;
+        const base = th.textContent.replace(/\s*[↑↓]$/, '');
+        if (careState.tableSort.key === key) {
+          th.textContent = `${base} ${careState.tableSort.direction === 'asc' ? '↑' : '↓'}`;
+        } else {
+          th.textContent = base;
+        }
+      }
+    }
+
+    function careRenderRows() {
+      const tbody = document.getElementById('careMemberRows');
+      const empty = document.getElementById('careMemberEmpty');
+      const pageInfoEl = document.getElementById('carePageInfo');
+      const prevBtn = document.getElementById('carePagePrevBtn');
+      const nextBtn = document.getElementById('carePageNextBtn');
+      tbody.innerHTML = '';
+
+      const sortedRows = careGetSortedRows();
+      empty.style.display = sortedRows.length ? 'none' : 'block';
+
+      const total = sortedRows.length;
+      const maxPage = Math.max(1, Math.ceil(total / careState.pageSize));
+      if (careState.pageIndex > maxPage) careState.pageIndex = maxPage;
+      if (careState.pageIndex < 1) careState.pageIndex = 1;
+      const start = (careState.pageIndex - 1) * careState.pageSize;
+      const pageRows = sortedRows.slice(start, start + careState.pageSize);
+
+      for (const row of pageRows) {
+        const tr = document.createElement('tr');
+        tr.className = 'care-member-item';
+        if (careState.selectedMemberId === row.member_id) tr.classList.add('active');
+
+        const dateText = row.last_checkin_date || '-';
+        const groupText = row.group || '-';
+        const riskText = careRenderRiskValue(row.risk_level, row.risk_score);
+
+        tr.innerHTML = `
+          <td>${row.name}${row.name_chn ? ` / ${row.name_chn}` : ''}</td>
+          <td>${groupText}</td>
+          <td>${dateText}</td>
+          <td>${row.recent_checkins}</td>
+          <td>${row.sunday_absent_streak}</td>
+          <td>${riskText}</td>
+        `;
+
+        tr.addEventListener('click', async () => {
+          careState.selectedMemberId = row.member_id;
+          careRenderRows();
+          await careLoadProfile(row.member_id);
+        });
+
+        tbody.appendChild(tr);
+      }
+
+      pageInfoEl.textContent = `第 ${careState.pageIndex} / ${maxPage} 页 · 共 ${total} 人`;
+      prevBtn.disabled = careState.pageIndex <= 1;
+      nextBtn.disabled = careState.pageIndex >= maxPage;
+      document.getElementById('careFilterSummary').textContent = `当前筛选结果：${total} 人 · 最近 ${careGetFilters().months_window} 个月`;
+      careUpdateSortHeaders();
+      careUpdateMonthsLabels();
+    }
+
+    function careRenderProfile() {
+      const empty = document.getElementById('careProfileEmpty');
+      const panel = document.getElementById('careProfilePanel');
+      if (!careState.profile) {
+        empty.style.display = 'block';
+        panel.style.display = 'none';
+        return;
+      }
+
+      empty.style.display = 'none';
+      panel.style.display = 'block';
+
+      const p = careState.profile;
+      const m = p.member;
+      const monthsWindow = careGetFilters().months_window;
+      const summaryGrid = document.getElementById('careProfileSummaryGrid');
+      const fields = [
+        ['姓名', `${m.name}${m.name_chn ? ` / ${m.name_chn}` : ''}`],
+        ['分组', m.group || '(未分组)'],
+        ['状态', m.status ? 'active' : 'inactive'],
+        ['图片', m.has_photo ? '有' : '无'],
+        ['最近签到', p.summary.last_checkin_date || '-'],
+        ['距上次签到(天)', p.summary.days_since_last_checkin == null ? '-' : p.summary.days_since_last_checkin],
+        [`近 ${monthsWindow} 个月签到`, p.summary.recent_checkins],
+        ['连续主日缺席', p.summary.sunday_absent_streak],
+        ['风险等级', careRenderRiskValue(p.summary.risk_level, p.summary.risk_score)],
+      ];
+      summaryGrid.innerHTML = fields.map(([k, v]) => `
+        <div class="care-detail-field">
+          <div class="k">${k}</div>
+          <div class="v">${v}</div>
+        </div>
+      `).join('');
+
+      const recRows = document.getElementById('careProfileRecordsRows');
+      recRows.innerHTML = '';
+      for (const r of p.recent_records || []) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.event_date}</td><td>${r.event_name}</td><td>${r.check_in_time}</td><td>${r.method}</td>`;
+        recRows.appendChild(tr);
+      }
+      if (!(p.recent_records || []).length) {
+        recRows.innerHTML = '<tr><td colspan="4" class="mini">暂无记录</td></tr>';
+      }
+
+      const monthlyRows = document.getElementById('careProfileMonthlyRows');
+      monthlyRows.innerHTML = '';
+      for (const r of p.monthly_breakdown || []) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.month}</td><td>${r.checkins}</td>`;
+        monthlyRows.appendChild(tr);
+      }
+      if (!(p.monthly_breakdown || []).length) {
+        monthlyRows.innerHTML = '<tr><td colspan="2" class="mini">暂无记录</td></tr>';
+      }
+    }
+
+    function careRenderCohorts(items) {
+      const el = document.getElementById('careCohortGrid');
+      el.innerHTML = '';
+      for (const c of items || []) {
+        const card = document.createElement('div');
+        card.className = 'care-cohort-card';
+        card.innerHTML = `
+          <div><strong>${c.title}</strong></div>
+          <div class="mini">${c.description}</div>
+          <div class="count">${c.count}</div>
+          <button class="alt" type="button">应用规则</button>
+        `;
+        const btn = card.querySelector('button');
+        btn.addEventListener('click', async () => {
+          document.getElementById('careCohortKey').value = c.cohort_key;
+          if (c.suggested_filters && c.suggested_filters.status_filter) {
+            document.getElementById('careStatusFilter').value = c.suggested_filters.status_filter;
+          }
+          await careLoadMembers();
+          await careLoadReport();
+        });
+        el.appendChild(card);
+      }
+    }
+
+    function careRenderReport(data) {
+      const summary = data.summary || {};
+      const stats = [
+        ['总成员', summary.total_members || 0],
+        ['active 成员', summary.active_members || 0],
+        ['需跟进', summary.needs_followup || 0],
+        ['高风险', summary.high_risk || 0],
+        ['中风险', summary.medium_risk || 0],
+        ['低风险', summary.low_risk || 0],
+        ['active 无照片', summary.no_photo_active || 0],
+        ['active 未分组', summary.unassigned_active || 0],
+      ];
+
+      const summaryGrid = document.getElementById('careSummaryGrid');
+      summaryGrid.innerHTML = stats.map(([label, value]) => `
+        <div class="stat">
+          <div class="label">${label}</div>
+          <div class="value">${value}</div>
+        </div>
+      `).join('');
+
+      const renderDist = (containerId, rows) => {
+        const el = document.getElementById(containerId);
+        el.innerHTML = '';
+        const items = rows || [];
+        if (!items.length) {
+          el.innerHTML = '<div class="mini">暂无数据</div>';
+          return;
+        }
+        for (const row of items) {
+          const line = document.createElement('div');
+          line.textContent = `${row.label}: ${row.count}`;
+          el.appendChild(line);
+        }
+      };
+
+      renderDist('careGroupDistribution', data.group_distribution);
+      renderDist('careRiskDistribution', data.risk_distribution);
+      renderDist('careEngagementDistribution', data.engagement_distribution);
+    }
+
+    function careRefreshGroupOptions() {
+      const select = document.getElementById('careGroupFilter');
+      const current = select.value;
+      const groups = Array.from(new Set(careState.rows.map((x) => (x.group || '').trim()).filter((x) => !!x))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+      select.innerHTML = '<option value="">分组: 全部</option><option value="__empty__">分组: 未分组</option>';
+      for (const group of groups) {
+        const opt = document.createElement('option');
+        opt.value = group;
+        opt.textContent = `分组: ${group}`;
+        select.appendChild(opt);
+      }
+      const exists = Array.from(select.options).some((x) => x.value === current);
+      if (exists) select.value = current;
+    }
+
+    async function careLoadMembers() {
+      const filters = careGetFilters();
+      careSetExportLink(filters);
+      const q = careBuildQuery(filters);
+      const res = await fetch(`/care/members?${q}`);
+      if (!res.ok) {
+        alert(`加载关怀名单失败: ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      careState.rows = data.items || [];
+      careState.pageIndex = 1;
+      careRefreshGroupOptions();
+      careRenderRows();
+
+      if (careState.selectedMemberId) {
+        const exists = careState.rows.some((x) => x.member_id === careState.selectedMemberId);
+        if (!exists) {
+          careState.selectedMemberId = '';
+          careState.profile = null;
+          careRenderProfile();
+        } else {
+          await careLoadProfile(careState.selectedMemberId);
+        }
+      }
+    }
+
+    async function careLoadProfile(memberId) {
+      const f = careGetFilters();
+      const q = new URLSearchParams();
+      q.set('months_window', String(f.months_window));
+      q.set('only_sunday', String(f.only_sunday));
+      q.set('recent_records_limit', '20');
+
+      const res = await fetch(`/care/members/${memberId}/profile?${q.toString()}`);
+      if (!res.ok) {
+        alert(`加载会友详情失败: ${res.status}`);
+        return;
+      }
+      careState.profile = await res.json();
+      careRenderProfile();
+      await careLoadProfilePhoto(memberId);
+    }
+
+    async function careLoadProfilePhoto(memberId) {
+      careState.photoUrl = '';
+      careProfilePhotoImgEl.classList.add('hidden');
+      careProfilePhotoImgEl.removeAttribute('src');
+      careProfilePhotoPlaceholderEl.classList.remove('hidden');
+      careProfilePhotoPlaceholderEl.textContent = '暂无';
+
+      const res = await fetch(`/face-library/members/${memberId}/photos?active_only=true`);
+      if (!res.ok) {
+        careProfilePhotoPlaceholderEl.textContent = '—';
+        return;
+      }
+      const data = await res.json();
+      const items = data.items || [];
+      if (!items.length) {
+        careProfilePhotoPlaceholderEl.textContent = '暂无';
+        return;
+      }
+      const photo = items[0];
+      const cacheKey = `${photo.remote_face_id || ''}-${Date.now()}`;
+      const url = `/face-library/photos/${photo.id}/download?t=${encodeURIComponent(cacheKey)}`;
+      careState.photoUrl = url;
+      careProfilePhotoImgEl.src = url;
+      careProfilePhotoImgEl.classList.remove('hidden');
+      careProfilePhotoPlaceholderEl.classList.add('hidden');
+    }
+
+    async function careLoadCohorts() {
+      const f = careGetFilters();
+      const q = new URLSearchParams();
+      q.set('months_window', String(f.months_window));
+      q.set('only_sunday', String(f.only_sunday));
+      const res = await fetch(`/care/cohorts?${q.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      careRenderCohorts(data.items || []);
+    }
+
+    async function careLoadReport() {
+      const f = careGetFilters();
+      const q = new URLSearchParams();
+      q.set('months_window', String(f.months_window));
+      q.set('only_sunday', String(f.only_sunday));
+      q.set('status_filter', String(f.status_filter));
+      const res = await fetch(`/care/report?${q.toString()}`);
+      if (!res.ok) {
+        alert(`加载汇总报告失败: ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      careRenderReport(data);
+    }
+
+    async function careReloadAll() {
+      await careLoadMembers();
+      await careLoadCohorts();
+      await careLoadReport();
+    }
+
+    document.getElementById('careApplyBtn').addEventListener('click', careReloadAll);
+    careNameFilterEl.addEventListener('input', () => {
+      clearTimeout(window.__careNameFilterTimer);
+      window.__careNameFilterTimer = setTimeout(() => {
+        careState.pageIndex = 1;
+        careLoadMembers();
+      }, 180);
+    });
+    document.getElementById('carePageSizeSelect').addEventListener('change', () => {
+      careState.pageSize = Math.max(1, Number(document.getElementById('carePageSizeSelect').value || '20'));
+      careState.pageIndex = 1;
+      careRenderRows();
+    });
+    document.getElementById('carePagePrevBtn').addEventListener('click', () => {
+      careState.pageIndex = Math.max(1, careState.pageIndex - 1);
+      careRenderRows();
+    });
+    document.getElementById('carePageNextBtn').addEventListener('click', () => {
+      careState.pageIndex += 1;
+      careRenderRows();
+    });
+    for (const th of document.querySelectorAll('th.care-sortable')) {
+      th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (!key) return;
+        if (careState.tableSort.key === key) {
+          careState.tableSort.direction = careState.tableSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          careState.tableSort.key = key;
+          careState.tableSort.direction = key === 'name' || key === 'group' ? 'asc' : 'desc';
+        }
+        careState.pageIndex = 1;
+        careRenderRows();
+      });
+    }
+    document.getElementById('careClearBtn').addEventListener('click', async () => {
+      document.getElementById('careMonthsWindow').value = '3';
+      document.getElementById('careMinCheckins').value = '0';
+      document.getElementById('careMaxCheckins').value = '';
+      document.getElementById('careStatusFilter').value = 'active';
+      document.getElementById('careGroupFilter').value = '';
+      document.getElementById('carePhotoFilter').value = 'all';
+      careNameFilterEl.value = '';
+      document.getElementById('careMinDaysSince').value = '';
+      document.getElementById('careMaxDaysSince').value = '';
+      document.getElementById('careCohortKey').value = '';
+      document.getElementById('careOnlySunday').value = 'true';
+      document.getElementById('careSortBy').value = 'risk_score';
+      document.getElementById('careSortDir').value = 'desc';
+      careState.tableSort.key = 'risk_score';
+      careState.tableSort.direction = 'desc';
+      careState.pageSize = 20;
+      document.getElementById('carePageSizeSelect').value = '20';
+      careState.pageIndex = 1;
+      careState.selectedMemberId = '';
+      careState.profile = null;
+      careState.photoUrl = '';
+      careProfilePhotoImgEl.classList.add('hidden');
+      careProfilePhotoImgEl.removeAttribute('src');
+      careProfilePhotoPlaceholderEl.classList.remove('hidden');
+      careProfilePhotoPlaceholderEl.textContent = '暂无';
+      careRenderProfile();
+      await careReloadAll();
+    });
+
     async function initPage() {
       initTabs();
+      careUpdateMonthsLabels();
+      careUpdateRiskFormula();
       await listMembers();
       await listEvents();
       await loadHistory();
       await loadDashboard();
+      await careReloadAll();
     }
 
     initPage();

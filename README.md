@@ -27,6 +27,7 @@
 - ✅ **实时人脸识别签到** - 多摄像头支持，毫秒级响应
 - ✅ **人脸库闭环管理** - 成员照片上传、编辑、删除与 CompreFace 同步
 - ✅ **接待队列管理** - 智能处理未知人脸，支持现场补签
+- ✅ **关怀中心分析** - 风险分层、分组分布、会友画像与 CSV 导出
 - ✅ **签到历史与报表** - 灵活的数据查询和 CSV 导出
 - ✅ **多角色工作台** - 调试工作台、接待工作台、管理后台
 - ✅ **WebSocket 实时推送** - 双通道事件与视频帧同步
@@ -64,7 +65,14 @@
 - 场次归档与历史查询
 - CSV 批量导出
 
-### 5. 系统控制
+### 5. 关怀中心
+- 会友关怀列表（支持状态/是否有照片/性别/分组/关键词筛选）
+- 风险等级评估（低/中/高）与风险值解释
+- 会友关怀画像（近月签到、连续主日缺席、趋势与近期记录）
+- 关怀群组与整体报告（分组分布、参与度分布、风险分布）
+- 关怀名单 CSV 导出（中文业务字段）
+
+### 6. 系统控制
 - 流媒体启动/停止
 - 超参数热更新（阈值、Margin、投票数等）
 - 自检诊断（数据库、运行时、WebSocket 等）
@@ -239,8 +247,11 @@
 | **Phase L** | 统计口径修正、时区统一（Europe/Rome）、筛选优化 | 2026-04 |
 | **Phase M** | 识别参数调优、接待体验优化、噪声抑制 | 2026-05 |
 | **Phase N** | 接待检索增强、语音输入、交互优化 | 2026-05 |
+| **Phase O** | 照片选择器与接待页布局优化 | 2026-05 |
+| **Phase P** | 接待页交互增强与响应式优化 | 2026-05 |
+| **Phase Q** | 关怀中心设计与开发 | 2026-05 |
 
-### 📅 当前进度（Phase N 完成）
+### 📅 当前进度（Phase Q 完成）
 
 - ✅ **业务闭环**: MVP 完整，涵盖签到、人脸库、接待、管理全流程
 - ✅ **API 就绪**: 20+ 核心接口、双通道 WebSocket 实时推送
@@ -248,7 +259,12 @@
 - ✅ **体验优化**: 
   - 接待工作台降噪处理（每人每天去重、图片压缩）
   - 手动查找会友（拼音、首字母、语音输入）
-   - 识别参数调优（阈值 0.70、Margin 0.18）
+   - 识别参数调优（阈值 0.70、Margin 0.20）
+   - 照片选择器性别筛选修复与接待页响应式优化
+- ✅ **关怀中心**: 
+   - 关怀成员检索（含拼音/首字母匹配）
+   - 风险等级中文化展示（低/中/高）与公式说明
+   - 成员画像、分群与报告导出能力
 - ✅ **数据支持**: 历史签到已入库（11790+ 行），完整统计数据看板
 - ✅ **系统诊断**: 完整的自检诊断与日志清理机制
 
@@ -298,6 +314,7 @@ church-auto-checkin-system/
 │   ├── schemas/
 │   │   ├── member.py               # 会友 Pydantic Schema
 │   │   ├── attendance.py           # 签到 Schema
+│   │   ├── care.py                 # 关怀中心 Schema
 │   │   ├── event.py                # 场次 Schema
 │   │   ├── face_library.py         # 人脸库 Schema
 │   │   └── ...                     # 其他 Schema
@@ -305,6 +322,7 @@ church-auto-checkin-system/
 │   │   ├── index.py                # 主页与 WebSocket 入口
 │   │   ├── members.py              # 会友 CRUD API
 │   │   ├── attendance.py           # 签到与历史 API
+│   │   ├── care.py                 # 关怀中心 API
 │   │   ├── events.py               # 场次管理 API
 │   │   ├── face_library.py         # 人脸库 API
 │   │   ├── reception_queue.py      # 接待队列 API
@@ -347,7 +365,8 @@ church-auto-checkin-system/
 │   └── camera_attendance.csv       # 签到记录 CSV
 ├── config.ini                      # 配置文件（git 忽略）
 ├── requirements.txt                # Python 依赖
-├── DEVELOPMENT_PROGRESS.md         # 开发进度记录
+├── docs/
+│   └── DEVELOPMENT_PROGRESS.md     # 开发进度记录
 ├── MAINTENANCE.md                  # 维护与部署指南
 ├── README.md                       # 本文件
 └── LICENSE                         # MIT License
@@ -385,6 +404,13 @@ church-auto-checkin-system/
 - `PUT /face-library/photos/{photo_id}` - 替换照片
 - `DELETE /face-library/photos/{photo_id}` - 删除照片
 - `POST /face-library/sync/rebuild` - 重建人脸库
+
+### 关怀中心
+- `GET /care/members` - 关怀成员列表与风险筛选
+- `GET /care/members/{member_id}/profile` - 单个会友关怀画像
+- `GET /care/cohorts` - 关怀分群建议
+- `GET /care/report` - 关怀统计报告
+- `GET /care/members/export.csv` - 关怀名单导出
 
 ### 接待队列
 - `GET /reception/queue/unknown` - 未知人脸队列
@@ -483,6 +509,6 @@ pytest tests/ --cov=app --cov-report=html
 
 ---
 
-**最后更新**: 2026-05-15  
+**最后更新**: 2026-05-22  
 **维护者**: Weilai Xu@Rugiada
 **仓库**: [github.com/ffffuturexu/church-auto-checkin-system](https://github.com/ffffuturexu/church-auto-checkin-system)

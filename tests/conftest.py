@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.database import get_db
 from app.models.models import Base
 from app.routers.attendance import router as attendance_router
+from app.routers.care import router as care_router
 from app.routers.events import router as events_router
 from app.routers.face_library import router as face_library_router
 from app.routers.members import router as members_router
@@ -71,6 +72,7 @@ def api_context(tmp_path: Path):
     app.include_router(members_router)
     app.include_router(events_router)
     app.include_router(attendance_router)
+    app.include_router(care_router)
     app.include_router(face_library_router)
     app.include_router(reception_queue_router)
 
