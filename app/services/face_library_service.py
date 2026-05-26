@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -11,6 +12,12 @@ from sqlalchemy.orm import Session
 
 from app.api import CompreFaceClient
 from app.models.models import FacePhoto, Member
+from PIL import Image, ImageOps
+
+logger = logging.getLogger(__name__)
+
+THUMBNAIL_MAX_SIZE = (160, 160)
+THUMBNAIL_SUFFIX = ".thumb.jpg"
 
 
 class FaceLibraryService:
@@ -24,6 +31,27 @@ class FaceLibraryService:
         if active_only:
             stmt = stmt.where(FacePhoto.is_active.is_(True))
         return db.execute(stmt).scalars().all()
+
+    def ensure_thumbnail(self, relative_path: str) -> str:
+        thumb_relative = self._thumbnail_relative_path(relative_path)
+        absolute_path = os.path.join(self.storage_root, relative_path)
+        thumb_absolute = os.path.join(self.storage_root, thumb_relative)
+
+        if os.path.exists(thumb_absolute):
+            return thumb_relative
+        if not os.path.exists(absolute_path):
+            raise FileNotFoundError(absolute_path)
+
+        os.makedirs(os.path.dirname(thumb_absolute), exist_ok=True)
+        try:
+            self._create_thumbnail(absolute_path, thumb_absolute)
+        except Exception:
+            try:
+                os.remove(thumb_absolute)
+            except OSError:
+                pass
+            raise
+        return thumb_relative
 
     def create_photo(
         self,
@@ -70,6 +98,10 @@ class FaceLibraryService:
             member.has_photo = True
             db.commit()
             db.refresh(row)
+            try:
+                self.ensure_thumbnail(relative_path)
+            except Exception as exc:
+                logger.warning("thumbnail generation failed for %s: %s", relative_path, exc)
             return row
         except requests.exceptions.HTTPError as exc:
             try:
@@ -141,9 +173,14 @@ class FaceLibraryService:
                     os.remove(old_abs)
                 except OSError:
                     pass
+                self._delete_thumbnail(old_relative_path)
 
             db.commit()
             db.refresh(row)
+            try:
+                self.ensure_thumbnail(relative_path)
+            except Exception as exc:
+                logger.warning("thumbnail generation failed for %s: %s", relative_path, exc)
             return row
         except Exception:
             try:
@@ -175,6 +212,7 @@ class FaceLibraryService:
             os.remove(absolute_path)
         except OSError:
             pass
+        self._delete_thumbnail(row.local_path)
 
         self._refresh_member_has_photo(db, member.id)
 
@@ -357,3 +395,36 @@ class FaceLibraryService:
             )
         )
         member.has_photo = bool(active_count)
+
+    @staticmethod
+    def _thumbnail_relative_path(relative_path: str) -> str:
+        return f"{relative_path}{THUMBNAIL_SUFFIX}"
+
+    def _delete_thumbnail(self, relative_path: str) -> None:
+        thumb_relative = self._thumbnail_relative_path(relative_path)
+        thumb_absolute = os.path.join(self.storage_root, thumb_relative)
+        try:
+            os.remove(thumb_absolute)
+        except OSError:
+            pass
+
+    @staticmethod
+    def _create_thumbnail(source_path: str, target_path: str) -> None:
+        with Image.open(source_path) as img:
+            img = ImageOps.exif_transpose(img)
+            img.thumbnail(THUMBNAIL_MAX_SIZE, Image.Resampling.LANCZOS)
+
+            if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+                background = Image.new("RGB", img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[-1])
+                img = background
+            elif img.mode != "RGB":
+                img = img.convert("RGB")
+
+            img.save(
+                target_path,
+                format="JPEG",
+                quality=82,
+                optimize=True,
+                progressive=True,
+            )

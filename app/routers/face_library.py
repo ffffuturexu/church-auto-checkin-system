@@ -136,6 +136,57 @@ def download_photo(photo_id: UUID, request: Request, db: Session = Depends(get_d
     )
 
 
+@router.get("/photos/{photo_id}/thumbnail")
+def download_photo_thumbnail(photo_id: UUID, request: Request, db: Session = Depends(get_db)) -> FileResponse:
+    row = db.get(FacePhoto, photo_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="photo not found")
+
+    service = _get_service(request)
+    try:
+        thumb_relative = service.ensure_thumbnail(row.local_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="photo file not found")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"thumbnail generation failed: {exc}")
+
+    absolute_path = os.path.join(service.storage_root, thumb_relative)
+    return FileResponse(
+        absolute_path,
+        media_type="image/jpeg",
+        filename=f"{row.id}.thumb.jpg",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/members/{member_id}/thumbnail")
+def download_member_thumbnail(
+    member_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    service = _get_service(request)
+    rows = service.list_member_photos(db, member_id=member_id, active_only=True)
+    if not rows:
+        raise HTTPException(status_code=404, detail="photo not found")
+
+    row = rows[0]
+    try:
+        thumb_relative = service.ensure_thumbnail(row.local_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="photo file not found")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"thumbnail generation failed: {exc}")
+
+    absolute_path = os.path.join(service.storage_root, thumb_relative)
+    return FileResponse(
+        absolute_path,
+        media_type="image/jpeg",
+        filename=f"{row.id}.thumb.jpg",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @router.post("/sync/rebuild", response_model=FaceLibrarySyncResponse)
 @router.post("/sync", response_model=FaceLibrarySyncResponse)
 @router.post("/rebuild-sync", response_model=FaceLibrarySyncResponse)

@@ -132,7 +132,7 @@
     }
     .grid {
       display: grid;
-      grid-template-columns: 1.2fr 1fr;
+      grid-template-columns: 1.35fr 0.85fr;
       gap: 14px;
     }
 
@@ -142,11 +142,46 @@
       gap: 14px;
     }
 
+    .right-column {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .stack-card {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .card-header h2 {
+      margin: 0;
+    }
+
+    .card-body {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .expand-btn {
+      padding: 6px 10px;
+      font-size: 12px;
+      background: #715f45;
+    }
+
     .member-cards-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
       gap: 8px;
-      max-height: 420px;
+      max-height: 640px;
       overflow-y: auto;
     }
 
@@ -290,11 +325,12 @@
       margin: 0;
       padding: 0;
       list-style: none;
-      max-height: 580px;
+      max-height: 260px;
       overflow: auto;
       border: 1px solid var(--line);
       border-radius: 10px;
       background: #fff;
+      flex: 1;
     }
     #liveFeed li {
       border-bottom: 1px dashed var(--line);
@@ -311,9 +347,10 @@
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
       align-items: start;
       gap: 6px;
-      max-height: 620px;
+      max-height: 720px;
       overflow: auto;
       padding-right: 2px;
+      flex: 1;
     }
     .unknown-card {
       border: 1px solid #e6d4bb;
@@ -412,6 +449,21 @@
     .photo-picker-panel .toolbar {
       width: 100%;
     }
+
+    .right-column.expanded-live .live-feed-card,
+    .right-column.expanded-queue .unknown-queue-card {
+      flex: 1;
+    }
+
+    .right-column.expanded-live .unknown-queue-card .card-body,
+    .right-column.expanded-queue .live-feed-card .card-body {
+      display: none;
+    }
+
+    .right-column.expanded-live #liveFeed,
+    .right-column.expanded-queue .queue {
+      max-height: none;
+    }
     @keyframes fadeUp {
       from { transform: translateY(6px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
@@ -473,34 +525,45 @@
           </div>
           <div class="member-cards-grid" id="memberCardsContainer"></div>
         </div>
+      </div>
+      <div class="right-column">
+        <div class="card live-feed-card stack-card">
+          <div class="card-header">
+            <h2>实时签到动态（Channel A）</h2>
+            <button id="expandLiveFeedBtn" class="expand-btn" type="button">扩大</button>
+          </div>
+          <div class="card-body">
+            <div class="toolbar" style="margin-bottom:8px">
+              <div class="feed-mode-control" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span class="feed-mode-label">显示模式：</span>
+                <div id="liveFeedModeSwitch" class="segmented" role="tablist" aria-label="实时签到动态显示模式">
+                  <button type="button" class="active" data-mode="checkin" role="tab" aria-selected="true">签到模式</button>
+                  <button type="button" data-mode="full" role="tab" aria-selected="false">完整模式</button>
+                </div>
+              </div>
+              <button id="refreshBtn" class="alt">刷新系统状态</button>
+              <button id="clearFeedBtn" class="warn">清空动态</button>
+              <span id="statusText" class="status">状态读取中...</span>
+            </div>
+            <ul id="liveFeed"></ul>
+          </div>
+        </div>
 
-        <div class="card">
-          <h2>实时签到动态（Channel A）</h2>
-          <div class="toolbar" style="margin-bottom:8px">
-            <div class="feed-mode-control" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-              <span class="feed-mode-label">显示模式：</span>
-              <div id="liveFeedModeSwitch" class="segmented" role="tablist" aria-label="实时签到动态显示模式">
-                <button type="button" class="active" data-mode="checkin" role="tab" aria-selected="true">签到模式</button>
-                <button type="button" data-mode="full" role="tab" aria-selected="false">完整模式</button>
+        <div class="card unknown-queue-card stack-card">
+          <div class="card-header">
+            <h2>异常抓拍队列（Unknown）</h2>
+            <button id="expandUnknownQueueBtn" class="expand-btn" type="button">扩大</button>
+          </div>
+          <div class="card-body">
+            <div class="toolbar">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <button id="refreshQueueBtn" class="alt">刷新队列</button>
+                <button id="clearUnknownBtn" class="warn">清空队列</button>
               </div>
             </div>
-            <button id="refreshBtn" class="alt">刷新系统状态</button>
-            <button id="clearFeedBtn" class="warn">清空动态</button>
-            <span id="statusText" class="status">状态读取中...</span>
-          </div>
-          <ul id="liveFeed"></ul>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>异常抓拍队列（Unknown）</h2>
-        <div class="toolbar">
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <button id="refreshQueueBtn" class="alt">刷新队列</button>
-            <button id="clearUnknownBtn" class="warn">清空队列</button>
+            <div class="queue" id="unknownQueue" style="margin-top:10px"></div>
           </div>
         </div>
-        <div class="queue" id="unknownQueue" style="margin-top:10px"></div>
       </div>
     </div>
   </div>
@@ -518,6 +581,11 @@
     const photoPickerStatus = document.getElementById('photoPickerStatus');
     const photoGenderFilter = document.getElementById('photoGenderFilter');
     const liveFeedModeSwitch = document.getElementById('liveFeedModeSwitch');
+    const rightColumn = document.querySelector('.right-column');
+    const liveFeedCard = document.querySelector('.live-feed-card');
+    const unknownQueueCard = document.querySelector('.unknown-queue-card');
+    const expandLiveFeedBtn = document.getElementById('expandLiveFeedBtn');
+    const expandUnknownQueueBtn = document.getElementById('expandUnknownQueueBtn');
 
     let selectedMember = null;
     let currentServiceEventId = '';
@@ -1128,7 +1196,7 @@
       try {
         const photoId = await getCachedMemberPhotoId(memberId);
         if (photoId) {
-          img.src = `/face-library/photos/${photoId}/download`;
+          img.src = `/face-library/photos/${photoId}/thumbnail`;
           return;
         }
       } catch (err) {
@@ -1162,6 +1230,7 @@
           const img = document.createElement('img');
           img.alt = item.name;
           img.loading = 'lazy';
+          img.decoding = 'async';
           img.dataset.memberId = item.id;
           photoDiv.appendChild(img);
           if ('IntersectionObserver' in window) {
@@ -1544,6 +1613,17 @@
       try {
         const leftCol = document.querySelector('.left-column');
         const rightCard = unknownQueue ? unknownQueue.parentElement : null;
+        if (rightColumn && (rightColumn.classList.contains('expanded-live') || rightColumn.classList.contains('expanded-queue'))) {
+          if (unknownQueue) {
+            unknownQueue.style.minHeight = '';
+            unknownQueue.style.maxHeight = '';
+            unknownQueue.style.height = '';
+          }
+          if (rightCard) {
+            rightCard.style.minHeight = '';
+          }
+          return;
+        }
         if (!leftCol || !rightCard || !unknownQueue) return;
         const leftH = leftCol.getBoundingClientRect().height;
         // match the visible scroll area to the left column height, but keep the natural layout when content is short.
@@ -1555,6 +1635,29 @@
       } catch (e) {
         // ignore
       }
+    }
+
+    function updateExpandButtons(mode) {
+      if (expandLiveFeedBtn) {
+        expandLiveFeedBtn.textContent = mode === 'live' ? '还原' : '扩大';
+      }
+      if (expandUnknownQueueBtn) {
+        expandUnknownQueueBtn.textContent = mode === 'queue' ? '还原' : '扩大';
+      }
+    }
+
+    function setRightColumnExpanded(mode) {
+      if (!rightColumn) {
+        return;
+      }
+      rightColumn.classList.remove('expanded-live', 'expanded-queue');
+      if (mode === 'live') {
+        rightColumn.classList.add('expanded-live');
+      } else if (mode === 'queue') {
+        rightColumn.classList.add('expanded-queue');
+      }
+      updateExpandButtons(mode);
+      setTimeout(adjustUnknownQueueHeight, 60);
     }
 
     window.addEventListener('resize', () => {
@@ -1605,6 +1708,7 @@
     }
 
     async function refreshCurrentService() {
+      const prevEventId = currentServiceEventId;
       try {
         const res = await fetch('/attendance/current-service');
         const data = await res.json();
@@ -1616,7 +1720,7 @@
         if (document.getElementById('memberQuery').value.trim()) {
           await liveSearch();
         }
-        if (photoPickerActive) {
+        if (photoPickerActive && prevEventId !== currentServiceEventId) {
           await loadPhotoPicker(true);
         }
       } catch (err) {
@@ -1721,6 +1825,38 @@
       }
     });
 
+    if (expandLiveFeedBtn) {
+      expandLiveFeedBtn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        const isExpanded = rightColumn && rightColumn.classList.contains('expanded-live');
+        setRightColumnExpanded(isExpanded ? '' : 'live');
+      });
+    }
+
+    if (expandUnknownQueueBtn) {
+      expandUnknownQueueBtn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        const isExpanded = rightColumn && rightColumn.classList.contains('expanded-queue');
+        setRightColumnExpanded(isExpanded ? '' : 'queue');
+      });
+    }
+
+    document.addEventListener('click', (evt) => {
+      if (!rightColumn) {
+        return;
+      }
+      if (!rightColumn.classList.contains('expanded-live') && !rightColumn.classList.contains('expanded-queue')) {
+        return;
+      }
+      if (liveFeedCard && liveFeedCard.contains(evt.target)) {
+        return;
+      }
+      if (unknownQueueCard && unknownQueueCard.contains(evt.target)) {
+        return;
+      }
+      setRightColumnExpanded('');
+    });
+
     // Setup member query input for live search
     document.getElementById('memberQuery').addEventListener('input', liveSearch);
     memberCardsContainer.addEventListener('scroll', schedulePhotoPickerLoadMore);
@@ -1764,6 +1900,7 @@
     }
 
     setLiveFeedMode('checkin');
+    updateExpandButtons('');
 
     loadEvents();
     loadUnknownQueue();

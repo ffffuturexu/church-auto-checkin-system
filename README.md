@@ -47,6 +47,7 @@
 ### 2. 人脸库管理
 - 会友照片本地存储与版本管理
 - 与 CompreFace 远程库自动同步
+- 支持缩略图生成与按需下载，减少大图传输开销
 - 支持批量修改和删除操作
 - 同步失败自动重试机制
 
@@ -250,8 +251,9 @@
 | **Phase O** | 照片选择器与接待页布局优化 | 2026-05 |
 | **Phase P** | 接待页交互增强与响应式优化 | 2026-05 |
 | **Phase Q** | 关怀中心设计与开发 | 2026-05 |
+| **Phase R** | 照片缩略图与报表布局优化 | 2026-05 |
 
-### 📅 当前进度（Phase Q 完成）
+### 📅 当前进度（Phase R 完成）
 
 - ✅ **业务闭环**: MVP 完整，涵盖签到、人脸库、接待、管理全流程
 - ✅ **API 就绪**: 20+ 核心接口、双通道 WebSocket 实时推送
@@ -261,6 +263,10 @@
   - 手动查找会友（拼音、首字母、语音输入）
    - 识别参数调优（阈值 0.70、Margin 0.20）
    - 照片选择器性别筛选修复与接待页响应式优化
+- ✅ **图片体验**: 
+   - 接待页会友卡片与管理后台会友列表切换为缩略图展示
+   - 照片上传、替换、删除链路自动维护缩略图文件
+   - 场次与历史报表签到记录支持缩略图展示
 - ✅ **关怀中心**: 
    - 关怀成员检索（含拼音/首字母匹配）
    - 风险等级中文化展示（低/中/高）与公式说明
@@ -403,6 +409,9 @@ church-auto-checkin-system/
 - `POST /face-library/members/{member_id}/photos` - 上传照片
 - `PUT /face-library/photos/{photo_id}` - 替换照片
 - `DELETE /face-library/photos/{photo_id}` - 删除照片
+- `GET /face-library/photos/{photo_id}/download` - 下载原图
+- `GET /face-library/photos/{photo_id}/thumbnail` - 下载照片缩略图
+- `GET /face-library/members/{member_id}/thumbnail` - 下载会友主缩略图
 - `POST /face-library/sync/rebuild` - 重建人脸库
 
 ### 关怀中心
@@ -509,6 +518,6 @@ pytest tests/ --cov=app --cov-report=html
 
 ---
 
-**最后更新**: 2026-05-22  
+**最后更新**: 2026-05-26  
 **维护者**: Weilai Xu@Rugiada
 **仓库**: [github.com/ffffuturexu/church-auto-checkin-system](https://github.com/ffffuturexu/church-auto-checkin-system)

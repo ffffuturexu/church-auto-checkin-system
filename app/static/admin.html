@@ -523,7 +523,7 @@
     }
     .event-history-grid {
       display: grid;
-      grid-template-columns: 0.78fr 1.52fr;
+      grid-template-columns: 0.7fr 1.6fr;
       gap: 10px;
       margin-top: 8px;
     }
@@ -629,6 +629,56 @@
       border-radius: 6px;
       border: 1px solid var(--line);
       background: #f2f7ff;
+    }
+    .member-photo-cell,
+    .history-photo-cell {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .history-photo-cell {
+      justify-content: center;
+      width: 100%;
+    }
+    .member-photo-thumb {
+      width: 36px;
+      height: 36px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #f2f7ff;
+    }
+    .history-photo-thumb {
+      width: 38px;
+      height: 38px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #f2f7ff;
+    }
+    .member-photo-placeholder {
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      border: 1px dashed var(--line);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--sub);
+      background: #fbfdff;
+    }
+    .history-photo-placeholder {
+      width: 38px;
+      height: 38px;
+      border-radius: 6px;
+      border: 1px dashed var(--line);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--sub);
+      background: #fbfdff;
     }
     .care-monthly-table th,
     .care-monthly-table td {
@@ -878,6 +928,7 @@
               <thead>
                 <tr>
                   <th class="sortable" data-sort="check_in_time">签到时间</th>
+                  <th>照片</th>
                   <th class="sortable" data-sort="member_name">会友姓名</th>
                   <th class="sortable" data-sort="member_name_chn">中文名</th>
                   <th class="sortable" data-sort="method">方式</th>
@@ -1612,12 +1663,53 @@
           <td>${genderSpan}</td>
           <td>${m.birthday || '-'}</td>
           <td>${displayAge == null ? '-' : displayAge}</td>
-          <td>${m.has_photo ? '<span class="status-pill active">有照片</span>' : '<span class="status-pill inactive">无照片</span>'}</td>
+          <td></td>
           <td>${m.group || '-'}</td>
           <td class="allow-wrap">${m.note || '-'}</td>
           <td>${m.status ? '<span class="status-pill active">active</span>' : '<span class="status-pill inactive">inactive</span>'}</td>
           <td></td>
         `;
+
+        const photoTd = tr.children[5];
+        const photoWrap = document.createElement('div');
+        photoWrap.className = 'member-photo-cell';
+        if (m.has_photo) {
+          const img = document.createElement('img');
+          img.className = 'member-photo-thumb';
+          img.alt = `${m.name || 'member'} photo`;
+          img.loading = 'lazy';
+          img.decoding = 'async';
+          img.src = `/face-library/members/${m.id}/thumbnail`;
+
+          const placeholder = document.createElement('span');
+          placeholder.className = 'member-photo-placeholder hidden';
+          placeholder.textContent = '无图';
+
+          img.addEventListener('error', () => {
+            img.remove();
+            placeholder.classList.remove('hidden');
+          });
+
+          const status = document.createElement('span');
+          status.className = 'status-pill active';
+          status.textContent = '有照片';
+
+          photoWrap.appendChild(img);
+          photoWrap.appendChild(placeholder);
+          photoWrap.appendChild(status);
+        } else {
+          const placeholder = document.createElement('span');
+          placeholder.className = 'member-photo-placeholder';
+          placeholder.textContent = '无图';
+
+          const status = document.createElement('span');
+          status.className = 'status-pill inactive';
+          status.textContent = '无照片';
+
+          photoWrap.appendChild(placeholder);
+          photoWrap.appendChild(status);
+        }
+        photoTd.appendChild(photoWrap);
 
         tr.addEventListener('click', (ev) => {
           if (ev.target && ev.target.tagName === 'BUTTON') {
@@ -2090,7 +2182,7 @@
     function renderHistoryPage() {
       historyRowsEl.innerHTML = '';
       if (!historyItems || !historyItems.length) {
-        historyRowsEl.innerHTML = '<tr><td colspan="5" class="mini">当前没有签到记录</td></tr>';
+        historyRowsEl.innerHTML = '<tr><td colspan="6" class="mini">当前没有签到记录</td></tr>';
         document.getElementById('historyPageInfo').textContent = '';
         return;
       }
@@ -2135,13 +2227,45 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${item.check_in_time}</td>
+          <td></td>
           <td>${item.member_name}</td>
           <td>${memberChn}</td>
           <td>${item.method}</td>
           <td></td>
         `;
 
-        const actionTd = tr.children[4];
+        const photoTd = tr.children[1];
+        const photoWrap = document.createElement('div');
+        photoWrap.className = 'history-photo-cell';
+        const hasPhoto = member ? member.has_photo : true;
+        if (hasPhoto) {
+          const img = document.createElement('img');
+          img.className = 'history-photo-thumb';
+          img.alt = `${item.member_name || 'member'} photo`;
+          img.loading = 'lazy';
+          img.decoding = 'async';
+          img.src = `/face-library/members/${item.member_id}/thumbnail`;
+
+          const placeholder = document.createElement('span');
+          placeholder.className = 'history-photo-placeholder hidden';
+          placeholder.textContent = '无图';
+
+          img.addEventListener('error', () => {
+            img.remove();
+            placeholder.classList.remove('hidden');
+          });
+
+          photoWrap.appendChild(img);
+          photoWrap.appendChild(placeholder);
+        } else {
+          const placeholder = document.createElement('span');
+          placeholder.className = 'history-photo-placeholder';
+          placeholder.textContent = '无图';
+          photoWrap.appendChild(placeholder);
+        }
+        photoTd.appendChild(photoWrap);
+
+        const actionTd = tr.children[5];
         const undoBtn = document.createElement('button');
         undoBtn.textContent = '取消签到';
         undoBtn.className = 'small warn';
