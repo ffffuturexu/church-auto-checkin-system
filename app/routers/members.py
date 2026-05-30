@@ -276,6 +276,7 @@ def search_members(
 def photo_picker_members(
     event_id: UUID | None = Query(default=None),
     gender: str | None = Query(default=None, max_length=16),
+    include_no_photo: bool = Query(default=False),
     active_only: bool = Query(default=True),
     limit: int = Query(default=20, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -292,9 +293,11 @@ def photo_picker_members(
                 AttendanceRecord.check_in_time >= since,
             ),
         )
-        .where(Member.has_photo.is_(True))
         .group_by(Member.id)
     )
+
+    if not include_no_photo:
+        stmt = stmt.where(Member.has_photo.is_(True))
 
     if active_only:
         stmt = stmt.where(Member.status.is_(True))

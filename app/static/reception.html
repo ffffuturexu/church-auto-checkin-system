@@ -88,6 +88,19 @@
       flex-direction: column;
       gap: 6px;
     }
+    .hero-status-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .hero-status-row .status-banner {
+      flex: 0 0 auto;
+      width: 100%;
+      max-width: 320px;
+      min-width: 220px;
+      margin-left: auto;
+    }
     .hero-controls .toolbar {
       display: flex;
       align-items: center;
@@ -408,6 +421,45 @@
       font-size: 13px;
       color: var(--sub);
     }
+    .status-banner {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #decaa5;
+      background: linear-gradient(135deg, #fff8e9 0%, #fff2d9 100%);
+      color: #6a4520;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.45;
+      box-shadow: 0 8px 16px rgba(70, 46, 18, 0.08);
+    }
+    .status-banner.ok {
+      border-color: #bfe3cf;
+      background: linear-gradient(135deg, #effaf3 0%, #e2f4ea 100%);
+      color: #1f7a4f;
+    }
+    .status-banner.warn {
+      border-color: #efc9bf;
+      background: linear-gradient(135deg, #fff2ee 0%, #fde3dd 100%);
+      color: #9a3f2f;
+    }
+    .status-banner .status-title {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: none;
+    }
+    .status-banner .status-line {
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .status-banner .status-note {
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.92;
+    }
     .candidate {
       color: #65490d;
       font-weight: 600;
@@ -471,6 +523,17 @@
     @media (max-width: 640px) {
       .grid { grid-template-columns: 1fr; }
     }
+    @media (max-width: 786px) {
+      .hero-status-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .hero-status-row .status-banner {
+        margin-left: 0;
+        max-width: 100%;
+        align-self: flex-start;
+      }
+    }
   </style>
 </head>
 <body>
@@ -484,17 +547,20 @@
         <a class="home-link" href="/">🏠 返回首页</a>
       </div>
       <div class="hero-controls">
-        <div class="hero-service-stack">
-          <div class="hero-service">
-            <div class="hero-service-label">当前场次：</div>
-            <div id="currentServiceText" class="hero-service-value">读取中</div>
+        <div class="hero-status-row">
+          <div class="hero-service-stack">
+            <div class="hero-service">
+              <div class="hero-service-label">当前场次：</div>
+              <div id="currentServiceText" class="hero-service-value">读取中</div>
+            </div>
+            <div class="hero-service">
+              <div class="hero-service-label">当前补签场次：</div>
+              <select id="eventSelect" style="flex:1;min-width:200px;max-width:320px;border:1px solid rgba(165,121,42,0.25);border-radius:8px;padding:5px 8px;background:rgba(255,253,248,0.72);font-size:13px;">
+                <option value="">按抓拍日期自动匹配</option>
+              </select>
+            </div>
           </div>
-          <div class="hero-service">
-            <div class="hero-service-label">当前补签场次：</div>
-            <select id="eventSelect" style="flex:1;min-width:200px;max-width:320px;border:1px solid rgba(165,121,42,0.25);border-radius:8px;padding:5px 8px;background:rgba(255,253,248,0.72);font-size:13px;">
-              <option value="">按抓拍日期自动匹配</option>
-            </select>
-          </div>
+          <div id="statusText" class="status-banner">状态读取中...</div>
         </div>
       </div>
     </div>
@@ -520,6 +586,13 @@
                 <button type="button" data-gender="男" role="tab" aria-selected="false">男</button>
                 <button type="button" data-gender="女" role="tab" aria-selected="false">女</button>
               </div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span class="feed-mode-label">分组：</span>
+                <div id="photoGroupFilter" class="segmented" role="tablist">
+                  <button type="button" class="active" data-group="" role="tab" aria-selected="true">全部</button>
+                  <button type="button" data-group="新人" role="tab" aria-selected="false">只看新人</button>
+                </div>
+              </div>
               <div id="photoPickerStatus" class="tiny">准备就绪</div>
             </div>
           </div>
@@ -543,7 +616,6 @@
               </div>
               <button id="refreshBtn" class="alt">刷新系统状态</button>
               <button id="clearFeedBtn" class="warn">清空动态</button>
-              <span id="statusText" class="status">状态读取中...</span>
             </div>
             <ul id="liveFeed"></ul>
           </div>
@@ -580,6 +652,7 @@
     const photoPickerPanel = document.getElementById('photoPickerPanel');
     const photoPickerStatus = document.getElementById('photoPickerStatus');
     const photoGenderFilter = document.getElementById('photoGenderFilter');
+    const photoGroupFilter = document.getElementById('photoGroupFilter');
     const liveFeedModeSwitch = document.getElementById('liveFeedModeSwitch');
     const rightColumn = document.querySelector('.right-column');
     const liveFeedCard = document.querySelector('.live-feed-card');
@@ -596,10 +669,12 @@
     const memberPhotoObservers = new Map();
     let photoPickerOffset = 0;
     let photoPickerGender = '';
+    let photoPickerNewcomerOnly = false;
     let photoPickerLoading = false;
     const photoPickerLimit = 20;
     let photoPickerActive = false;
     let photoPickerHasMore = true;
+    let photoPickerRenderedCount = 0;
     let liveFeedMode = 'checkin';
 
     function toLocalDayKey(timestampValue) {
@@ -1131,6 +1206,21 @@
       photoPickerStatus.textContent = text || '';
     }
 
+    function isNewcomerGroup(groupValue) {
+      const groupText = String(groupValue || '').trim();
+      if (!groupText) {
+        return false;
+      }
+      return groupText === '新人' || groupText.includes('新人');
+    }
+
+    function applyNewcomerFilter(items) {
+      if (!photoPickerNewcomerOnly) {
+        return items;
+      }
+      return items.filter((item) => isNewcomerGroup(item.group));
+    }
+
     function getMemberPhotoObserver(root) {
       const key = root || 'viewport';
       if (memberPhotoObservers.has(key)) {
@@ -1515,6 +1605,7 @@
       photoPickerOffset = 0;
       photoPickerHasMore = true;
       photoPickerLoading = false;
+      photoPickerRenderedCount = 0;
       memberCardsContainer.innerHTML = '';
       document.getElementById('memberQuery').value = '';
       setPhotoPickerStatus('加载中...');
@@ -1531,6 +1622,7 @@
       photoPickerPanel.hidden = true;
       setPhotoPickerStatus('准备就绪');
       memberCardsContainer.innerHTML = '';
+      photoPickerRenderedCount = 0;
       // restore/adjust unknown queue scroll height
       setTimeout(adjustUnknownQueueHeight, 120);
     }
@@ -1541,6 +1633,37 @@
         return;
       }
       openPhotoPicker();
+    }
+
+    async function fetchPhotoPickerBatch(eventId, offset) {
+      const params = new URLSearchParams({
+        event_id: eventId,
+        limit: String(photoPickerLimit),
+        offset: String(offset),
+      });
+      if (photoPickerGender) {
+        params.append('gender', photoPickerGender);
+      }
+      if (photoPickerNewcomerOnly) {
+        params.append('include_no_photo', 'true');
+      }
+      const res = await fetch(`/members/photo-picker?${params.toString()}`);
+      const rawText = await res.text();
+      let data = {};
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText);
+        } catch (err) {
+          if (!res.ok) {
+            throw new Error(rawText || res.statusText);
+          }
+          throw new Error('response parse failed');
+        }
+      }
+      if (!res.ok) {
+        throw new Error(data.detail || data.message || res.statusText);
+      }
+      return Array.isArray(data.items) ? data.items : [];
     }
 
     async function loadPhotoPicker(reset = false) {
@@ -1555,6 +1678,7 @@
 
       if (reset) {
         photoPickerOffset = 0;
+        photoPickerRenderedCount = 0;
         memberCardsContainer.innerHTML = '';
       }
 
@@ -1562,43 +1686,55 @@
       setPhotoPickerStatus('加载中...');
 
       try {
-        const params = new URLSearchParams({
-          event_id: eventId,
-          limit: String(photoPickerLimit),
-          offset: String(photoPickerOffset),
-        });
-        if (photoPickerGender) {
-          params.append('gender', photoPickerGender);
-        }
-        const res = await fetch(`/members/photo-picker?${params.toString()}`);
-        const rawText = await res.text();
-        let data = {};
-        if (rawText) {
-          try {
-            data = JSON.parse(rawText);
-          } catch (err) {
-            if (!res.ok) {
-              throw new Error(rawText || res.statusText);
-            }
-            throw new Error('response parse failed');
+        let filteredItems = [];
+        let reachedEnd = false;
+        let lastBatchCount = 0;
+        let safety = 0;
+
+        while (true) {
+          const items = await fetchPhotoPickerBatch(eventId, photoPickerOffset);
+          lastBatchCount = items.length;
+          photoPickerOffset += lastBatchCount;
+          filteredItems = filteredItems.concat(applyNewcomerFilter(items));
+          if (lastBatchCount < photoPickerLimit) {
+            reachedEnd = true;
+          }
+          if (!photoPickerNewcomerOnly) {
+            break;
+          }
+          if (filteredItems.length >= photoPickerLimit) {
+            break;
+          }
+          if (reachedEnd) {
+            break;
+          }
+          safety += 1;
+          if (safety >= 6) {
+            break;
           }
         }
-        if (!res.ok) {
-          throw new Error(data.detail || data.message || res.statusText);
-        }
-        const items = data.items || [];
-        renderMembers(items, {
+
+        renderMembers(filteredItems, {
           container: memberCardsContainer,
           append: !reset,
           showEmpty: reset,
         });
-        photoPickerOffset += items.length;
-        if (items.length < photoPickerLimit) {
+        photoPickerRenderedCount += filteredItems.length;
+
+        if (reachedEnd || lastBatchCount < photoPickerLimit) {
           photoPickerHasMore = false;
-          setPhotoPickerStatus(photoPickerOffset ? '已无更多' : '暂无可选成员');
         } else {
           photoPickerHasMore = true;
-          setPhotoPickerStatus(`已加载 ${photoPickerOffset} 位成员`);
+        }
+
+        if (!photoPickerHasMore && photoPickerRenderedCount === 0) {
+          setPhotoPickerStatus('暂无可选成员');
+        } else if (!photoPickerHasMore) {
+          setPhotoPickerStatus('已无更多');
+        } else if (photoPickerRenderedCount === 0) {
+          setPhotoPickerStatus('暂无匹配，继续下滑加载');
+        } else {
+          setPhotoPickerStatus(`已加载 ${photoPickerRenderedCount} 位成员`);
         }
       } catch (err) {
         setPhotoPickerStatus(`加载失败: ${err}`);
@@ -1701,9 +1837,52 @@
         const res = await fetch('/system/status');
         const data = await res.json();
         const rt = data.runtime || {};
-        statusText.textContent = `stream=${rt.stream_running} camera=${rt.camera_running} recognition=${rt.recognition_running} wsA=${(data.websocket || {}).channel_a_connections ?? '-'} wsB=${(data.websocket || {}).channel_b_connections ?? '-'}`;
+        const cameraOk = rt.camera_running && rt.camera_stream_healthy !== false;
+        const recognitionOk = rt.recognition_running === true;
+        const hasConnection = Number((data.websocket || {}).channel_a_connections || 0) > 0;
+
+        let title = '系统状态正常';
+        let line = '摄像头状态：正常；识别状态：运行中';
+        let note = '可以继续进行签到识别。';
+        let bannerClass = 'ok';
+
+        if (!cameraOk && !recognitionOk) {
+          title = '摄像头和识别均异常';
+          line = '摄像头状态：异常；识别状态：已离线';
+          note = '请先检查摄像头、采集服务和识别服务，再通知签到同工改用人工签到。';
+          bannerClass = 'warn';
+        } else if (!cameraOk) {
+          title = '摄像头异常';
+          line = '摄像头状态：异常；识别状态：可能已离线';
+          note = '摄像头异常通常会连带导致人脸识别下线，请先检查视频源。';
+          bannerClass = 'warn';
+        } else if (!recognitionOk) {
+          title = '人脸识别已离线';
+          line = '摄像头状态：正常；识别状态：已离线';
+          note = '请通知签到同工改用人工签到，并尽快恢复识别服务。';
+          bannerClass = 'warn';
+        } else if (!hasConnection) {
+          title = '状态正常但未收到直播连接';
+          line = '摄像头状态：正常；识别状态：运行中';
+          note = '如果页面长时间没有实时动态，请检查前端连接是否恢复。';
+          bannerClass = 'warn';
+        }
+
+        statusText.classList.remove('ok', 'warn');
+        statusText.classList.add(bannerClass);
+        statusText.innerHTML = `
+          <div class="status-title">${title}</div>
+          <div class="status-line">${line}</div>
+          <div class="status-note">${note}</div>
+        `;
       } catch (err) {
-        statusText.textContent = `状态读取失败: ${err}`;
+        statusText.classList.remove('ok');
+        statusText.classList.add('warn');
+        statusText.innerHTML = `
+          <div class="status-title">状态读取失败</div>
+          <div class="status-line">无法获取摄像头和识别状态</div>
+          <div class="status-note">${String(err)}</div>
+        `;
       }
     }
 
@@ -1881,6 +2060,24 @@
         photoPickerGender = gender;
         for (const el of photoGenderFilter.querySelectorAll('button')) {
           const isActive = el.dataset.gender === gender;
+          el.classList.toggle('active', isActive);
+          el.setAttribute('aria-selected', String(isActive));
+        }
+        if (photoPickerActive) {
+          loadPhotoPicker(true);
+        }
+      });
+    }
+    if (photoGroupFilter) {
+      photoGroupFilter.addEventListener('click', (evt) => {
+        const btn = evt.target;
+        if (!btn || !btn.dataset) {
+          return;
+        }
+        const group = btn.dataset.group || '';
+        photoPickerNewcomerOnly = group === '新人';
+        for (const el of photoGroupFilter.querySelectorAll('button')) {
+          const isActive = (el.dataset.group || '') === group;
           el.classList.toggle('active', isActive);
           el.setAttribute('aria-selected', String(isActive));
         }
