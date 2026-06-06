@@ -445,6 +445,11 @@
       background: linear-gradient(135deg, #fff2ee 0%, #fde3dd 100%);
       color: #9a3f2f;
     }
+    .status-banner.pending {
+      border-color: #e7d08a;
+      background: linear-gradient(135deg, #fff9e7 0%, #fff2c8 100%);
+      color: #8a671d;
+    }
     .status-banner .status-title {
       font-size: 12px;
       font-weight: 800;
@@ -676,6 +681,10 @@
     let photoPickerHasMore = true;
     let photoPickerRenderedCount = 0;
     let liveFeedMode = 'checkin';
+    let startupStatusRetryTimer = null;
+    let startupStatusRetryCount = 0;
+    const startupStatusRetryLimit = 8;
+    const startupStatusRetryDelayMs = 2000;
 
     function toLocalDayKey(timestampValue) {
       if (!timestampValue) {
@@ -967,6 +976,23 @@
       if (nearBottom) {
         loadPhotoPicker(false);
       }
+    }
+
+    function schedulePhotoPickerAutofill() {
+      if (!photoPickerActive || photoPickerLoading || !photoPickerHasMore) {
+        return;
+      }
+      // If current cards do not create a scroll bar, continue loading automatically.
+      const notScrollable = memberCardsContainer.scrollHeight <= memberCardsContainer.clientHeight + 8;
+      if (!notScrollable) {
+        return;
+      }
+      setTimeout(() => {
+        if (!photoPickerActive || photoPickerLoading || !photoPickerHasMore) {
+          return;
+        }
+        loadPhotoPicker(false);
+      }, 60);
     }
 
     function addLiveItem(payload) {
@@ -1732,7 +1758,7 @@
         } else if (!photoPickerHasMore) {
           setPhotoPickerStatus('已无更多');
         } else if (photoPickerRenderedCount === 0) {
-          setPhotoPickerStatus('暂无匹配，继续下滑加载');
+          setPhotoPickerStatus('暂无匹配，自动继续加载');
         } else {
           setPhotoPickerStatus(`已加载 ${photoPickerRenderedCount} 位成员`);
         }
@@ -1742,6 +1768,7 @@
         photoPickerLoading = false;
         // after members render, ensure unknown queue height matches
         setTimeout(adjustUnknownQueueHeight, 60);
+        schedulePhotoPickerAutofill();
       }
     }
 
@@ -1845,45 +1872,77 @@
         let line = '摄像头状态：正常；识别状态：运行中';
         let note = '可以继续进行签到识别。';
         let bannerClass = 'ok';
+        let connectionReady = hasConnection;
 
         if (!cameraOk && !recognitionOk) {
           title = '摄像头和识别均异常';
           line = '摄像头状态：异常；识别状态：已离线';
           note = '请先检查摄像头、采集服务和识别服务，再通知签到同工改用人工签到。';
           bannerClass = 'warn';
+          connectionReady = true;
         } else if (!cameraOk) {
           title = '摄像头异常';
           line = '摄像头状态：异常；识别状态：可能已离线';
           note = '摄像头异常通常会连带导致人脸识别下线，请先检查视频源。';
           bannerClass = 'warn';
+          connectionReady = true;
         } else if (!recognitionOk) {
           title = '人脸识别已离线';
           line = '摄像头状态：正常；识别状态：已离线';
           note = '请通知签到同工改用人工签到，并尽快恢复识别服务。';
           bannerClass = 'warn';
+          connectionReady = true;
         } else if (!hasConnection) {
           title = '状态正常但未收到直播连接';
           line = '摄像头状态：正常；识别状态：运行中';
           note = '如果页面长时间没有实时动态，请检查前端连接是否恢复。';
-          bannerClass = 'warn';
+          bannerClass = 'pending';
+          connectionReady = false;
         }
 
-        statusText.classList.remove('ok', 'warn');
+        statusText.classList.remove('ok', 'warn', 'pending');
         statusText.classList.add(bannerClass);
         statusText.innerHTML = `
           <div class="status-title">${title}</div>
           <div class="status-line">${line}</div>
           <div class="status-note">${note}</div>
         `;
+        return { cameraOk, recognitionOk, hasConnection, connectionReady };
       } catch (err) {
-        statusText.classList.remove('ok');
+        statusText.classList.remove('ok', 'warn', 'pending');
         statusText.classList.add('warn');
         statusText.innerHTML = `
           <div class="status-title">状态读取失败</div>
           <div class="status-line">无法获取摄像头和识别状态</div>
           <div class="status-note">${String(err)}</div>
         `;
+        return { cameraOk: false, recognitionOk: false, hasConnection: false, connectionReady: true };
       }
+    }
+
+    function clearStartupStatusRetry() {
+      if (startupStatusRetryTimer) {
+        clearTimeout(startupStatusRetryTimer);
+        startupStatusRetryTimer = null;
+      }
+    }
+
+    function scheduleStartupStatusRetry() {
+      clearStartupStatusRetry();
+      if (startupStatusRetryCount >= startupStatusRetryLimit) {
+        return;
+      }
+      startupStatusRetryTimer = setTimeout(async () => {
+        startupStatusRetryTimer = null;
+        const state = await refreshStatus();
+        if (!state || state.connectionReady) {
+          clearStartupStatusRetry();
+          startupStatusRetryCount = 0;
+          return;
+        }
+        startupStatusRetryCount += 1;
+        scheduleStartupStatusRetry();
+      }, startupStatusRetryDelayMs);
     }
 
     async function refreshCurrentService() {
@@ -1909,6 +1968,11 @@
 
     function connectChannelA() {
       const ws = new WebSocket(`${wsBase()}/ws/channel-a`);
+      ws.onopen = async () => {
+        clearStartupStatusRetry();
+        startupStatusRetryCount = 0;
+        await refreshStatus();
+      };
       ws.onmessage = (evt) => {
         let payload;
         try {
@@ -2101,7 +2165,12 @@
 
     loadEvents();
     loadUnknownQueue();
-    refreshStatus();
+    refreshStatus().then((state) => {
+      if (state && !state.connectionReady) {
+        startupStatusRetryCount = 0;
+        scheduleStartupStatusRetry();
+      }
+    });
     refreshCurrentService();
     loadLiveFeed();
     connectChannelA();
