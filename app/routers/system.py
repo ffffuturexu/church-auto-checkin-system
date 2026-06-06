@@ -30,6 +30,14 @@ class HyperParamsUpdateRequest(BaseModel):
     unknown_min_face_size: int | None = None
 
 
+class DebugVideoToggleRequest(BaseModel):
+    enabled: bool = True
+
+
+class DebugOverlayToggleRequest(BaseModel):
+    enabled: bool = True
+
+
 def _get_runtime(request: Request) -> RuntimePipeline:
     return request.app.state.runtime
 
@@ -132,3 +140,28 @@ def update_hyperparameters(payload: HyperParamsUpdateRequest, request: Request) 
     runtime = _get_runtime(request)
     updated = runtime.update_hyperparams(**payload.model_dump(exclude_none=True))
     return {"status": "updated", "hyperparameters": updated}
+
+
+@router.put("/debug-video")
+def update_debug_video(payload: DebugVideoToggleRequest, request: Request) -> dict[str, Any]:
+    runtime = _get_runtime(request)
+    runtime.recognition.set_debug_enabled(payload.enabled)
+    return {"status": "updated", "debug_video_enabled": runtime.recognition.is_debug_enabled()}
+
+
+@router.put("/debug-overlay")
+def update_debug_overlay(payload: DebugOverlayToggleRequest, request: Request) -> dict[str, Any]:
+    runtime = _get_runtime(request)
+    runtime.recognition.set_debug_overlay_enabled(payload.enabled)
+    return {"status": "updated", "debug_overlay_enabled": runtime.recognition.is_debug_overlay_enabled()}
+
+
+@router.post("/restart")
+async def restart_system(request: Request) -> dict[str, Any]:
+    runtime = _get_runtime(request)
+    dispatcher = getattr(request.app.state, "event_dispatcher", None)
+    runtime.stop_stream()
+    runtime.start_stream()
+    if dispatcher is not None and not dispatcher.is_running():
+        await dispatcher.start()
+    return {"status": "restarted", "runtime": runtime.state().__dict__}

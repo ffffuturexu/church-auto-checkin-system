@@ -79,6 +79,8 @@
 - 流媒体启动/停止
 - 超参数热更新（阈值、Margin、投票数等）
 - 自检诊断（数据库、运行时、WebSocket 等）
+- 调试视频开关、识别标注开关与运行时重启
+- 队列负载与 WebSocket 连接状态监控
 - 进程级监控指标（CPU、内存、GPU、系统负载）
 - 自动清理过期日志与接待记录
 
@@ -280,6 +282,14 @@
 - ✅ **数据支持**: 历史签到已入库（11790+ 行），完整统计数据看板
 - ✅ **系统诊断**: 完整的自检诊断与日志清理机制
 
+### 2026-06 进展
+
+- ✅ **运维稳定性**: Channel A/B 广播增加超时保护，慢连接不会拖垮事件分发。
+- ✅ **运行时监控**: 状态看板新增队列负载卡片，可直接查看帧队列与事件队列占用比。
+- ✅ **调试控制**: 调试页新增运行时重启按钮、调试视频开关与识别标注开关，方便隔离调试流量。
+- ✅ **链路瘦身**: `check_in` 事件出站前移除 base64 图像字段，降低 Channel A 传输成本。
+- ✅ **调试标注**: 调试画面叠字改用成员名称显示，并保留相似度与分段颜色提示。
+
 ### 📌 后续计划
 
 **工程化完善**
@@ -440,6 +450,9 @@ church-auto-checkin-system/
 - `POST /system/stream/start` - 启动流媒体
 - `POST /system/stream/stop` - 停止流媒体
 - `PUT /system/hyperparameters` - 热更新超参数
+- `PUT /system/debug-video` - 开关调试视频
+- `PUT /system/debug-overlay` - 开关识别标注
+- `POST /system/restart` - 重启运行时
 
 ### WebSocket
 - `WS /ws/channel-a` - 实时签到事件（Channel A）
@@ -524,6 +537,6 @@ pytest tests/ --cov=app --cov-report=html
 
 ---
 
-**最后更新**: 2026-05-30  
+**最后更新**: 2026-06-06  
 **维护者**: Weilai Xu@Rugiada
 **仓库**: [github.com/ffffuturexu/church-auto-checkin-system](https://github.com/ffffuturexu/church-auto-checkin-system)

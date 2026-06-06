@@ -215,6 +215,7 @@
           <button id="startBtn">启动流</button>
           <button id="stopBtn" class="warn">停止流</button>
           <button id="refreshBtn" class="alt">刷新状态</button>
+          <button id="restartBtn" class="warn">重启运行时</button>
         </div>
         <div id="status" class="status" style="margin-top:10px">状态读取中...</div>
       </div>
@@ -278,6 +279,14 @@
       </div>
       <div class="card">
         <h2>Channel B（调试视频）</h2>
+        <div class="row" style="margin-bottom:8px">
+          <button id="toggleDebugBtn" class="alt">关闭调试视频</button>
+          <span id="debugVideoHint" class="muted">调试视频已开启</span>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <button id="toggleOverlayBtn" class="alt">关闭识别标注</button>
+          <span id="debugOverlayHint" class="muted">识别标注已开启</span>
+        </div>
         <img id="debugFrame" alt="debug frame" />
       </div>
     </div>
@@ -288,6 +297,16 @@
     const statusGridEl = document.getElementById('statusGrid');
     const eventsEl = document.getElementById('events');
     const imgEl = document.getElementById('debugFrame');
+    const toggleDebugBtn = document.getElementById('toggleDebugBtn');
+    const debugVideoHintEl = document.getElementById('debugVideoHint');
+    const toggleOverlayBtn = document.getElementById('toggleOverlayBtn');
+    const debugOverlayHintEl = document.getElementById('debugOverlayHint');
+
+    let debugVideoEnabled = true;
+    let debugOverlayEnabled = true;
+    let channelBWs = null;
+    let channelBPingTimer = null;
+    let channelBReconnectTimer = null;
 
     const api = {
       async getStatus() {
@@ -306,11 +325,31 @@
         const res = await fetch('/system/stream/stop', { method: 'POST' });
         return res.json();
       },
+      async restartSystem() {
+        const res = await fetch('/system/restart', { method: 'POST' });
+        return res.json();
+      },
       async updateParams(payload) {
         const res = await fetch('/system/hyperparameters', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
+        });
+        return res.json();
+      },
+      async setDebugVideoEnabled(enabled) {
+        const res = await fetch('/system/debug-video', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled })
+        });
+        return res.json();
+      },
+      async setDebugOverlayEnabled(enabled) {
+        const res = await fetch('/system/debug-overlay', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled })
         });
         return res.json();
       }
@@ -322,8 +361,11 @@
     }
 
     function addEvent(event) {
+      const safeEvent = { ...event };
+      delete safeEvent.face_image_base64;
+      delete safeEvent.image_base64;
       const li = document.createElement('li');
-      li.textContent = JSON.stringify(event, null, 2);
+      li.textContent = JSON.stringify(safeEvent, null, 2);
       eventsEl.prepend(li);
       while (eventsEl.children.length > 80) {
         eventsEl.removeChild(eventsEl.lastChild);
@@ -351,6 +393,11 @@
       const gpuUsageRatio = getGpuUsageRatio(system);
       const gpuTileClass = gpuUsageRatio === null ? 'neutral' : gpuUsageRatio >= 0.95 ? 'warn' : gpuUsageRatio >= 0.85 ? 'hot' : 'ok';
       const pendingRequests = recognitionStats.pending_requests ?? 'N/A';
+      const frameQueueMax = rt.frame_queue_max ?? null;
+      const eventQueueMax = rt.event_queue_max ?? null;
+      const frameQueueRatio = getRatio(rt.frame_queue_size, frameQueueMax);
+      const eventQueueRatio = getRatio(rt.event_queue_size, eventQueueMax);
+      const queueTileClass = getQueueClass(frameQueueRatio, eventQueueRatio);
       statusEl.innerHTML = `
         流状态: ${stream}<br/>
         摄像头线程: ${rt.camera_running}<br/>
@@ -368,6 +415,11 @@
           <div class="label">识别状态</div>
           <div class="value">${rt.recognition_running ? '运行中' : '未运行'}</div>
           <div class="detail">最后调试帧: ${recognitionAge}<br/>待处理请求: ${pendingRequests}<br/>最后错误: ${recognitionStats.last_error_at || '无'}</div>
+        </div>
+        <div class="status-tile ${queueTileClass}">
+          <div class="label">队列负载</div>
+          <div class="value">帧 ${formatQueue(rt.frame_queue_size, frameQueueMax)} | 事件 ${formatQueue(rt.event_queue_size, eventQueueMax)}</div>
+          <div class="detail">帧队列: ${formatQueue(rt.frame_queue_size, frameQueueMax)} (${formatPercent(frameQueueRatio)})<br/>事件队列: ${formatQueue(rt.event_queue_size, eventQueueMax)} (${formatPercent(eventQueueRatio)})</div>
         </div>
         <div class="status-tile ${(websocket.channel_b_connections ?? 0) > 0 ? 'ok' : 'warn'}">
           <div class="label">调试视频通道</div>
@@ -442,6 +494,85 @@
       return `${Number(draw).toFixed(0)} / ${Number(limit).toFixed(0)} W`;
     }
 
+    function getRatio(value, max) {
+      const numerator = Number(value);
+      const denominator = Number(max);
+      if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) {
+        return null;
+      }
+      return numerator / denominator;
+    }
+
+    function getQueueClass(frameRatio, eventRatio) {
+      if (frameRatio === null && eventRatio === null) return 'neutral';
+      const worst = Math.max(frameRatio ?? 0, eventRatio ?? 0);
+      if (worst >= 0.9) return 'warn';
+      if (worst >= 0.7) return 'hot';
+      return 'ok';
+    }
+
+    function formatQueue(value, max) {
+      if (value === null || value === undefined) return 'N/A';
+      if (max === null || max === undefined || Number(max) <= 0) return String(value);
+      return `${value} / ${max}`;
+    }
+
+    function updateDebugVideoUi() {
+      toggleDebugBtn.textContent = debugVideoEnabled ? '关闭调试视频' : '开启调试视频';
+      debugVideoHintEl.textContent = debugVideoEnabled ? '调试视频已开启' : '调试视频已关闭';
+    }
+
+    function updateDebugOverlayUi() {
+      toggleOverlayBtn.textContent = debugOverlayEnabled ? '关闭识别标注' : '开启识别标注';
+      debugOverlayHintEl.textContent = debugOverlayEnabled ? '识别标注已开启' : '识别标注已关闭';
+    }
+
+    function closeChannelB() {
+      if (channelBReconnectTimer) {
+        clearTimeout(channelBReconnectTimer);
+        channelBReconnectTimer = null;
+      }
+      if (channelBPingTimer) {
+        clearInterval(channelBPingTimer);
+        channelBPingTimer = null;
+      }
+      if (channelBWs) {
+        channelBWs.onclose = null;
+        channelBWs.close();
+        channelBWs = null;
+      }
+      imgEl.removeAttribute('src');
+    }
+
+    async function setDebugVideoEnabled(enabled, notifyServer = true) {
+      debugVideoEnabled = Boolean(enabled);
+      updateDebugVideoUi();
+      if (debugVideoEnabled) {
+        connectChannelB();
+      } else {
+        closeChannelB();
+      }
+      if (!notifyServer) return;
+      try {
+        const data = await api.setDebugVideoEnabled(debugVideoEnabled);
+        addEvent({ action: 'toggle_debug_video', data });
+      } catch (e) {
+        addEvent({ warn: `调试视频开关失败: ${e}` });
+      }
+    }
+
+    async function setDebugOverlayEnabled(enabled, notifyServer = true) {
+      debugOverlayEnabled = Boolean(enabled);
+      updateDebugOverlayUi();
+      if (!notifyServer) return;
+      try {
+        const data = await api.setDebugOverlayEnabled(debugOverlayEnabled);
+        addEvent({ action: 'toggle_debug_overlay', data });
+      } catch (e) {
+        addEvent({ warn: `识别标注开关失败: ${e}` });
+      }
+    }
+
     async function refreshStatus() {
       try {
         const data = await api.getStatus();
@@ -457,6 +588,12 @@
         if (params.vote_ratio !== undefined) document.getElementById('vote_ratio').value = params.vote_ratio;
         if (params.unknown_min_similarity !== undefined) document.getElementById('unknown_min_similarity').value = params.unknown_min_similarity;
         if (params.unknown_min_face_size !== undefined) document.getElementById('unknown_min_face_size').value = params.unknown_min_face_size;
+        if (data.runtime && data.runtime.debug_video_enabled !== undefined) {
+          setDebugVideoEnabled(Boolean(data.runtime.debug_video_enabled), false);
+        }
+        if (data.runtime && data.runtime.debug_overlay_enabled !== undefined) {
+          setDebugOverlayEnabled(Boolean(data.runtime.debug_overlay_enabled), false);
+        }
       } catch (e) {
         statusEl.textContent = `状态获取失败: ${e}`;
       }
@@ -491,7 +628,15 @@
     }
 
     function connectChannelB() {
+      if (!debugVideoEnabled) return;
+      if (channelBWs && channelBWs.readyState === WebSocket.OPEN) return;
+
       const ws = new WebSocket(`${wsBase()}/ws/channel-b`);
+      channelBWs = ws;
+      if (channelBPingTimer) {
+        clearInterval(channelBPingTimer);
+      }
+
       ws.onmessage = (evt) => {
         try {
           const payload = JSON.parse(evt.data);
@@ -503,9 +648,11 @@
         }
       };
       ws.onclose = () => {
-        setTimeout(connectChannelB, 3000);
+        channelBWs = null;
+        if (!debugVideoEnabled) return;
+        channelBReconnectTimer = setTimeout(connectChannelB, 3000);
       };
-      setInterval(() => {
+      channelBPingTimer = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send('ping');
         }
@@ -526,6 +673,13 @@
     });
 
     document.getElementById('refreshBtn').addEventListener('click', refreshStatus);
+    document.getElementById('restartBtn').addEventListener('click', async () => {
+      const ok = confirm('确定要重启运行时吗？这会短暂中断识别线程。');
+      if (!ok) return;
+      const data = await api.restartSystem();
+      addEvent({ action: 'restart_runtime', data });
+      await refreshStatus();
+    });
 
     document.getElementById('updateParamsBtn').addEventListener('click', async () => {
       const payload = {
@@ -549,8 +703,18 @@
       await refreshStatus();
     });
 
+    toggleDebugBtn.addEventListener('click', async () => {
+      await setDebugVideoEnabled(!debugVideoEnabled, true);
+    });
+
+    toggleOverlayBtn.addEventListener('click', async () => {
+      await setDebugOverlayEnabled(!debugOverlayEnabled, true);
+    });
+
     refreshStatus();
     connectChannelA();
+    updateDebugVideoUi();
+    updateDebugOverlayUi();
     connectChannelB();
     setInterval(refreshStatus, 3000);
   </script>

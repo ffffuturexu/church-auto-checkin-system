@@ -19,6 +19,10 @@ class RuntimeState:
     camera_stream_healthy: bool
     frame_queue_size: int
     event_queue_size: int
+    frame_queue_max: int
+    event_queue_max: int
+    debug_video_enabled: bool
+    debug_overlay_enabled: bool
     camera_stats: dict[str, Any]
     recognition_stats: dict[str, Any]
     hyperparams: dict[str, Any]
@@ -90,6 +94,10 @@ class RuntimePipeline:
             camera_stream_healthy=self.camera.is_running() and camera_last_frame_age_sec is not None and camera_last_frame_age_sec <= 8.0,
             frame_queue_size=self.camera.frame_queue.qsize(),
             event_queue_size=self.recognition.event_queue.qsize(),
+            frame_queue_max=self.camera.frame_queue.maxsize,
+            event_queue_max=self.recognition.event_queue.maxsize,
+            debug_video_enabled=self.recognition.is_debug_enabled(),
+            debug_overlay_enabled=self.recognition.is_debug_overlay_enabled(),
             camera_stats=asdict(self.camera.stats),
             recognition_stats=self.recognition.get_runtime_stats(),
             hyperparams=self.recognition.get_hyperparams(),

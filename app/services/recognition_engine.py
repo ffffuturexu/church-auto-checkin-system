@@ -4,6 +4,7 @@ import base64
 import queue
 import threading
 from collections import Counter, deque
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
@@ -85,6 +86,11 @@ class RecognitionEngine:
         self._last_debug_frame_at: datetime | None = None
         self._last_error_at: datetime | None = None
         self._last_result_at: datetime | None = None
+        self._debug_enabled = True
+        self._debug_overlay_enabled = True
+        self._subject_name_resolver: Callable[[str], str | None] | None = None
+        self._subject_name_cache: dict[str, tuple[str | None, datetime]] = {}
+        self._subject_name_cache_ttl_sec = 120.0
 
     def start(self) -> None:
         with self._lock:
@@ -154,7 +160,32 @@ class RecognitionEngine:
                 "last_debug_frame_at": self._format_timestamp(self._last_debug_frame_at),
                 "last_error_at": self._format_timestamp(self._last_error_at),
                 "last_result_at": self._format_timestamp(self._last_result_at),
+                "debug_video_enabled": self._debug_enabled,
+                "debug_overlay_enabled": self._debug_overlay_enabled,
             }
+
+    def set_debug_enabled(self, enabled: bool) -> None:
+        with self._lock:
+            self._debug_enabled = bool(enabled)
+        self._emit_event("debug_video_toggled", enabled=self._debug_enabled)
+
+    def is_debug_enabled(self) -> bool:
+        with self._lock:
+            return bool(self._debug_enabled)
+
+    def set_debug_overlay_enabled(self, enabled: bool) -> None:
+        with self._lock:
+            self._debug_overlay_enabled = bool(enabled)
+        self._emit_event("debug_overlay_toggled", enabled=self._debug_overlay_enabled)
+
+    def is_debug_overlay_enabled(self) -> bool:
+        with self._lock:
+            return bool(self._debug_overlay_enabled)
+
+    def set_subject_name_resolver(self, resolver: Callable[[str], str | None] | None) -> None:
+        with self._lock:
+            self._subject_name_resolver = resolver
+            self._subject_name_cache.clear()
 
     def _run(self) -> None:
         try:
@@ -523,23 +554,27 @@ class RecognitionEngine:
         similarity: float,
         status: str,
     ) -> None:
+        if not self._debug_enabled:
+            return
         self._last_debug_frame_at = now_local()
         debug_frame = frame.copy()
-        if box is not None:
+        if box is not None and self.is_debug_overlay_enabled():
             x_min = int(box.get("x_min", 0))
             y_min = int(box.get("y_min", 0))
             width = int(box.get("width", 0))
             height = int(box.get("height", 0))
             x_max = x_min + max(0, width)
             y_max = y_min + max(0, height)
-            cv2.rectangle(debug_frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+            color = self._get_similarity_color(similarity)
+            label = self._resolve_subject_label(best_subject_id)
+            cv2.rectangle(debug_frame, (x_min, y_min), (x_max, y_max), color, 2)
             cv2.putText(
                 debug_frame,
-                f"{best_subject_id} {similarity:.3f}",
+                f"{label} {similarity:.3f}",
                 (x_min, max(20, y_min - 10)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
-                (0, 255, 0),
+                color,
                 2,
                 cv2.LINE_AA,
             )
@@ -559,6 +594,43 @@ class RecognitionEngine:
             status=status,
             image_base64=base64.b64encode(encoded.tobytes()).decode("ascii"),
         )
+
+    def _get_similarity_color(self, similarity: float) -> tuple[int, int, int]:
+        threshold = float(self.params.threshold)
+        green_floor = min(0.99, threshold + 0.10)
+        if similarity >= green_floor:
+            return (0, 200, 0)
+        if similarity >= threshold:
+            return (0, 200, 200)
+        return (0, 0, 200)
+
+    def _resolve_subject_label(self, subject_id: str) -> str:
+        if subject_id in {"", "Unknown", "No Face"}:
+            return subject_id
+
+        with self._lock:
+            resolver = self._subject_name_resolver
+            cached = self._subject_name_cache.get(subject_id)
+
+        now = now_local()
+        if cached is not None:
+            cached_name, cached_at = cached
+            if (now - cached_at).total_seconds() <= self._subject_name_cache_ttl_sec:
+                return cached_name or subject_id
+
+        if resolver is None:
+            return subject_id
+
+        name = None
+        try:
+            name = resolver(subject_id)
+        except Exception:
+            name = None
+
+        with self._lock:
+            self._subject_name_cache[subject_id] = (name, now)
+
+        return name or subject_id
 
     def _emit_event(self, event_type: str, **payload: Any) -> None:
         self._last_event_at = now_local()

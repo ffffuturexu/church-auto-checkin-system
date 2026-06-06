@@ -19,10 +19,11 @@ class WebSocketManager:
     Channel B: debug video frame stream (base64 JSON)
     """
 
-    def __init__(self) -> None:
+    def __init__(self, send_timeout_sec: float = 0.6) -> None:
         self._channel_a: set[WebSocket] = set()
         self._channel_b: set[WebSocket] = set()
         self._lock = asyncio.Lock()
+        self._send_timeout_sec = max(0.05, float(send_timeout_sec))
 
     async def connect_channel_a(self, websocket: WebSocket) -> None:
         await websocket.accept()
@@ -59,12 +60,18 @@ class WebSocketManager:
         async with self._lock:
             sockets = list(self._channel_a if channel == "a" else self._channel_b)
 
-        dead: list[WebSocket] = []
-        for ws in sockets:
+        if not sockets:
+            return
+
+        async def _send(ws: WebSocket) -> WebSocket | None:
             try:
-                await ws.send_json(payload)
+                await asyncio.wait_for(ws.send_json(payload), timeout=self._send_timeout_sec)
+                return None
             except Exception:
-                dead.append(ws)
+                return ws
+
+        results = await asyncio.gather(*(_send(ws) for ws in sockets))
+        dead = [ws for ws in results if ws is not None]
 
         if not dead:
             return

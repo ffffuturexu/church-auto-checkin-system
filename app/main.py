@@ -1,11 +1,14 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import uuid
+
 from fastapi import FastAPI
 
 from app.api import CompreFaceClient
 from app.core.config import settings
-from app.core.database import init_db
+from app.core.database import SessionLocal, init_db
+from app.models.models import Member
 from app.routers.attendance import router as attendance_router
 from app.routers.admin import router as admin_router
 from app.routers.care import router as care_router
@@ -35,6 +38,19 @@ async def lifespan(app: FastAPI):
         storage_root = (Path(__file__).resolve().parents[1] / storage_root).resolve()
 
     app.state.runtime = RuntimePipeline()
+
+    def _resolve_subject_name(subject_id: str) -> str | None:
+        try:
+            subject_uuid = uuid.UUID(subject_id)
+        except ValueError:
+            return None
+        with SessionLocal() as db:
+            member = db.get(Member, subject_uuid)
+            if member is None or not member.status:
+                return None
+            return member.name_chn or member.name
+
+    app.state.runtime.recognition.set_subject_name_resolver(_resolve_subject_name)
     app.state.ws_manager = WebSocketManager()
     app.state.face_storage_dir = str(storage_root)
     app.state.face_library_service = FaceLibraryService(CompreFaceClient(), str(storage_root))

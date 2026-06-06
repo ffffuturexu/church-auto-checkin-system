@@ -160,6 +160,8 @@ class EventDispatcher:
             payload["member_name_chn"] = member.name_chn
             payload["event_id"] = str(event_row.id)
             payload["attendance_record_id"] = str(record.id)
+            payload.pop("face_image_base64", None)
+            payload.pop("image_base64", None)
             record_feed_event(db, payload, source="auto_face")
             db.commit()
             return payload
