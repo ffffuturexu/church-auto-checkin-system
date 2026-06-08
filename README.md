@@ -476,6 +476,16 @@ sudo systemctl restart checkin-system
 sudo journalctl -u checkin-system -f
 ```
 
+### 生日提醒（关怀中心）
+
+本仓库新增了一个轻量化的生日提醒脚本与可选 systemd 定时器：
+
+- 脚本：`scripts/send_birthday_reminders.py`，可配置同工收件人、SMTP、提前天数（默认当天，`BIRTHDAY_REMINDER_DAYS_AHEAD=0`）。
+- 数据库：会在 `birthday_reminder_logs` 表记录每次执行（包括无生日、dry-run 与实际发送），由 ORM 模型 `BirthdayReminderLog` 管理。
+- 定时：提供 `scripts/systemd/birthday_reminder.service` 与 `scripts/systemd/birthday_reminder.timer`，在系统侧设置为每天 08:00 触发；脚本仅在当天有会友生日时发送邮件。
+
+部署提示：不要将 SMTP 凭据放入仓库，请将其放在 `/etc/default/birthday_reminder` 或系统级安全存储中。
+
 ### Nginx 反向代理
 ```bash
 # 测试配置
