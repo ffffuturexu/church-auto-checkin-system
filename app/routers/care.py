@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+from calendar import isleap
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -26,6 +27,8 @@ from app.schemas.care import (
     CareMemberProfileResponse,
     CareMemberSummary,
     CareMonthlyBreakdownItem,
+    CareUpcomingBirthdayItem,
+    CareUpcomingBirthdayResponse,
     CareRecentRecordItem,
     CareReportResponse,
     CareReportSummary,
@@ -70,6 +73,19 @@ def _months_window_start(ref_date: date, months_window: int) -> date:
         month += 12
         year -= 1
     return date(year, month, 1)
+
+
+def _safe_birthday_this_year(birthday: date, year: int) -> date:
+    if birthday.month == 2 and birthday.day == 29 and not isleap(year):
+        return date(year, 2, 28)
+    return date(year, birthday.month, birthday.day)
+
+
+def _next_birthday_date(birthday: date, ref_date: date) -> date:
+    candidate = _safe_birthday_this_year(birthday, ref_date.year)
+    if candidate < ref_date:
+        candidate = _safe_birthday_this_year(birthday, ref_date.year + 1)
+    return candidate
 
 
 def _normalize_gender_value(gender: str | None) -> str:
@@ -862,3 +878,59 @@ def export_care_members_csv(
         media_type="text/csv; charset=utf-8",
         headers=headers,
     )
+
+
+@router.get("/birthdays", response_model=CareUpcomingBirthdayResponse)
+def list_upcoming_birthdays(
+    days: int = Query(default=30, ge=1, le=366),
+    status_filter: str = Query(default="active", pattern="^(all|active|inactive)$"),
+    group_filter: str | None = Query(default=None, max_length=120),
+    limit: int = Query(default=300, ge=1, le=2000),
+    db: Session = Depends(get_db),
+) -> CareUpcomingBirthdayResponse:
+    stmt = select(Member).where(Member.birthday.is_not(None))
+
+    if status_filter == "active":
+        stmt = stmt.where(Member.status.is_(True))
+    elif status_filter == "inactive":
+        stmt = stmt.where(Member.status.is_(False))
+
+    normalized_group = (group_filter or "").strip()
+    if normalized_group:
+        if normalized_group == "__empty__":
+            stmt = stmt.where((Member.group.is_(None)) | (func.trim(Member.group) == ""))
+        else:
+            stmt = stmt.where(Member.group == normalized_group)
+
+    members = db.execute(stmt).scalars().all()
+    today = today_local()
+    out: list[CareUpcomingBirthdayItem] = []
+
+    for member in members:
+        birthday = member.birthday
+        if birthday is None:
+            continue
+
+        next_birthday = _next_birthday_date(birthday, today)
+        days_until = (next_birthday - today).days
+        if days_until < 0 or days_until > days:
+            continue
+
+        turning_age = next_birthday.year - birthday.year
+        out.append(
+            CareUpcomingBirthdayItem(
+                member_id=member.id,
+                name=member.name,
+                name_chn=member.name_chn,
+                group=member.group,
+                birthday=birthday,
+                next_birthday=next_birthday,
+                days_until_birthday=days_until,
+                turning_age=turning_age,
+            )
+        )
+
+    out.sort(key=lambda item: (item.days_until_birthday, item.next_birthday, item.name.lower()))
+    out = out[:limit]
+
+    return CareUpcomingBirthdayResponse(total=len(out), days_window=days, items=out)

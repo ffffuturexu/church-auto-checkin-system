@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Index, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import CHAR, TypeDecorator
 
@@ -242,3 +242,21 @@ class ReceptionFeedState(Base):
 
 Index("ix_attendance_records_event_member", AttendanceRecord.event_id, AttendanceRecord.member_id)
 Index("ix_recognition_logs_subject_status", RecognitionLog.best_subject_id, RecognitionLog.status)
+
+
+class BirthdayReminderLog(Base):
+    __tablename__ = "birthday_reminder_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+    days_ahead: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    recipients: Mapped[str] = mapped_column(String(1024), nullable=False)
+    recipients_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sent_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+Index("ix_birthday_reminder_logs_timestamp", BirthdayReminderLog.timestamp)

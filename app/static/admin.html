@@ -302,6 +302,13 @@
       margin-top: 6px;
       font-size: 13px;
     }
+    .care-birthday-days {
+      font-weight: 700;
+      color: #1c3c73;
+    }
+    .care-birthday-soon {
+      color: #9a5c0f;
+    }
     .care-detail-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -995,9 +1002,34 @@
 
     <div id="careTab" class="tab-panel">
       <div class="care-grid">
+        <!-- Removed: 关怀中心（施工中） header as requested -->
+
         <div class="card">
-          <h2>关怀中心（施工中）</h2>
-          <div class="mini">筛选对象 + 单人参与状态 + 推荐关怀人群 + 汇总报告</div>
+          <div class="trend-head">
+            <h2>生日提醒（未来 30 天）</h2>
+            <div>
+              <button class="alt collapse-toggle" data-target="careBirthdaySection">展开</button>
+            </div>
+          </div>
+          <div id="careBirthdaySection" class="collapsible-content hidden">
+            <div class="toolbar">
+              <button id="careBirthdayReloadBtn" class="alt" type="button">刷新生日列表</button>
+              <div id="careBirthdaySummary" class="mini">当前 0 人</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>姓名</th>
+                  <th>分组</th>
+                  <th>生日</th>
+                  <th>下次生日</th>
+                  <th>还有几天</th>
+                  <th>将满年龄</th>
+                </tr>
+              </thead>
+              <tbody id="careBirthdayRows"></tbody>
+            </table>
+          </div>
         </div>
 
         <div class="card">
@@ -1159,20 +1191,27 @@
         </div>
 
         <div class="card">
-          <h2>汇总报告</h2>
-          <div id="careSummaryGrid" class="care-summary-grid"></div>
-          <div class="care-dist-grid">
-            <div class="care-dist-card">
-              <h3>按分组分布</h3>
-              <div id="careGroupDistribution" class="care-dist-list"></div>
+          <div class="trend-head">
+            <h2>汇总报告</h2>
+            <div>
+              <button class="alt collapse-toggle" data-target="careSummarySection">展开</button>
             </div>
-            <div class="care-dist-card">
-              <h3>按风险分布</h3>
-              <div id="careRiskDistribution" class="care-dist-list"></div>
-            </div>
-            <div class="care-dist-card">
-              <h3>按参与度分布</h3>
-              <div id="careEngagementDistribution" class="care-dist-list"></div>
+          </div>
+          <div id="careSummarySection" class="collapsible-content hidden">
+            <div id="careSummaryGrid" class="care-summary-grid"></div>
+            <div class="care-dist-grid">
+              <div class="care-dist-card">
+                <h3>按分组分布</h3>
+                <div id="careGroupDistribution" class="care-dist-list"></div>
+              </div>
+              <div class="care-dist-card">
+                <h3>按风险分布</h3>
+                <div id="careRiskDistribution" class="care-dist-list"></div>
+              </div>
+              <div class="care-dist-card">
+                <h3>按参与度分布</h3>
+                <div id="careEngagementDistribution" class="care-dist-list"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -1315,6 +1354,8 @@
     const dashboardDaysEl = document.getElementById('dashboardDays');
     const trendTitleEl = document.getElementById('trendTitle');
     const careNameFilterEl = document.getElementById('careNameFilter');
+    const careBirthdayRowsEl = document.getElementById('careBirthdayRows');
+    const careBirthdaySummaryEl = document.getElementById('careBirthdaySummary');
     const careProfilePhotoImgEl = document.getElementById('careProfilePhotoImg');
     const careProfilePhotoPlaceholderEl = document.getElementById('careProfilePhotoPlaceholder');
     const careMonthlyCheckinsHeaderEl = document.getElementById('careMonthlyCheckinsHeader');
@@ -1596,6 +1637,27 @@
       const hasPrevious = Array.from(memberGroupFilterEl.options).some((o) => o.value === previous);
       memberGroupFilterEl.value = hasPrevious ? previous : 'all';
     }
+
+    // Collapse/expand helpers for care panels
+    function setupCollapsibles() {
+      for (const btn of document.querySelectorAll('.collapse-toggle')) {
+        const targetId = btn.dataset.target;
+        const target = document.getElementById(targetId);
+        if (!target) continue;
+        // initial state: collapsed (hidden)
+        target.classList.add('hidden');
+        btn.textContent = '展开';
+        btn.addEventListener('click', () => {
+          const isHidden = target.classList.toggle('hidden');
+          btn.textContent = isHidden ? '展开' : '收起';
+        });
+      }
+    }
+
+    // initialize collapsibles on load
+    document.addEventListener('DOMContentLoaded', () => {
+      setupCollapsibles();
+    });
 
     function initTabs() {
       const buttons = Array.from(document.querySelectorAll('.tab-btn'));
@@ -2945,6 +3007,57 @@
       }
     }
 
+    function careRenderUpcomingBirthdays(items, daysWindow) {
+      if (!careBirthdayRowsEl || !careBirthdaySummaryEl) {
+        return;
+      }
+
+      careBirthdayRowsEl.innerHTML = '';
+      const rows = items || [];
+      careBirthdaySummaryEl.textContent = `未来 ${daysWindow} 天共 ${rows.length} 人生日`;
+
+      if (!rows.length) {
+        careBirthdayRowsEl.innerHTML = '<tr><td colspan="6" class="mini">未来 30 天暂无生日会友</td></tr>';
+        return;
+      }
+
+      for (const row of rows) {
+        const tr = document.createElement('tr');
+        const daysClass = row.days_until_birthday <= 3 ? 'care-birthday-days care-birthday-soon' : 'care-birthday-days';
+        tr.innerHTML = `
+          <td>${row.name}${row.name_chn ? ` / ${row.name_chn}` : ''}</td>
+          <td>${row.group || '-'}</td>
+          <td>${row.birthday}</td>
+          <td>${row.next_birthday}</td>
+          <td><span class="${daysClass}">${row.days_until_birthday}</span></td>
+          <td>${row.turning_age}</td>
+        `;
+        careBirthdayRowsEl.appendChild(tr);
+      }
+    }
+
+    async function careLoadUpcomingBirthdays() {
+      const params = new URLSearchParams();
+      params.set('days', '30');
+      params.set('status_filter', 'active');
+
+      const groupValue = (document.getElementById('careGroupFilter').value || '').trim();
+      if (groupValue) {
+        params.set('group_filter', groupValue);
+      }
+
+      const res = await fetch(`/care/birthdays?${params.toString()}`);
+      if (!res.ok) {
+        if (careBirthdaySummaryEl) {
+          careBirthdaySummaryEl.textContent = `生日列表加载失败: ${res.status}`;
+        }
+        return;
+      }
+
+      const data = await res.json();
+      careRenderUpcomingBirthdays(data.items || [], data.days_window || 30);
+    }
+
     function careRenderReport(data) {
       const summary = data.summary || {};
       const stats = [
@@ -3102,9 +3215,11 @@
       await careLoadMembers();
       await careLoadCohorts();
       await careLoadReport();
+      await careLoadUpcomingBirthdays();
     }
 
     document.getElementById('careApplyBtn').addEventListener('click', careReloadAll);
+    document.getElementById('careBirthdayReloadBtn').addEventListener('click', careLoadUpcomingBirthdays);
     careNameFilterEl.addEventListener('input', () => {
       clearTimeout(window.__careNameFilterTimer);
       window.__careNameFilterTimer = setTimeout(() => {

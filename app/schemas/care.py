@@ -93,3 +93,20 @@ class CareReportResponse(BaseModel):
     group_distribution: list[CareDistributionItem]
     risk_distribution: list[CareDistributionItem]
     engagement_distribution: list[CareDistributionItem]
+
+
+class CareUpcomingBirthdayItem(BaseModel):
+    member_id: UUID
+    name: str
+    name_chn: str | None
+    group: str | None
+    birthday: date
+    next_birthday: date
+    days_until_birthday: int
+    turning_age: int
+
+
+class CareUpcomingBirthdayResponse(BaseModel):
+    total: int
+    days_window: int
+    items: list[CareUpcomingBirthdayItem]

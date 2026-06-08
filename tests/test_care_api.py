@@ -6,7 +6,14 @@ from uuid import UUID
 from app.models.models import AttendanceEvent, AttendanceRecord, CheckInMethod, Member
 
 
-def _create_member(session_factory, name: str, group: str | None, has_photo: bool = True, status: bool = True) -> str:
+def _create_member(
+    session_factory,
+    name: str,
+    group: str | None,
+    has_photo: bool = True,
+    status: bool = True,
+    birthday: date | None = None,
+) -> str:
     with session_factory() as db:
         row = Member(
             name=name,
@@ -14,11 +21,21 @@ def _create_member(session_factory, name: str, group: str | None, has_photo: boo
             group=group,
             status=status,
             has_photo=has_photo,
+            birthday=birthday,
         )
         db.add(row)
         db.commit()
         db.refresh(row)
         return str(row.id)
+
+
+def _birthday_for_month_day(month: int, day: int) -> date:
+    for year in (1992, 1996, 2000, 1988):
+        try:
+            return date(year, month, day)
+        except ValueError:
+            continue
+    raise ValueError(f"invalid birthday month/day: {month}-{day}")
 
 
 def _create_event_and_checkin(session_factory, member_id: str, event_date: date, event_name: str = "Sunday Service") -> None:
@@ -158,3 +175,50 @@ def test_care_profile_four_month_window_counts_early_february(api_context):
 
     assert payload["summary"]["recent_checkins"] == 3
     assert payload["monthly_breakdown"][-1] == {"month": feb_start.strftime("%Y-%m"), "checkins": 2}
+
+
+def test_care_upcoming_birthdays_sorted_and_filtered(api_context):
+    client = api_context["client"]
+    session_factory = api_context["session_factory"]
+
+    today = date.today()
+    d1 = today + timedelta(days=1)
+    d10 = today + timedelta(days=10)
+    d31 = today + timedelta(days=31)
+
+    _create_member(
+        session_factory,
+        "Birthday Soon",
+        "关怀组",
+        birthday=_birthday_for_month_day(d1.month, d1.day),
+        status=True,
+    )
+    _create_member(
+        session_factory,
+        "Birthday Later",
+        "关怀组",
+        birthday=_birthday_for_month_day(d10.month, d10.day),
+        status=True,
+    )
+    _create_member(
+        session_factory,
+        "Birthday Outside Window",
+        "关怀组",
+        birthday=_birthday_for_month_day(d31.month, d31.day),
+        status=True,
+    )
+    _create_member(
+        session_factory,
+        "Inactive Birthday",
+        "关怀组",
+        birthday=_birthday_for_month_day(d1.month, d1.day),
+        status=False,
+    )
+
+    resp = client.get("/care/birthdays", params={"days": 30, "status_filter": "active"})
+    assert resp.status_code == 200
+    payload = resp.json()
+    names = [item["name"] for item in payload["items"]]
+
+    assert names == ["Birthday Soon", "Birthday Later"]
+    assert payload["items"][0]["days_until_birthday"] <= payload["items"][1]["days_until_birthday"]
