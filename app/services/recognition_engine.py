@@ -11,7 +11,9 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import cv2
+import numpy as np
 import requests
+from PIL import Image, ImageDraw, ImageFont
 
 from app.api import CompreFaceClient
 from app.config import settings
@@ -568,16 +570,7 @@ class RecognitionEngine:
             color = self._get_similarity_color(similarity)
             label = self._resolve_subject_label(best_subject_id)
             cv2.rectangle(debug_frame, (x_min, y_min), (x_max, y_max), color, 2)
-            cv2.putText(
-                debug_frame,
-                f"{label} {similarity:.3f}",
-                (x_min, max(20, y_min - 10)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                color,
-                2,
-                cv2.LINE_AA,
-            )
+            debug_frame = self._draw_debug_label(debug_frame, x_min, y_min, label, similarity, color)
 
         resized = cv2.resize(debug_frame, (640, 360), interpolation=cv2.INTER_AREA)
         ok, encoded = cv2.imencode(
@@ -594,6 +587,70 @@ class RecognitionEngine:
             status=status,
             image_base64=base64.b64encode(encoded.tobytes()).decode("ascii"),
         )
+
+    @staticmethod
+    def _draw_debug_label(
+        frame: Any,
+        x_min: int,
+        y_min: int,
+        label: str,
+        similarity: float,
+        color: tuple[int, int, int],
+    ) -> Any:
+        text = f"{label} {similarity:.3f}"
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image = Image.fromarray(rgb_frame)
+        draw = ImageDraw.Draw(image)
+        font = RecognitionEngine._load_debug_font(max(18, min(image.size) // 18))
+
+        bbox = draw.textbbox((0, 0), text, font=font, stroke_width=2)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        padding_x = 8
+        padding_y = 5
+        background_width = text_width + padding_x * 2
+        background_height = text_height + padding_y * 2
+
+        background_x = max(0, min(x_min, image.size[0] - background_width))
+        background_y = max(0, y_min - background_height - 8)
+        if background_y + background_height > image.size[1]:
+            background_y = max(0, min(image.size[1] - background_height, y_min + 8))
+
+        background_box = [
+            background_x,
+            background_y,
+            min(image.size[0], background_x + background_width),
+            min(image.size[1], background_y + background_height),
+        ]
+        draw.rounded_rectangle(background_box, radius=8, fill=(15, 24, 18))
+
+        text_x = background_x + padding_x
+        text_y = background_y + padding_y - bbox[1]
+        draw.text(
+            (text_x, text_y),
+            text,
+            font=font,
+            fill=(255, 255, 255),
+            stroke_width=2,
+            stroke_fill=color,
+        )
+
+        return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+
+    @staticmethod
+    def _load_debug_font(size: int) -> ImageFont.ImageFont:
+        candidates = [
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        ]
+        for font_path in candidates:
+            try:
+                return ImageFont.truetype(font_path, size=size)
+            except OSError:
+                continue
+        return ImageFont.load_default()
 
     def _get_similarity_color(self, similarity: float) -> tuple[int, int, int]:
         threshold = float(self.params.threshold)

@@ -170,6 +170,47 @@
       gap: 14px;
       margin-bottom: 12px;
     }
+    .hyperparams-current-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .param-section {
+      border: 1px solid rgba(200, 216, 199, 0.7);
+      border-radius: 12px;
+      background: #fbfdf8;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .param-section:last-of-type {
+      margin-bottom: 0;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--ink);
+      margin: 0 0 10px;
+    }
+    .param-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 8px 10px;
+      min-height: 56px;
+    }
+    .param-card .label {
+      font-size: 11px;
+      color: var(--sub);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .param-card .value {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1.2;
+    }
     .hyperparams-grid label {
       display: flex;
       flex-direction: column;
@@ -222,46 +263,54 @@
 
       <div class="card">
         <h2>超参数热更新</h2>
-        <div class="hyperparams-grid">
-          <label>
-            <span class="param-label">阈值 (threshold)</span>
-            <input id="threshold" type="number" step="0.01" min="0" max="1" />
-          </label>
-          <label>
-            <span class="param-label">差值 (margin)</span>
-            <input id="margin" type="number" step="0.01" min="0" max="1" />
-          </label>
-          <label>
-            <span class="param-label">帧跳 (frame_skip)</span>
-            <input id="frame_skip" type="number" step="1" min="1" />
-          </label>
-          <label>
-            <span class="param-label">去重秒数 (dedupe_seconds)</span>
-            <input id="dedupe_seconds" type="number" step="1" min="1" />
-          </label>
-          <label>
-            <span class="param-label">投票最少样本 (vote_min_samples)</span>
-            <input id="vote_min_samples" type="number" step="1" min="1" />
-          </label>
-          <label>
-            <span class="param-label">投票窗口秒数 (vote_window_sec)</span>
-            <input id="vote_window_sec" type="number" step="0.1" min="0.1" />
-          </label>
-          <label>
-            <span class="param-label">投票比例 (vote_ratio)</span>
-            <input id="vote_ratio" type="number" step="0.01" min="0" max="1" />
-          </label>
-          <label>
-            <span class="param-label">未知人脸阈值 (unknown_min_similarity)</span>
-            <input id="unknown_min_similarity" type="number" step="0.01" min="0" max="1" />
-          </label>
-          <label>
-            <span class="param-label">最小人脸尺寸 (unknown_min_face_size)</span>
-            <input id="unknown_min_face_size" type="number" step="1" min="1" />
-          </label>
+        <div class="param-section">
+          <div class="section-title">当前参数</div>
+          <div id="currentParamsGrid" class="hyperparams-current-grid"></div>
         </div>
-        <div class="params-actions">
-          <button id="updateParamsBtn">更新参数</button>
+        <div class="param-section">
+          <div class="section-title">修改输入</div>
+          <div class="hyperparams-grid">
+            <label>
+              <span class="param-label">阈值 (threshold)</span>
+              <input id="threshold" type="number" step="0.01" min="0" max="1" />
+            </label>
+            <label>
+              <span class="param-label">差值 (margin)</span>
+              <input id="margin" type="number" step="0.01" min="0" max="1" />
+            </label>
+            <label>
+              <span class="param-label">帧跳 (frame_skip)</span>
+              <input id="frame_skip" type="number" step="1" min="1" />
+            </label>
+            <label>
+              <span class="param-label">去重秒数 (dedupe_seconds)</span>
+              <input id="dedupe_seconds" type="number" step="1" min="1" />
+            </label>
+            <label>
+              <span class="param-label">投票最少样本 (vote_min_samples)</span>
+              <input id="vote_min_samples" type="number" step="1" min="1" />
+            </label>
+            <label>
+              <span class="param-label">投票窗口秒数 (vote_window_sec)</span>
+              <input id="vote_window_sec" type="number" step="0.1" min="0.1" />
+            </label>
+            <label>
+              <span class="param-label">投票比例 (vote_ratio)</span>
+              <input id="vote_ratio" type="number" step="0.01" min="0" max="1" />
+            </label>
+            <label>
+              <span class="param-label">未知人脸阈值 (unknown_min_similarity)</span>
+              <input id="unknown_min_similarity" type="number" step="0.01" min="0" max="1" />
+            </label>
+            <label>
+              <span class="param-label">最小人脸尺寸 (unknown_min_face_size)</span>
+              <input id="unknown_min_face_size" type="number" step="1" min="1" />
+            </label>
+          </div>
+          <div class="params-actions">
+            <button id="updateParamsBtn">更新参数</button>
+            <button id="resetParamsBtn" class="alt">还原默认参数</button>
+          </div>
         </div>
       </div>
     </div>
@@ -301,12 +350,38 @@
     const debugVideoHintEl = document.getElementById('debugVideoHint');
     const toggleOverlayBtn = document.getElementById('toggleOverlayBtn');
     const debugOverlayHintEl = document.getElementById('debugOverlayHint');
+    const currentParamsGridEl = document.getElementById('currentParamsGrid');
 
     let debugVideoEnabled = true;
     let debugOverlayEnabled = true;
     let channelBWs = null;
     let channelBPingTimer = null;
     let channelBReconnectTimer = null;
+    let hyperparamsInputsInitialized = false;
+
+    const DEFAULT_HYPERPARAMS = {
+      threshold: 0.7,
+      margin: 0.18,
+      frame_skip: 2,
+      dedupe_seconds: 60,
+      vote_min_samples: 5,
+      vote_window_sec: 1.5,
+      vote_ratio: 0.65,
+      unknown_min_similarity: 0.65,
+      unknown_min_face_size: 64,
+    };
+
+    const HYPERPARAM_FIELDS = [
+      { key: 'threshold', label: '阈值', suffix: '' },
+      { key: 'margin', label: '差值', suffix: '' },
+      { key: 'frame_skip', label: '帧跳', suffix: '' },
+      { key: 'dedupe_seconds', label: '去重秒数', suffix: ' s' },
+      { key: 'vote_min_samples', label: '投票最少样本', suffix: '' },
+      { key: 'vote_window_sec', label: '投票窗口秒数', suffix: ' s' },
+      { key: 'vote_ratio', label: '投票比例', suffix: '' },
+      { key: 'unknown_min_similarity', label: '未知人脸阈值', suffix: '' },
+      { key: 'unknown_min_face_size', label: '最小人脸尺寸', suffix: ' px' },
+    ];
 
     const api = {
       async getStatus() {
@@ -439,6 +514,28 @@
       `;
     }
 
+    function renderCurrentHyperparams(params) {
+      currentParamsGridEl.innerHTML = HYPERPARAM_FIELDS.map((field) => `
+        <div class="param-card">
+          <div class="label">${field.label}</div>
+          <div class="value">${formatHyperparamValue(field.key, params[field.key])}${field.suffix}</div>
+        </div>
+      `).join('');
+    }
+
+    function formatHyperparamValue(key, value) {
+      if (value === null || value === undefined) return 'N/A';
+      const num = Number(value);
+      if (!Number.isFinite(num)) return String(value);
+      if (key === 'threshold' || key === 'margin' || key === 'vote_ratio' || key === 'unknown_min_similarity') {
+        return num.toFixed(2);
+      }
+      if (key === 'vote_window_sec') {
+        return num.toFixed(1);
+      }
+      return String(Math.round(num));
+    }
+
     function escapeHtml(value) {
       return String(value)
         .replaceAll('&', '&amp;')
@@ -517,6 +614,30 @@
       return `${value} / ${max}`;
     }
 
+    function setHyperparamInputs(values) {
+      HYPERPARAM_FIELDS.forEach((field) => {
+        const input = document.getElementById(field.key);
+        const value = values[field.key];
+        if (input && value !== undefined && value !== null) {
+          input.value = value;
+        }
+      });
+    }
+
+    function collectHyperparamInputs() {
+      return {
+        threshold: parseNum('threshold', parseFloat),
+        margin: parseNum('margin', parseFloat),
+        frame_skip: parseNum('frame_skip', Number),
+        dedupe_seconds: parseNum('dedupe_seconds', Number),
+        vote_min_samples: parseNum('vote_min_samples', Number),
+        vote_window_sec: parseNum('vote_window_sec', parseFloat),
+        vote_ratio: parseNum('vote_ratio', parseFloat),
+        unknown_min_similarity: parseNum('unknown_min_similarity', parseFloat),
+        unknown_min_face_size: parseNum('unknown_min_face_size', Number),
+      };
+    }
+
     function updateDebugVideoUi() {
       toggleDebugBtn.textContent = debugVideoEnabled ? '关闭调试视频' : '开启调试视频';
       debugVideoHintEl.textContent = debugVideoEnabled ? '调试视频已开启' : '调试视频已关闭';
@@ -577,17 +698,12 @@
       try {
         const data = await api.getStatus();
         renderStatus(data);
-        // 填充超参数输入框
         const params = data.hyperparams || {};
-        if (params.threshold !== undefined) document.getElementById('threshold').value = params.threshold;
-        if (params.margin !== undefined) document.getElementById('margin').value = params.margin;
-        if (params.frame_skip !== undefined) document.getElementById('frame_skip').value = params.frame_skip;
-        if (params.dedupe_seconds !== undefined) document.getElementById('dedupe_seconds').value = params.dedupe_seconds;
-        if (params.vote_min_samples !== undefined) document.getElementById('vote_min_samples').value = params.vote_min_samples;
-        if (params.vote_window_sec !== undefined) document.getElementById('vote_window_sec').value = params.vote_window_sec;
-        if (params.vote_ratio !== undefined) document.getElementById('vote_ratio').value = params.vote_ratio;
-        if (params.unknown_min_similarity !== undefined) document.getElementById('unknown_min_similarity').value = params.unknown_min_similarity;
-        if (params.unknown_min_face_size !== undefined) document.getElementById('unknown_min_face_size').value = params.unknown_min_face_size;
+        renderCurrentHyperparams(params);
+        if (!hyperparamsInputsInitialized) {
+          setHyperparamInputs(params);
+          hyperparamsInputsInitialized = true;
+        }
         if (data.runtime && data.runtime.debug_video_enabled !== undefined) {
           setDebugVideoEnabled(Boolean(data.runtime.debug_video_enabled), false);
         }
@@ -682,17 +798,7 @@
     });
 
     document.getElementById('updateParamsBtn').addEventListener('click', async () => {
-      const payload = {
-        threshold: parseNum('threshold', parseFloat),
-        margin: parseNum('margin', parseFloat),
-        frame_skip: parseNum('frame_skip', Number),
-        dedupe_seconds: parseNum('dedupe_seconds', Number),
-        vote_min_samples: parseNum('vote_min_samples', Number),
-        vote_window_sec: parseNum('vote_window_sec', parseFloat),
-        vote_ratio: parseNum('vote_ratio', parseFloat),
-        unknown_min_similarity: parseNum('unknown_min_similarity', parseFloat),
-        unknown_min_face_size: parseNum('unknown_min_face_size', Number)
-      };
+      const payload = collectHyperparamInputs();
       Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
       if (Object.keys(payload).length === 0) {
         addEvent({ warn: '未填写任何参数' });
@@ -700,6 +806,13 @@
       }
       const data = await api.updateParams(payload);
       addEvent({ action: 'update_hyperparameters', data });
+      await refreshStatus();
+    });
+
+    document.getElementById('resetParamsBtn').addEventListener('click', async () => {
+      setHyperparamInputs(DEFAULT_HYPERPARAMS);
+      const data = await api.updateParams(DEFAULT_HYPERPARAMS);
+      addEvent({ action: 'reset_hyperparameters', data });
       await refreshStatus();
     });
 
