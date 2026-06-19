@@ -376,6 +376,14 @@
       flex-direction: column;
       gap: 6px;
     }
+    .unknown-card.queue-pending {
+      border-color: #e7d08a;
+      background: #fff9e7;
+    }
+    .unknown-card.queue-unknown {
+      border-color: #efc9bf;
+      background: #fff4ef;
+    }
     .unknown-image-frame {
       width: 100%;
       aspect-ratio: 3 / 4;
@@ -547,7 +555,7 @@
       <div class="hero-top">
         <div class="hero-title-wrap">
           <h1>接待同工工作台</h1>
-          <div class="sub">照片查找、快速补签、异常抓拍确认和实时签到动态统一放在这一页，默认优先展示近期活跃且未签到的带照片会友。</div>
+          <div class="sub">照片查找、快速补签、待处理事件确认和实时签到动态统一放在这一页，默认优先展示近期活跃且未签到的带照片会友。</div>
         </div>
         <a class="home-link" href="/">🏠 返回首页</a>
       </div>
@@ -628,7 +636,7 @@
 
         <div class="card unknown-queue-card stack-card">
           <div class="card-header">
-            <h2>异常抓拍队列（Unknown）</h2>
+            <h2>待处理队列（Pending / Unknown）</h2>
             <button id="expandUnknownQueueBtn" class="expand-btn" type="button">扩大</button>
           </div>
           <div class="card-body">
@@ -736,9 +744,21 @@
       if (m === 'manual_reception') return '人工补签';
       if (m === 'manual') return '人工';
       if (m === 'auto_face') return '人脸识别';
+      if (m === 'auto_face_absolute') return '人脸识别(绝对阈值)';
+      if (m === 'auto_face_vote') return '人脸识别(投票)';
+      if (m === 'pending_review') return '待人工复核';
+      if (m === 'stranger_detected') return '陌生人检测';
       if (m === 'face_recognition' || m === 'recognition' || m === 'auto') return '人脸识别';
       if (m === 'api') return 'API';
       return m;
+    }
+
+    function getFeedMethodLabel(method) {
+      const normalized = String(method || '').trim();
+      if (liveFeedMode !== 'full' && (normalized === 'auto_face_absolute' || normalized === 'auto_face_vote')) {
+        return '人脸识别';
+      }
+      return translateMethod(normalized);
     }
 
     function translateDetail(detail) {
@@ -864,11 +884,12 @@
     }
 
     function parseUnknownCandidate(payload) {
+      const data = payload && payload.data && typeof payload.data === 'object' ? payload.data : {};
       const candidate = {
-        bestSubjectId: String(payload.best_subject_id || '').trim(),
-        bestSubjectName: String(payload.best_subject_name || '').trim(),
+        bestSubjectId: String(payload.best_subject_id || data.subject_id || '').trim(),
+        bestSubjectName: String(payload.best_subject_name || data.subject_name || '').trim(),
         bestSubjectNameChn: String(payload.best_subject_name_chn || payload.best_subject_name_zh || '').trim(),
-        secondSubjectId: String(payload.second_subject_id || '').trim(),
+        secondSubjectId: String(payload.second_subject_id || data.second_subject_id || '').trim(),
         secondSubjectName: String(payload.second_subject_name || '').trim(),
       };
 
@@ -945,11 +966,52 @@
       }
     }
 
-    function shouldShowFeedItem(payload) {
-      if (liveFeedMode === 'full') {
-        return true;
+    function normalizeBusinessEvent(rawPayload) {
+      const payload = rawPayload && typeof rawPayload === 'object' ? rawPayload : {};
+      const eventType = String(payload.event_type || payload.legacy_event_type || '').trim();
+      const data = payload.data && typeof payload.data === 'object' ? payload.data : {};
+      const decision = String(data.decision || '').trim();
+
+      const normalized = {
+        raw: payload,
+        eventType,
+        decision,
+        timestamp: payload.timestamp || payload.handled_at || new Date().toISOString(),
+        method: data.method || payload.method || '-',
+        subjectId: String(data.subject_id || payload.subject_id || payload.best_subject_id || '').trim(),
+        secondSubjectId: String(data.second_subject_id || payload.second_subject_id || '').trim(),
+        similarity: Number(data.best_similarity ?? data.similarity ?? payload.best_similarity ?? payload.similarity ?? 0) || 0,
+        secondSimilarity: Number(data.second_similarity ?? payload.second_similarity ?? 0) || 0,
+        reason: String(data.reason || payload.reason || payload.persist_status || '').trim(),
+        faceImageBase64: data.face_image_base64 || payload.image_base64 || payload.face_image_base64 || null,
+        box: data.box || payload.box || null,
+      };
+
+      if (normalized.eventType === 'recognition.success' || normalized.decision === 'success') {
+        normalized.businessType = 'success';
+      } else if (normalized.eventType === 'recognition.pending' || normalized.decision === 'pending') {
+        normalized.businessType = 'pending';
+      } else if (normalized.eventType === 'recognition.unknown' || normalized.decision === 'unknown') {
+        normalized.businessType = 'unknown';
+      } else if (normalized.eventType === 'check_in') {
+        normalized.businessType = 'success';
+      } else if (normalized.eventType === 'check_in_ignored') {
+        normalized.businessType = 'ignored';
+      } else if (normalized.eventType === 'unknown_face') {
+        normalized.businessType = 'unknown';
+      } else {
+        normalized.businessType = 'other';
       }
-      return (payload.event_type || 'check_in') === 'check_in';
+
+      return normalized;
+    }
+
+    function shouldShowFeedItem(payload) {
+      const normalized = normalizeBusinessEvent(payload);
+      if (liveFeedMode === 'full') {
+        return normalized.businessType === 'success' || normalized.businessType === 'pending' || normalized.businessType === 'unknown' || normalized.businessType === 'ignored';
+      }
+      return normalized.businessType === 'success';
     }
 
     function setLiveFeedMode(mode) {
@@ -996,36 +1058,44 @@
     }
 
     function addLiveItem(payload) {
+      const normalized = normalizeBusinessEvent(payload);
       if (!shouldShowFeedItem(payload)) {
         return;
       }
+
       const li = document.createElement('li');
-      const rawTs = payload.timestamp || payload.handled_at || new Date().toISOString();
+      const rawTs = normalized.timestamp;
       const ts = formatTimestamp(rawTs);
-      const eventType = payload.event_type || 'check_in';
-      const method = payload.method || '-';
-      const methodLabel = translateMethod(method);
-      const name = getDisplayName(payload);
-      const memberKey = String(payload.member_id || payload.subject_id || '').trim();
+      const methodLabel = getFeedMethodLabel(normalized.method);
+      const fallbackName = payload.member_name || payload.member_name_chn || payload.best_subject_name || normalized.subjectId || '-';
+      const name = String(fallbackName || '-').trim() || '-';
+      const memberKey = String(payload.member_id || normalized.subjectId || '').trim();
       const dayKey = toLocalDayKey(rawTs);
       const dedupeKey = memberKey && dayKey ? `${memberKey}|${dayKey}` : '';
 
-      if (eventType === 'check_in' && dedupeKey) {
+      if (normalized.businessType === 'success' && dedupeKey) {
         if (seenDailyCheckins.has(dedupeKey)) {
           return;
         }
         seenDailyCheckins.add(dedupeKey);
       }
 
-      let cls = method === 'manual_reception' ? 'event-manual' : 'event-auto';
+      let cls = normalized.method === 'manual_reception' ? 'event-manual' : 'event-auto';
       let text = `[${ts}] ${name} · ${methodLabel}`;
-      // include any message/detail translated for clarity
-      const rawDetail = payload.detail || payload.message || '';
-      const translatedDetail = translateDetail(rawDetail);
-      if (translatedDetail) {
-        text += ` · ${translatedDetail}`;
+
+      if (normalized.businessType === 'pending') {
+        cls = 'event-ignored';
+        const reason = translateDetail(normalized.reason || 'pending_review');
+        text = `[${ts}] [待复核] ${name}${reason ? ` · ${reason}` : ''}`;
       }
-      if (eventType === 'check_in_ignored') {
+
+      if (normalized.businessType === 'unknown') {
+        cls = 'event-ignored';
+        const reason = translateDetail(normalized.reason || 'stranger_low_similarity');
+        text = `[${ts}] [陌生人候选] ${reason || '已加入待处理队列'}`;
+      }
+
+      if (normalized.businessType === 'ignored') {
         const reason = translateDetail(payload.persist_status || 'ignored') || '已忽略';
         if (dedupeKey && seenDailyCheckins.has(dedupeKey)) {
           return;
@@ -1041,6 +1111,7 @@
         const detail = translateDetail(payload.detail || payload.message || '');
         text = `[${ts}] ${name} · 已忽略(${reason}) ${detail}`.trim();
       }
+
       li.className = cls;
       li.textContent = text;
       liveFeed.prepend(li);
@@ -1082,7 +1153,7 @@
       card.dataset.bestSubjectName = candidate.bestSubjectName || '';
 
       const img = document.createElement('img');
-      img.alt = 'unknown face';
+      img.alt = 'queue face';
       if (payload.image_base64) {
         img.src = `data:image/jpeg;base64,${payload.image_base64}`;
       }
@@ -1093,7 +1164,12 @@
 
       const meta = document.createElement('div');
       meta.className = 'tiny';
-      meta.textContent = `${formatTimestamp(payload.timestamp || payload.handled_at || '')} | reason: ${payload.reason || 'unknown'}`;
+      const decision = String((payload.data && payload.data.decision) || '').trim();
+      const queueKind = String((payload.data && payload.data.queue_kind) || payload.queue_kind || '').trim();
+      const isPending = decision === 'pending' || queueKind === 'pending_review';
+      card.classList.add(isPending ? 'queue-pending' : 'queue-unknown');
+      const queueLabel = isPending ? '待复核候选' : '陌生人候选';
+      meta.textContent = `${formatTimestamp(payload.timestamp || payload.handled_at || '')} | ${queueLabel} | reason: ${payload.reason || (isPending ? 'pending_review' : 'stranger')}`;
 
       const candidateInfo = document.createElement('div');
       candidateInfo.className = 'candidate tiny';
@@ -1101,9 +1177,9 @@
         const primary = candidate.bestSubjectName || candidate.bestSubjectNameChn;
         const chn = candidate.bestSubjectNameChn || '';
         const displayName = (primary && chn && primary !== chn) ? `${primary} (${chn})` : primary;
-        candidateInfo.textContent = `首选候选: ${displayName}`;
+        candidateInfo.textContent = `${isPending ? '高价值候选' : '候选线索'}: ${displayName}`;
       } else {
-        candidateInfo.textContent = '首选候选: 暂无';
+        candidateInfo.textContent = `${isPending ? '高价值候选' : '候选线索'}: 暂无`;
       }
 
       const noBtn = document.createElement('button');
@@ -1981,18 +2057,29 @@
           return;
         }
 
-        if (payload.event_type === 'check_in') {
+        const normalized = normalizeBusinessEvent(payload);
+
+        if (normalized.businessType === 'success' || normalized.businessType === 'ignored') {
           addLiveItem(payload);
           return;
         }
 
-        if (payload.event_type === 'check_in_ignored') {
+        if (normalized.businessType === 'pending' || normalized.businessType === 'unknown') {
           addLiveItem(payload);
-          return;
-        }
-
-        if (payload.event_type === 'unknown_face') {
-          upsertUnknownCard(payload);
+          const queuePayload = {
+            ...payload,
+            timestamp: payload.timestamp || new Date().toISOString(),
+            reason: normalized.reason || (normalized.businessType === 'pending' ? 'pending_review' : 'stranger_low_similarity'),
+            queue_kind: (payload.data && payload.data.queue_kind) || payload.queue_kind || (normalized.businessType === 'pending' ? 'pending_review' : 'stranger'),
+            best_subject_id: payload.best_subject_id || normalized.subjectId || '',
+            best_subject_name: payload.best_subject_name || (payload.data && payload.data.subject_name) || '',
+            similarity: normalized.similarity,
+            second_subject_id: payload.second_subject_id || normalized.secondSubjectId || '',
+            second_similarity: normalized.secondSimilarity,
+            image_base64: (payload.data && payload.data.face_image_base64) || payload.image_base64 || payload.face_image_base64 || '',
+            note: payload.note || '',
+          };
+          upsertUnknownCard(queuePayload);
         }
       };
 
@@ -2047,7 +2134,7 @@
     });
     document.getElementById('clearUnknownBtn').addEventListener('click', async () => {
       if (unknownQueue && unknownQueue.children && unknownQueue.children.length > 0) {
-        const ok = confirm('确定要清空异常抓拍队列吗？此操作不可撤销。');
+        const ok = confirm('确定要清空待处理队列吗？此操作不可撤销。');
         if (!ok) return;
       }
       try {

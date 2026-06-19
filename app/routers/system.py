@@ -19,7 +19,8 @@ class StreamStartRequest(BaseModel):
 
 
 class HyperParamsUpdateRequest(BaseModel):
-    threshold: float | None = None
+    absolute_threshold: float | None = None
+    vote_threshold: float | None = None
     margin: float | None = None
     frame_skip: int | None = None
     dedupe_seconds: int | None = None
@@ -28,6 +29,12 @@ class HyperParamsUpdateRequest(BaseModel):
     vote_ratio: float | None = None
     unknown_min_similarity: float | None = None
     unknown_min_face_size: int | None = None
+    pending_min_similarity: float | None = None
+    pending_min_frames: int | None = None
+    stranger_max_similarity: float | None = None
+    stranger_window_sec: float | None = None
+    stranger_min_frames: int | None = None
+    max_finalize_sec: float | None = None
 
 
 class DebugVideoToggleRequest(BaseModel):

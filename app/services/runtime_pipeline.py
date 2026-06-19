@@ -45,12 +45,21 @@ class RuntimePipeline:
         )
         self.recognition = RecognitionEngine(
             params=RecognitionHyperParams(
-                threshold=settings.THRESHOLD,
+                absolute_threshold=settings.ABSOLUTE_THRESHOLD,
+                vote_threshold=settings.VOTE_THRESHOLD,
                 margin=settings.MARGIN,
                 dedupe_seconds=settings.DEDUPE_SECONDS,
                 frame_skip=settings.FRAME_SKIP,
+                vote_window_sec=settings.VOTE_WINDOW_SEC,
+                vote_min_samples=settings.VOTE_MIN_SAMPLES,
+                vote_ratio=settings.VOTE_RATIO,
                 unknown_min_similarity=settings.UNKNOWN_MIN_SIMILARITY,
                 unknown_min_face_size=settings.UNKNOWN_MIN_FACE_SIZE,
+                pending_min_similarity=settings.PENDING_MIN_SIMILARITY,
+                pending_min_frames=settings.PENDING_MIN_FRAMES,
+                stranger_max_similarity=settings.STRANGER_MAX_SIMILARITY,
+                stranger_window_sec=settings.STRANGER_WINDOW_SEC,
+                stranger_min_frames=settings.STRANGER_MIN_FRAMES,
             )
         )
 

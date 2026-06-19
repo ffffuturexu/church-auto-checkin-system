@@ -70,8 +70,15 @@ class EventDispatcher:
     async def _handle_event(self, event: dict) -> None:
         event_type = str(event.get("event_type", ""))
 
-        if event_type == "check_in":
-            persisted_payload = self._persist_checkin_event(event)
+        if event_type in {"check_in", "recognition.success"}:
+            normalized = self._normalize_success_event(event)
+            persisted_payload = self._persist_checkin_event(normalized)
+            if persisted_payload is not None:
+                await self.ws_manager.broadcast_channel_a(persisted_payload)
+            return
+
+        if event_type == "recognition.pending":
+            persisted_payload = self._persist_pending_event(event)
             if persisted_payload is not None:
                 await self.ws_manager.broadcast_channel_a(persisted_payload)
             return
@@ -84,7 +91,7 @@ class EventDispatcher:
             await self.ws_manager.broadcast_channel_b(event)
             return
 
-        if event_type == "unknown_face":
+        if event_type in {"unknown_face", "recognition.unknown"}:
             persisted_payload = self._persist_unknown_event(event)
             if persisted_payload is not None:
                 await self.ws_manager.broadcast_channel_a(persisted_payload)
@@ -92,6 +99,52 @@ class EventDispatcher:
 
         # Other runtime events go to channel A for ops visibility.
         await self.ws_manager.broadcast_channel_a(event)
+
+    @staticmethod
+    def _normalize_success_event(event: dict) -> dict:
+        if str(event.get("event_type", "")) == "check_in":
+            return dict(event)
+
+        data = event.get("data") if isinstance(event.get("data"), dict) else {}
+        payload = {
+            "event_type": "check_in",
+            "event_id": event.get("event_id"),
+            "timestamp": event.get("timestamp"),
+            "method": data.get("method") or "auto_face",
+            "subject_id": str(data.get("subject_id") or "").strip(),
+            "similarity": data.get("best_similarity", data.get("similarity")),
+            "best_similarity": data.get("best_similarity", data.get("similarity")),
+            "second_subject_id": data.get("second_subject_id"),
+            "second_similarity": data.get("second_similarity"),
+            "face_image_base64": data.get("face_image_base64"),
+            "box": data.get("box"),
+            "camera_id": event.get("camera_id"),
+            "recognition_event_type": event.get("event_type"),
+            "recognition_data": data,
+        }
+        return payload
+
+    @staticmethod
+    def _extract_business_data(event: dict) -> dict:
+        if str(event.get("event_type", "")).startswith("recognition.") and isinstance(event.get("data"), dict):
+            return dict(event.get("data") or {})
+        return dict(event)
+
+    @classmethod
+    def _extract_subject_id_for_event(cls, event: dict) -> str | None:
+        data = cls._extract_business_data(event)
+        value = str(data.get("subject_id") or data.get("best_subject_id") or "").strip()
+        return value or None
+
+    @classmethod
+    def _extract_similarity_for_event(cls, event: dict):
+        data = cls._extract_business_data(event)
+        return data.get("best_similarity", data.get("similarity"))
+
+    @classmethod
+    def _extract_image_base64_for_event(cls, event: dict) -> str:
+        data = cls._extract_business_data(event)
+        return str(data.get("face_image_base64") or data.get("image_base64") or event.get("image_base64") or "")
 
     def _persist_checkin_event(self, event: dict) -> dict:
         payload = dict(event)
@@ -160,6 +213,24 @@ class EventDispatcher:
             payload["member_name_chn"] = member.name_chn
             payload["event_id"] = str(event_row.id)
             payload["attendance_record_id"] = str(record.id)
+            source_event_type = str(event.get("recognition_event_type") or event.get("event_type") or "")
+            payload["event_type"] = "recognition.success" if source_event_type == "recognition.success" else "check_in"
+            payload["data"] = {
+                "decision": "success",
+                "queue_kind": None,
+                "method": payload.get("method") or "auto_face",
+                "subject_id": subject_id,
+                "subject_name": member.name,
+                "similarity": self._safe_float(payload.get("similarity")),
+                "best_similarity": self._safe_float(payload.get("best_similarity") or payload.get("similarity")),
+                "second_subject_id": payload.get("second_subject_id"),
+                "second_similarity": self._safe_float(payload.get("second_similarity")),
+                "reason": None,
+                "face_image_base64": None,
+                "box": payload.get("box"),
+            }
+            # Legacy compatibility fields for existing front-end logic.
+            payload["legacy_event_type"] = "check_in"
             payload.pop("face_image_base64", None)
             payload.pop("image_base64", None)
             record_feed_event(db, payload, source="auto_face")
@@ -233,8 +304,11 @@ class EventDispatcher:
         db.add(row)
         db.flush()
 
+        similarity = self._safe_float(event.get("similarity"))
+        source_event_type = str(event.get("recognition_event_type") or event.get("event_type") or "")
         payload = {
-            "event_type": "unknown_face",
+            "event_type": "recognition.pending" if source_event_type == "recognition.success" else "unknown_face",
+            "queue_kind": "pending_review",
             "timestamp": timestamp.isoformat(timespec="seconds"),
             "reason": "orphaned_profile",
             "persist_status": "profile_not_found",
@@ -242,10 +316,25 @@ class EventDispatcher:
             "best_subject_id": best_subject_id,
             "best_subject_name": best_subject_name,
             "best_subject_name_chn": best_subject_name_chn,
-            "similarity": self._safe_float(event.get("similarity")),
+            "similarity": similarity,
             "case_id": str(row.id),
             "queue_status": UnknownCaseStatus.PENDING.value,
             "note": row.note,
+            "legacy_event_type": "unknown_face",
+            "data": {
+                "decision": "pending",
+                "queue_kind": "pending_review",
+                "method": "pending_review",
+                "subject_id": best_subject_id,
+                "subject_name": best_subject_name,
+                "similarity": similarity,
+                "best_similarity": similarity,
+                "second_subject_id": None,
+                "second_similarity": None,
+                "reason": "orphaned_profile",
+                "face_image_base64": None,
+                "box": event.get("box"),
+            },
         }
         # Do not include the base64 image in websocket payloads for Channel A
         # to avoid large strings polluting the reception/check-in views.
@@ -265,25 +354,40 @@ class EventDispatcher:
             )
             db.commit()
 
+    def _persist_pending_event(self, event: dict) -> dict | None:
+        return self._persist_queue_event(event, decision="pending")
+
     def _persist_unknown_event(self, event: dict) -> dict | None:
-        # Start with a copy of the event but we will explicitly remove
-        # any embedded images before returning the payload to Channel A.
+        return self._persist_queue_event(event, decision="unknown")
+
+    def _persist_queue_event(self, event: dict, decision: str) -> dict | None:
         payload = dict(event)
-        reason = (str(event.get("reason", "")).strip() or None)
-        is_already_logged_failure = reason in {"failed_threshold", "failed_margin"}
+        data = self._extract_business_data(event)
         timestamp = self._parse_timestamp(event.get("timestamp"))
-        best_subject_id = str(event.get("best_subject_id") or "").strip() or None
-        second_subject_id = str(event.get("second_subject_id") or "").strip() or None
+        reason = (str(data.get("reason") or event.get("reason") or "").strip() or None)
+        queue_kind = str(data.get("queue_kind") or event.get("queue_kind") or "").strip() or None
+        if queue_kind is None:
+            queue_kind = "pending_review" if decision == "pending" else "stranger"
+
+        best_subject_id = str(data.get("subject_id") or data.get("best_subject_id") or "").strip() or None
+        second_subject_id = str(data.get("second_subject_id") or "").strip() or None
+        image_base64 = self._extract_image_base64_for_event(event)
+        similarity = self._safe_float(data.get("best_similarity", data.get("similarity")))
+        second_similarity = self._safe_float(data.get("second_similarity"))
 
         with SessionLocal() as db:
-            if self._should_suppress_unknown_after_successful_checkin(db, event=event, timestamp=timestamp):
+            if decision == "unknown" and self._should_suppress_unknown_after_successful_checkin(
+                db,
+                event=event,
+                timestamp=timestamp,
+            ):
                 return None
 
             best_subject_name = self._resolve_member_name_by_subject(db, best_subject_id)
             best_subject_name_chn = self._resolve_member_name_chn_by_subject(db, best_subject_id)
             second_subject_name = self._resolve_member_name_by_subject(db, second_subject_id)
             note = self._build_unknown_note(
-                base_note=(str(event.get("note") or "").strip() or None),
+                base_note=(str(data.get("note") or event.get("note") or "").strip() or None),
                 best_subject_id=best_subject_id,
                 best_subject_name=best_subject_name,
                 best_subject_name_chn=best_subject_name_chn,
@@ -291,34 +395,82 @@ class EventDispatcher:
                 second_subject_name=second_subject_name,
             )
 
-            if not is_already_logged_failure:
-                self._create_recognition_log(
-                    db,
-                    status=RecognitionStatus.UNKNOWN,
-                    best_subject_id=best_subject_id or "unknown",
-                    similarity=event.get("similarity"),
-                    second_subject_id=second_subject_id,
-                    second_similarity=event.get("second_similarity"),
-                    timestamp=timestamp,
+            # Avoid creating duplicate RecognitionLog rows when a recognition_log
+            # with the same timestamp and subject pair already exists (some
+            # workflows emit a recognition_log followed by an unknown_face payload
+            # for the same detection). In that case, reuse the existing log.
+            best_subject_id_str = best_subject_id or "unknown"
+            second_subject_id_str = second_subject_id or None
+            existing_log = db.scalar(
+                select(RecognitionLog).where(
+                    RecognitionLog.timestamp == timestamp,
+                    RecognitionLog.best_subject_id == best_subject_id_str,
+                    RecognitionLog.second_subject_id == (second_subject_id_str),
                 )
+            )
+
+            if existing_log is None:
+                if decision == "pending":
+                    self._create_recognition_log(
+                        db,
+                        status=RecognitionStatus.PENDING,
+                        best_subject_id=best_subject_id_str,
+                        similarity=similarity,
+                        second_subject_id=second_subject_id_str,
+                        second_similarity=second_similarity,
+                        timestamp=timestamp,
+                    )
+                else:
+                    self._create_recognition_log(
+                        db,
+                        status=RecognitionStatus.UNKNOWN,
+                        best_subject_id=best_subject_id_str,
+                        similarity=similarity,
+                        second_subject_id=second_subject_id_str,
+                        second_similarity=second_similarity,
+                        timestamp=timestamp,
+                    )
+
             row = UnknownFaceCase(
                 timestamp=timestamp,
                 reason=reason,
-                image_base64=str(event.get("image_base64", "")),
+                image_base64=image_base64,
                 status=UnknownCaseStatus.PENDING,
                 note=note,
             )
             db.add(row)
             db.commit()
+
+            source_event_type = str(event.get("event_type") or "")
+            if source_event_type == "unknown_face":
+                payload["event_type"] = "unknown_face"
+            else:
+                payload["event_type"] = f"recognition.{decision}"
             payload["case_id"] = str(row.id)
             payload["queue_status"] = UnknownCaseStatus.PENDING.value
+            payload["queue_kind"] = queue_kind
             payload["best_subject_id"] = best_subject_id
             payload["best_subject_name"] = best_subject_name
             payload["best_subject_name_chn"] = best_subject_name_chn
             payload["second_subject_id"] = second_subject_id
             payload["second_subject_name"] = second_subject_name
+            payload["reason"] = reason
             payload["note"] = row.note
-            # Remove any base64 image data from the outgoing payload.
+            payload["legacy_event_type"] = "unknown_face"
+            payload["data"] = {
+                "decision": decision,
+                "queue_kind": queue_kind,
+                "method": data.get("method") or ("pending_review" if decision == "pending" else "stranger_detected"),
+                "subject_id": best_subject_id if decision == "pending" else None,
+                "subject_name": best_subject_name if decision == "pending" else None,
+                "similarity": similarity,
+                "best_similarity": similarity,
+                "second_subject_id": second_subject_id,
+                "second_similarity": second_similarity,
+                "reason": reason,
+                "face_image_base64": None,
+                "box": data.get("box"),
+            }
             payload.pop("image_base64", None)
             payload.pop("face_image_base64", None)
             return payload
@@ -329,7 +481,7 @@ class EventDispatcher:
         event: dict,
         timestamp: datetime,
     ) -> bool:
-        best_subject_id = str(event.get("best_subject_id", "")).strip()
+        best_subject_id = self._extract_subject_id_for_event(event) or ""
         if not best_subject_id:
             return False
 

@@ -1364,6 +1364,7 @@
     const eventMap = new Map();
     const memberById = new Map();
     let allMembers = [];
+    let allGroups = [];
     let selectedEventId = '';
     let currentMember = null;
     let pendingReplacePhotoId = null;
@@ -1591,11 +1592,12 @@
 
     function renderGroupFilterOptions() {
       const previous = memberGroupFilterEl.value || 'all';
-      const groups = [...new Set(
+      const sourceGroups = (allGroups && allGroups.length) ? allGroups : [...new Set(
         allMembers
           .map((m) => (m.group || '').trim())
           .filter((g) => g.length > 0)
-      )].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+      )];
+      const groups = Array.from(new Set(sourceGroups)).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
 
       memberGroupFilterEl.innerHTML = '<option value="all">分组: 全部</option><option value="__empty__">分组: 未分组</option>';
       const customList = document.getElementById('modalGroupList');
@@ -1636,6 +1638,29 @@
 
       const hasPrevious = Array.from(memberGroupFilterEl.options).some((o) => o.value === previous);
       memberGroupFilterEl.value = hasPrevious ? previous : 'all';
+    }
+
+    async function refreshAllGroups() {
+      try {
+        const limit = 500; // server enforces max 500
+        let offset = 0;
+        const groupsSet = new Set();
+        for (let page = 0; page < 20; page += 1) { // cap to 20 pages (max 10k members)
+          const res = await fetch(`/members?limit=${limit}&offset=${offset}&active_only=false`);
+          if (!res.ok) break;
+          const data = await res.json();
+          const items = data.items || [];
+          for (const m of items) {
+            const g = (m.group || '').trim();
+            if (g) groupsSet.add(g);
+          }
+          if (items.length < limit) break;
+          offset += limit;
+        }
+        allGroups = Array.from(groupsSet).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+      } catch (e) {
+        console.error('refreshAllGroups error', e);
+      }
     }
 
     // Collapse/expand helpers for care panels
@@ -1937,6 +1962,8 @@
       for (const m of allMembers) {
         memberById.set(String(m.id), m);
       }
+      // refresh global groups (paginated) and wait so dropdowns show full group list
+      await refreshAllGroups();
       renderMemberRows();
     }
 

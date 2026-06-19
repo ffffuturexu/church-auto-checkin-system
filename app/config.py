@@ -19,7 +19,10 @@ class Config:
 
         # Script Settings
         self.MODE = self.config.get('Script', 'Mode', fallback='camera').lower()
-        self.THRESHOLD = self.config.getfloat('Script', 'Threshold', fallback=0.70)
+        self.VOTE_THRESHOLD = self.config.getfloat('Script', 'VoteThreshold', fallback=0.70)
+        self.ABSOLUTE_THRESHOLD = self.config.getfloat('Script', 'AbsoluteThreshold', fallback=max(0.0, self.VOTE_THRESHOLD + 0.10))
+        # Backward-compatible alias for legacy paths.
+        self.THRESHOLD = self.VOTE_THRESHOLD
         self.MARGIN = self.config.getfloat('Script', 'Margin', fallback=0.18)
         self.DEDUPE_SECONDS = self.config.getint('Script', 'DedupeSeconds', fallback=60)
         self.FRAME_SKIP = self.config.getint('Script', 'FrameSkip', fallback=2)
@@ -28,6 +31,15 @@ class Config:
         self.VOTE_RATIO = self.config.getfloat('Script', 'VoteRatio', fallback=0.65)
         self.UNKNOWN_MIN_SIMILARITY = self.config.getfloat('Script', 'UnknownMinSimilarity', fallback=0.65)
         self.UNKNOWN_MIN_FACE_SIZE = self.config.getint('Script', 'UnknownMinFaceSize', fallback=64)
+        self.PENDING_MIN_SIMILARITY = self.config.getfloat('Script', 'PendingMinSimilarity', fallback=self.UNKNOWN_MIN_SIMILARITY)
+        self.PENDING_MIN_FRAMES = self.config.getint('Script', 'PendingMinFrames', fallback=max(2, self.VOTE_MIN_SAMPLES))
+        self.STRANGER_MAX_SIMILARITY = self.config.getfloat(
+            'Script',
+            'StrangerMaxSimilarity',
+            fallback=max(0.0, min(self.VOTE_THRESHOLD - 0.02, self.UNKNOWN_MIN_SIMILARITY - 0.02)),
+        )
+        self.STRANGER_WINDOW_SEC = self.config.getfloat('Script', 'StrangerWindowSec', fallback=self.VOTE_WINDOW_SEC)
+        self.STRANGER_MIN_FRAMES = self.config.getint('Script', 'StrangerMinFrames', fallback=max(2, self.VOTE_MIN_SAMPLES))
         self.MAX_QUEUE_SIZE = self.config.getint('Script', 'MaxQueueSize', fallback=3)
         self.PREDICTION_COUNT = self.config.getint('Script', 'PredictionCount', fallback=5)
 

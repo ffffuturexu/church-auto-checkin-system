@@ -550,6 +550,15 @@ pytest tests/ --cov=app --cov-report=html
 
 ---
 
-**最后更新**: 2026-06-06  
+### 本轮重构（2026-06-19）
+
+- **识别事件模型**：将业务事件统一为 `recognition.success`、`recognition.pending`、`recognition.unknown`，同时保留对外 `check_in` / `unknown_face` 的兼容出站映射以兼容现有前端。
+- **事件载荷规范**：在 `data` 中统一提供 `decision`（`success|pending|unknown`）与 `queue_kind`（`pending_review|stranger|null`）字段，简化前端分类与展示逻辑。
+- **超参数与收敛**：新增 `max_finalize_sec`，并在运行时强制约束 `stranger_max_similarity < pending_min_similarity <= vote_threshold <= absolute_threshold`，避免参数不一致导致的不确定行为。
+- **最终化策略**：待复核与陌生人队列采用“idle-first”（空闲优先）最终化逻辑，并以 `max_finalize_sec` 做最长等待时间回退，防止长时间悬而不决的候选。
+- **前端联动**：已对 `reception.html` 与 `debug.html` 做兼容性更新（接待页将“异常抓拍队列（Unknown）”改为“待处理队列”，区分 Pending / Unknown 展示；调试页超参数标签与 Channel A 事件色标更新）。
+- **数据库与测试**：修复了重复索引导致的建表错误（移除多余索引）、为避免重复插入增加了判重逻辑；相关单元与集成测试已调整并通过。
+
+**最后更新**: 2026-06-19  
 **维护者**: Weilai Xu@Rugiada
 **仓库**: [github.com/ffffuturexu/church-auto-checkin-system](https://github.com/ffffuturexu/church-auto-checkin-system)
