@@ -3,11 +3,13 @@ from __future__ import annotations
 import base64
 import threading
 import time
+from datetime import timedelta
 
 import cv2
 import numpy as np
 
 from app.services.recognition_engine import RecognitionEngine, RecognitionHyperParams
+from app.core.time_utils import now_local
 
 
 def _drain_events(engine: RecognitionEngine):
@@ -83,18 +85,18 @@ def test_emit_unknown_uses_per_box_cooldown_not_global_lock():
 
     assert first is not None
     assert second is not None
-    assert first["event_type"] == "unknown_face"
-    assert second["event_type"] == "unknown_face"
+    assert first["event_type"] == "recognition.unknown"
+    assert second["event_type"] == "recognition.unknown"
 
 
-def test_failed_threshold_below_review_floor_does_not_emit_unknown():
+def test_low_similarity_tracks_stranger_without_immediate_unknown_emit():
     class DummyClient:
         def recognize_image(self, _image_bytes):
             return {"result": []}
 
     engine = RecognitionEngine(
         api_client=DummyClient(),
-        params=RecognitionHyperParams(threshold=0.85, unknown_min_similarity=0.65),
+        params=RecognitionHyperParams(vote_threshold=0.85, pending_min_similarity=0.80, unknown_min_similarity=0.65),
     )
     frame = np.full((140, 200, 3), 90, dtype=np.uint8)
     result = {
@@ -109,9 +111,9 @@ def test_failed_threshold_below_review_floor_does_not_emit_unknown():
     engine._handle_recognition_result(frame, result)
     events = _drain_events(engine)
 
-    assert any(e["event_type"] == "recognition_log" and e["status"] == "failed_threshold" for e in events)
-    assert not any(e["event_type"] == "unknown_face" for e in events)
-    assert any(e["event_type"] == "debug_frame" and e["status"] == "below_review_threshold" for e in events)
+    assert not any(e["event_type"] == "recognition_log" and e["status"] == "failed_threshold" for e in events)
+    assert not any(e["event_type"] == "recognition.unknown" for e in events)
+    assert any(e["event_type"] == "debug_frame" and e["status"] == "scanning" for e in events)
 
 
 def test_failed_threshold_in_review_band_emits_unknown():
@@ -121,7 +123,17 @@ def test_failed_threshold_in_review_band_emits_unknown():
 
     engine = RecognitionEngine(
         api_client=DummyClient(),
-        params=RecognitionHyperParams(threshold=0.85, unknown_min_similarity=0.65, unknown_min_face_size=24),
+        params=RecognitionHyperParams(
+            vote_threshold=0.85,
+            pending_min_similarity=0.70,
+            pending_min_frames=1,
+            stranger_max_similarity=0.40,
+            stranger_min_frames=1,
+            stranger_window_sec=0.1,
+            vote_window_sec=0.1,
+            unknown_min_similarity=0.65,
+            unknown_min_face_size=24,
+        ),
     )
     frame = np.full((140, 200, 3), 100, dtype=np.uint8)
     result = {
@@ -134,13 +146,14 @@ def test_failed_threshold_in_review_band_emits_unknown():
     }
 
     engine._handle_recognition_result(frame, result)
+    engine._finalize_pending_candidates(now_local() + timedelta(seconds=0.2))
     events = _drain_events(engine)
 
-    unknown_events = [e for e in events if e["event_type"] == "unknown_face"]
-    assert len(unknown_events) == 1
-    assert unknown_events[0]["reason"] == "failed_threshold"
-    assert unknown_events[0]["best_subject_id"] == "member-b"
-    assert unknown_events[0]["similarity"] == 0.72
+    pending_events = [e for e in events if e["event_type"] == "recognition.pending"]
+    assert len(pending_events) == 1
+    assert pending_events[0]["data"]["reason"] in {"vote_timeout", "weak_consensus", "ambiguous_margin"}
+    assert pending_events[0]["data"]["subject_id"] == "member-b"
+    assert pending_events[0]["data"]["best_similarity"] == 0.72
 
 
 def test_unknown_event_ignores_small_face_box():
@@ -155,7 +168,8 @@ def test_unknown_event_ignores_small_face_box():
     frame = np.full((120, 160, 3), 80, dtype=np.uint8)
     box = {"x_min": 10, "y_min": 10, "width": 40, "height": 40}
 
-    engine._emit_unknown(frame, box, reason="unknown")
+    engine._track_stranger_observation(frame=frame, box=box, similarity=0.2)
+    engine._finalize_stranger_candidates(now_local() + timedelta(seconds=2))
 
     assert engine.read_event_nowait() is None
 

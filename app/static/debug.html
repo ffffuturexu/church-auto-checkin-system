@@ -146,6 +146,29 @@
       min-height: 280px;
       object-fit: contain;
     }
+    .debug-frame-wrap {
+      position: relative;
+    }
+    .pause-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(20, 30, 22, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #f3fff5;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      display: none;
+      pointer-events: none;
+    }
+    .pause-badge.show {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
     #events {
       margin: 0;
       padding: 0;
@@ -164,6 +187,10 @@
       word-break: break-word;
     }
     #events li:last-child { border-bottom: 0; }
+    #events li.evt-success { background: #eef9f1; }
+    #events li.evt-pending { background: #fff9e8; }
+    #events li.evt-unknown { background: #fff1ec; }
+    #events li.evt-compat { background: #f3f7ff; }
     .hyperparams-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -248,6 +275,12 @@
       </div>
     </div>
 
+    <div class="card full">
+      <h2>运行状态总览</h2>
+      <div class="muted">重点看摄像头是否持续出帧、识别端是否持续产出调试帧，以及系统资源是否异常。</div>
+      <div id="statusGrid" class="status-grid"></div>
+    </div>
+
     <div class="grid">
       <div class="card">
         <h2>流媒体控制</h2>
@@ -259,6 +292,26 @@
           <button id="restartBtn" class="warn">重启运行时</button>
         </div>
         <div id="status" class="status" style="margin-top:10px">状态读取中...</div>
+
+        
+
+        <h3 style="margin-top:12px;margin-bottom:8px">Channel B（调试视频）</h3>
+        <div class="row" style="margin-bottom:8px">
+          <button id="toggleDebugBtn" class="alt">关闭调试视频</button>
+          <span id="debugVideoHint" class="muted">调试视频已开启</span>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <button id="pauseDebugBtn" class="alt">暂停画面</button>
+          <span id="debugPauseHint" class="muted">画面正在实时更新</span>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <button id="toggleOverlayBtn" class="alt">关闭识别标注</button>
+          <span id="debugOverlayHint" class="muted">识别标注已开启</span>
+        </div>
+        <div class="debug-frame-wrap">
+          <span id="pauseBadge" class="pause-badge">PAUSED</span>
+          <img id="debugFrame" alt="debug frame" />
+        </div>
       </div>
 
       <div class="card">
@@ -266,77 +319,22 @@
         <div class="param-section">
           <div class="section-title">当前参数</div>
           <div id="currentParamsGrid" class="hyperparams-current-grid"></div>
-        </div>
-        <div class="param-section">
-          <div class="section-title">修改输入</div>
-          <div class="hyperparams-grid">
-            <label>
-              <span class="param-label">阈值 (threshold)</span>
-              <input id="threshold" type="number" step="0.01" min="0" max="1" />
-            </label>
-            <label>
-              <span class="param-label">差值 (margin)</span>
-              <input id="margin" type="number" step="0.01" min="0" max="1" />
-            </label>
-            <label>
-              <span class="param-label">帧跳 (frame_skip)</span>
-              <input id="frame_skip" type="number" step="1" min="1" />
-            </label>
-            <label>
-              <span class="param-label">去重秒数 (dedupe_seconds)</span>
-              <input id="dedupe_seconds" type="number" step="1" min="1" />
-            </label>
-            <label>
-              <span class="param-label">投票最少样本 (vote_min_samples)</span>
-              <input id="vote_min_samples" type="number" step="1" min="1" />
-            </label>
-            <label>
-              <span class="param-label">投票窗口秒数 (vote_window_sec)</span>
-              <input id="vote_window_sec" type="number" step="0.1" min="0.1" />
-            </label>
-            <label>
-              <span class="param-label">投票比例 (vote_ratio)</span>
-              <input id="vote_ratio" type="number" step="0.01" min="0" max="1" />
-            </label>
-            <label>
-              <span class="param-label">未知人脸阈值 (unknown_min_similarity)</span>
-              <input id="unknown_min_similarity" type="number" step="0.01" min="0" max="1" />
-            </label>
-            <label>
-              <span class="param-label">最小人脸尺寸 (unknown_min_face_size)</span>
-              <input id="unknown_min_face_size" type="number" step="1" min="1" />
-            </label>
-          </div>
-          <div class="params-actions">
-            <button id="updateParamsBtn">更新参数</button>
+          <div class="params-actions" style="margin-top:10px">
+            <button id="toggleEditParamsBtn">修改参数</button>
             <button id="resetParamsBtn" class="alt">还原默认参数</button>
           </div>
         </div>
+        <div class="param-section">
+          <div class="section-title">说明</div>
+          <div class="muted">点击“修改参数”可编辑当前参数；保存后会将修改下发到运行时。</div>
+        </div>
       </div>
-    </div>
-
-    <div class="card full">
-      <h2>运行状态总览</h2>
-      <div class="muted">重点看摄像头是否持续出帧、识别端是否持续产出调试帧，以及系统资源是否异常。</div>
-      <div id="statusGrid" class="status-grid"></div>
     </div>
 
     <div class="grid">
       <div class="card">
         <h2>Channel A（签到/事件）</h2>
         <ul id="events"></ul>
-      </div>
-      <div class="card">
-        <h2>Channel B（调试视频）</h2>
-        <div class="row" style="margin-bottom:8px">
-          <button id="toggleDebugBtn" class="alt">关闭调试视频</button>
-          <span id="debugVideoHint" class="muted">调试视频已开启</span>
-        </div>
-        <div class="row" style="margin-bottom:8px">
-          <button id="toggleOverlayBtn" class="alt">关闭识别标注</button>
-          <span id="debugOverlayHint" class="muted">识别标注已开启</span>
-        </div>
-        <img id="debugFrame" alt="debug frame" />
       </div>
     </div>
   </div>
@@ -348,19 +346,27 @@
     const imgEl = document.getElementById('debugFrame');
     const toggleDebugBtn = document.getElementById('toggleDebugBtn');
     const debugVideoHintEl = document.getElementById('debugVideoHint');
+    const pauseDebugBtn = document.getElementById('pauseDebugBtn');
+    const debugPauseHintEl = document.getElementById('debugPauseHint');
+    const pauseBadgeEl = document.getElementById('pauseBadge');
     const toggleOverlayBtn = document.getElementById('toggleOverlayBtn');
     const debugOverlayHintEl = document.getElementById('debugOverlayHint');
     const currentParamsGridEl = document.getElementById('currentParamsGrid');
 
     let debugVideoEnabled = true;
+    let debugVideoPaused = false;
     let debugOverlayEnabled = true;
     let channelBWs = null;
     let channelBPingTimer = null;
     let channelBReconnectTimer = null;
-    let hyperparamsInputsInitialized = false;
+    let bufferedDebugFrameBase64 = null;
+
+    let currentHyperparams = {};
+    let hyperparamsEditMode = false;
 
     const DEFAULT_HYPERPARAMS = {
-      threshold: 0.7,
+      absolute_threshold: 0.8,
+      vote_threshold: 0.7,
       margin: 0.18,
       frame_skip: 2,
       dedupe_seconds: 60,
@@ -369,18 +375,31 @@
       vote_ratio: 0.65,
       unknown_min_similarity: 0.65,
       unknown_min_face_size: 64,
+      pending_min_similarity: 0.7,
+      pending_min_frames: 4,
+      stranger_max_similarity: 0.56,
+      stranger_window_sec: 1.5,
+      stranger_min_frames: 4,
+      max_finalize_sec: 6.0,
     };
 
     const HYPERPARAM_FIELDS = [
-      { key: 'threshold', label: '阈值', suffix: '' },
+      { key: 'absolute_threshold', label: '绝对阈值', suffix: '' },
+      { key: 'vote_threshold', label: '投票阈值', suffix: '' },
       { key: 'margin', label: '差值', suffix: '' },
       { key: 'frame_skip', label: '帧跳', suffix: '' },
       { key: 'dedupe_seconds', label: '去重秒数', suffix: ' s' },
       { key: 'vote_min_samples', label: '投票最少样本', suffix: '' },
       { key: 'vote_window_sec', label: '投票窗口秒数', suffix: ' s' },
-      { key: 'vote_ratio', label: '投票比例', suffix: '' },
-      { key: 'unknown_min_similarity', label: '未知人脸阈值', suffix: '' },
+      { key: 'vote_ratio', label: '高质量票占比', suffix: '' },
+      { key: 'unknown_min_similarity', label: '未知阈值兼容参数', suffix: '' },
       { key: 'unknown_min_face_size', label: '最小人脸尺寸', suffix: ' px' },
+      { key: 'pending_min_similarity', label: '待复核最小相似度', suffix: '' },
+      { key: 'pending_min_frames', label: '待复核最少帧数', suffix: '' },
+      { key: 'stranger_max_similarity', label: '陌生人最大相似度', suffix: '' },
+      { key: 'stranger_window_sec', label: '陌生人窗口秒数', suffix: ' s' },
+      { key: 'stranger_min_frames', label: '陌生人最少帧数', suffix: '' },
+      { key: 'max_finalize_sec', label: '最长 finalize 等待秒数', suffix: ' s' },
     ];
 
     const api = {
@@ -435,11 +454,25 @@
       return `${protocol}://${location.host}`;
     }
 
+    function classifyEventClass(event) {
+      const eventType = String(event?.event_type || '');
+      const decision = String(event?.data?.decision || '');
+      if (eventType === 'recognition.success' || decision === 'success') return 'evt-success';
+      if (eventType === 'recognition.pending' || decision === 'pending') return 'evt-pending';
+      if (eventType === 'recognition.unknown' || decision === 'unknown') return 'evt-unknown';
+      if (eventType === 'check_in' || eventType === 'unknown_face') return 'evt-compat';
+      return '';
+    }
+
     function addEvent(event) {
       const safeEvent = { ...event };
       delete safeEvent.face_image_base64;
       delete safeEvent.image_base64;
       const li = document.createElement('li');
+      const evtClass = classifyEventClass(safeEvent);
+      if (evtClass) {
+        li.classList.add(evtClass);
+      }
       li.textContent = JSON.stringify(safeEvent, null, 2);
       eventsEl.prepend(li);
       while (eventsEl.children.length > 80) {
@@ -515,22 +548,41 @@
     }
 
     function renderCurrentHyperparams(params) {
-      currentParamsGridEl.innerHTML = HYPERPARAM_FIELDS.map((field) => `
-        <div class="param-card">
-          <div class="label">${field.label}</div>
-          <div class="value">${formatHyperparamValue(field.key, params[field.key])}${field.suffix}</div>
-        </div>
-      `).join('');
+      currentHyperparams = Object.assign({}, params || {});
+      if (!hyperparamsEditMode) {
+        currentParamsGridEl.innerHTML = HYPERPARAM_FIELDS.map((field) => `
+          <div class="param-card">
+            <div class="label">${field.label}</div>
+            <div class="value">${formatHyperparamValue(field.key, params[field.key])}${field.suffix}</div>
+          </div>
+        `).join('');
+      } else {
+        currentParamsGridEl.innerHTML = HYPERPARAM_FIELDS.map((field) => `
+          <label style="display:flex;flex-direction:column;gap:6px">
+            <span class="param-label">${field.label}</span>
+            <input id="edit_${field.key}" value="${escapeHtml(params[field.key] ?? '')}" />
+          </label>
+        `).join('');
+      }
+      updateEditButtonUi();
     }
 
     function formatHyperparamValue(key, value) {
       if (value === null || value === undefined) return 'N/A';
       const num = Number(value);
       if (!Number.isFinite(num)) return String(value);
-      if (key === 'threshold' || key === 'margin' || key === 'vote_ratio' || key === 'unknown_min_similarity') {
+      if (
+        key === 'absolute_threshold' ||
+        key === 'vote_threshold' ||
+        key === 'margin' ||
+        key === 'vote_ratio' ||
+        key === 'unknown_min_similarity' ||
+        key === 'pending_min_similarity' ||
+        key === 'stranger_max_similarity'
+      ) {
         return num.toFixed(2);
       }
-      if (key === 'vote_window_sec') {
+      if (key === 'vote_window_sec' || key === 'stranger_window_sec' || key === 'max_finalize_sec') {
         return num.toFixed(1);
       }
       return String(Math.round(num));
@@ -614,33 +666,49 @@
       return `${value} / ${max}`;
     }
 
-    function setHyperparamInputs(values) {
+    function collectEditedHyperparams() {
+      const payload = {};
       HYPERPARAM_FIELDS.forEach((field) => {
-        const input = document.getElementById(field.key);
-        const value = values[field.key];
-        if (input && value !== undefined && value !== null) {
-          input.value = value;
+        const el = document.getElementById(`edit_${field.key}`);
+        if (!el) return;
+        const raw = String(el.value || '').trim();
+        if (raw === '') return;
+        // integer-like fields
+        const intKeys = new Set(['frame_skip','dedupe_seconds','vote_min_samples','unknown_min_face_size','pending_min_frames','stranger_min_frames']);
+        if (intKeys.has(field.key)) {
+          const v = parseInt(raw, 10);
+          if (!Number.isNaN(v)) payload[field.key] = v;
+        } else {
+          const v = parseFloat(raw);
+          if (!Number.isNaN(v)) payload[field.key] = v;
         }
       });
-    }
-
-    function collectHyperparamInputs() {
-      return {
-        threshold: parseNum('threshold', parseFloat),
-        margin: parseNum('margin', parseFloat),
-        frame_skip: parseNum('frame_skip', Number),
-        dedupe_seconds: parseNum('dedupe_seconds', Number),
-        vote_min_samples: parseNum('vote_min_samples', Number),
-        vote_window_sec: parseNum('vote_window_sec', parseFloat),
-        vote_ratio: parseNum('vote_ratio', parseFloat),
-        unknown_min_similarity: parseNum('unknown_min_similarity', parseFloat),
-        unknown_min_face_size: parseNum('unknown_min_face_size', Number),
-      };
+      return payload;
     }
 
     function updateDebugVideoUi() {
       toggleDebugBtn.textContent = debugVideoEnabled ? '关闭调试视频' : '开启调试视频';
       debugVideoHintEl.textContent = debugVideoEnabled ? '调试视频已开启' : '调试视频已关闭';
+      pauseDebugBtn.disabled = !debugVideoEnabled;
+      pauseDebugBtn.style.opacity = debugVideoEnabled ? '1' : '0.6';
+    }
+
+    function updateDebugPauseUi() {
+      pauseDebugBtn.textContent = debugVideoPaused ? '恢复画面' : '暂停画面';
+      debugPauseHintEl.textContent = debugVideoPaused ? '画面已暂停在当前帧' : '画面正在实时更新';
+      pauseBadgeEl.classList.toggle('show', debugVideoEnabled && debugVideoPaused);
+    }
+
+    function setDebugVideoPaused(paused) {
+      if (!debugVideoEnabled) {
+        debugVideoPaused = false;
+      } else {
+        debugVideoPaused = Boolean(paused);
+      }
+      if (!debugVideoPaused && bufferedDebugFrameBase64) {
+        imgEl.src = `data:image/jpeg;base64,${bufferedDebugFrameBase64}`;
+      }
+      updateDebugPauseUi();
     }
 
     function updateDebugOverlayUi() {
@@ -666,12 +734,17 @@
     }
 
     async function setDebugVideoEnabled(enabled, notifyServer = true) {
-      debugVideoEnabled = Boolean(enabled);
+      const nextEnabled = Boolean(enabled);
+      const changed = debugVideoEnabled !== nextEnabled;
+      debugVideoEnabled = nextEnabled;
       updateDebugVideoUi();
-      if (debugVideoEnabled) {
-        connectChannelB();
-      } else {
-        closeChannelB();
+      if (changed) {
+        if (debugVideoEnabled) {
+          connectChannelB();
+        } else {
+          closeChannelB();
+          setDebugVideoPaused(false);
+        }
       }
       if (!notifyServer) return;
       try {
@@ -699,10 +772,12 @@
         const data = await api.getStatus();
         renderStatus(data);
         const params = data.hyperparams || {};
-        renderCurrentHyperparams(params);
-        if (!hyperparamsInputsInitialized) {
-          setHyperparamInputs(params);
-          hyperparamsInputsInitialized = true;
+        // When in edit mode, avoid re-rendering inputs to prevent clobbering user edits.
+        if (!hyperparamsEditMode) {
+          renderCurrentHyperparams(params);
+        } else {
+          // Keep latest params in memory but don't touch the DOM inputs
+          currentHyperparams = Object.assign({}, params || {});
         }
         if (data.runtime && data.runtime.debug_video_enabled !== undefined) {
           setDebugVideoEnabled(Boolean(data.runtime.debug_video_enabled), false);
@@ -715,11 +790,10 @@
       }
     }
 
-    function parseNum(id, parser) {
-      const raw = document.getElementById(id).value.trim();
-      if (!raw) return undefined;
-      const v = parser(raw);
-      return Number.isFinite(v) ? v : undefined;
+    function updateEditButtonUi() {
+      const btn = document.getElementById('toggleEditParamsBtn');
+      if (!btn) return;
+      btn.textContent = hyperparamsEditMode ? '保存并更新参数' : '修改参数';
     }
 
     function connectChannelA() {
@@ -757,7 +831,10 @@
         try {
           const payload = JSON.parse(evt.data);
           if (payload.image_base64) {
-            imgEl.src = `data:image/jpeg;base64,${payload.image_base64}`;
+            bufferedDebugFrameBase64 = payload.image_base64;
+            if (!debugVideoPaused) {
+              imgEl.src = `data:image/jpeg;base64,${payload.image_base64}`;
+            }
           }
         } catch {
           // ignore malformed payload
@@ -797,27 +874,39 @@
       await refreshStatus();
     });
 
-    document.getElementById('updateParamsBtn').addEventListener('click', async () => {
-      const payload = collectHyperparamInputs();
-      Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
+    document.getElementById('toggleEditParamsBtn').addEventListener('click', async () => {
+      if (!hyperparamsEditMode) {
+        hyperparamsEditMode = true;
+        renderCurrentHyperparams(currentHyperparams);
+        return;
+      }
+      // save
+      const payload = collectEditedHyperparams();
       if (Object.keys(payload).length === 0) {
-        addEvent({ warn: '未填写任何参数' });
+        addEvent({ warn: '未修改任何参数' });
+        hyperparamsEditMode = false;
+        renderCurrentHyperparams(currentHyperparams);
         return;
       }
       const data = await api.updateParams(payload);
       addEvent({ action: 'update_hyperparameters', data });
+      hyperparamsEditMode = false;
       await refreshStatus();
     });
 
     document.getElementById('resetParamsBtn').addEventListener('click', async () => {
-      setHyperparamInputs(DEFAULT_HYPERPARAMS);
       const data = await api.updateParams(DEFAULT_HYPERPARAMS);
       addEvent({ action: 'reset_hyperparameters', data });
+      hyperparamsEditMode = false;
       await refreshStatus();
     });
 
     toggleDebugBtn.addEventListener('click', async () => {
       await setDebugVideoEnabled(!debugVideoEnabled, true);
+    });
+
+    pauseDebugBtn.addEventListener('click', () => {
+      setDebugVideoPaused(!debugVideoPaused);
     });
 
     toggleOverlayBtn.addEventListener('click', async () => {
@@ -827,6 +916,7 @@
     refreshStatus();
     connectChannelA();
     updateDebugVideoUi();
+    updateDebugPauseUi();
     updateDebugOverlayUi();
     connectChannelB();
     setInterval(refreshStatus, 3000);

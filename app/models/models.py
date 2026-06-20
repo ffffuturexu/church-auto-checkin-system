@@ -43,6 +43,7 @@ class CheckInMethod(str, enum.Enum):
 
 class RecognitionStatus(str, enum.Enum):
     SUCCESS = "success"
+    PENDING = "pending"
     FAILED_MARGIN = "failed_margin" # 相似度未达到阈值，但仍有一个或多个候选人，可能需要人工审核。
     FAILED_THRESHOLD = "failed_threshold" # 相似度未达到阈值，且没有候选人，直接识别失败。
     UNKNOWN = "unknown"
@@ -259,4 +260,4 @@ class BirthdayReminderLog(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
-Index("ix_birthday_reminder_logs_timestamp", BirthdayReminderLog.timestamp)
+# BirthdayReminderLog.timestamp already has column-level index; explicit Index removed to avoid duplicate creation
