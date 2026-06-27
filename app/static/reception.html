@@ -1184,8 +1184,21 @@
       const meta = document.createElement('div');
       meta.className = 'tiny';
       const decision = String((payload.data && payload.data.decision) || '').trim();
-      const queueKind = String((payload.data && payload.data.queue_kind) || payload.queue_kind || '').trim();
-      const isPending = decision === 'pending' || queueKind === 'pending_review';
+
+      function inferQueueKind(item) {
+        if (!item) return '';
+        const have = (item.data && item.data.queue_kind) || item.queue_kind || '';
+        const q = String(have || '').trim();
+        if (q) return q;
+        const r = String(item.reason || '').trim();
+        if (r === 'stranger_detected') return 'stranger';
+        // fallback: treat anything not explicit stranger as pending_review
+        if (r) return 'pending_review';
+        return '';
+      }
+
+      const queueKind = inferQueueKind(payload);
+      const isPending = decision === 'pending' || queueKind === 'pending_review' || queueKind === 'pending';
       card.classList.add(isPending ? 'queue-pending' : 'queue-unknown');
       const queueLabel = isPending ? '待复核候选' : '陌生人候选';
       meta.textContent = `${formatTimestamp(payload.timestamp || payload.handled_at || '')} | ${queueLabel} | reason: ${payload.reason || (isPending ? 'pending_review' : 'stranger')}`;
