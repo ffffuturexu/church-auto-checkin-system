@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from datetime import datetime
 
@@ -22,6 +23,9 @@ from app.models.models import (
 )
 from app.services.runtime_pipeline import RuntimePipeline
 from app.services.reception_feed_service import record_feed_event
+
+
+logger = logging.getLogger(__name__)
 
 
 class EventDispatcher:
@@ -67,6 +71,65 @@ class EventDispatcher:
                 continue
             await self._handle_event(event)
 
+    async def _broadcast_channel_a(self, payload: dict) -> None:
+        """Send a copy of payload to Channel A after stripping large image fields."""
+        if isinstance(payload, dict):
+            safe_payload = dict(payload)
+            for field_name in (
+                "faceimagebase64",
+                "face_image_base64",
+                "imagebase64",
+                "image_base64",
+            ):
+                safe_payload.pop(field_name, None)
+
+            for nested_key in ("data", "recognitiondata", "recognition_data"):
+                nested_value = safe_payload.get(nested_key)
+                if not isinstance(nested_value, dict):
+                    continue
+                cleaned_nested = dict(nested_value)
+                for field_name in (
+                    "faceimagebase64",
+                    "face_image_base64",
+                    "imagebase64",
+                    "image_base64",
+                ):
+                    cleaned_nested.pop(field_name, None)
+                safe_payload[nested_key] = cleaned_nested
+        else:
+            safe_payload = payload
+        await self.ws_manager.broadcast_channel_a(safe_payload)
+
+    @staticmethod
+    def _make_light_payload(payload: dict) -> dict:
+        if not isinstance(payload, dict):
+            return payload
+
+        safe_payload = dict(payload)
+        for field_name in (
+            "faceimagebase64",
+            "face_image_base64",
+            "imagebase64",
+            "image_base64",
+        ):
+            safe_payload.pop(field_name, None)
+
+        for nested_key in ("data", "recognitiondata", "recognition_data"):
+            nested_value = safe_payload.get(nested_key)
+            if not isinstance(nested_value, dict):
+                continue
+            cleaned_nested = dict(nested_value)
+            for field_name in (
+                "faceimagebase64",
+                "face_image_base64",
+                "imagebase64",
+                "image_base64",
+            ):
+                cleaned_nested.pop(field_name, None)
+            safe_payload[nested_key] = cleaned_nested
+
+        return safe_payload
+
     async def _handle_event(self, event: dict) -> None:
         event_type = str(event.get("event_type", ""))
 
@@ -74,17 +137,48 @@ class EventDispatcher:
             normalized = self._normalize_success_event(event)
             persisted_payload = self._persist_checkin_event(normalized)
             if persisted_payload is not None:
-                await self.ws_manager.broadcast_channel_a(persisted_payload)
+                if isinstance(persisted_payload, tuple):
+                    light_payload, full_payload = persisted_payload
+                    await self._broadcast_channel_a(light_payload)
+                    await self.ws_manager.broadcast_channel_queue(full_payload)
+                else:
+                    await self._broadcast_channel_a(persisted_payload)
             return
 
         if event_type == "recognition.pending":
+            try:
+                logger.info(
+                    "received recognition.pending: event_id=%s timestamp=%s subject=%s similarity=%s",
+                    event.get("event_id"),
+                    event.get("timestamp"),
+                    self._extract_subject_id_for_event(event),
+                    self._extract_similarity_for_event(event),
+                )
+            except Exception:
+                logger.exception("failed logging recognition.pending receipt")
+            # Diagnose whether the event carries an image we can extract
+            try:
+                image_b64 = self._extract_image_base64_for_event(event)
+                img_len = len(image_b64) if image_b64 else 0
+                # Log minimal info for operators to trace missing images
+                logger.info(
+                    "recognition.pending: extracted_image_len=%d event_keys=%s data_keys=%s",
+                    img_len,
+                    list(event.keys()),
+                    list(event.get("data", {}).keys()) if isinstance(event.get("data"), dict) else None,
+                )
+            except Exception:
+                logger.exception("failed extracting image from recognition.pending")
             persisted_payload = self._persist_pending_event(event)
             if persisted_payload is not None:
-                await self.ws_manager.broadcast_channel_a(persisted_payload)
+                light_payload, full_payload = persisted_payload
+                await self._broadcast_channel_a(light_payload)
+                await self.ws_manager.broadcast_channel_queue(full_payload)
             return
 
         if event_type == "recognition_log":
             self._persist_recognition_log_event(event)
+            await self._broadcast_channel_a(event)
             return
 
         if event_type == "debug_frame":
@@ -94,11 +188,13 @@ class EventDispatcher:
         if event_type in {"unknown_face", "recognition.unknown"}:
             persisted_payload = self._persist_unknown_event(event)
             if persisted_payload is not None:
-                await self.ws_manager.broadcast_channel_a(persisted_payload)
+                light_payload, full_payload = persisted_payload
+                await self._broadcast_channel_a(light_payload)
+                await self.ws_manager.broadcast_channel_queue(full_payload)
             return
 
         # Other runtime events go to channel A for ops visibility.
-        await self.ws_manager.broadcast_channel_a(event)
+        await self._broadcast_channel_a(event)
 
     @staticmethod
     def _normalize_success_event(event: dict) -> dict:
@@ -126,8 +222,13 @@ class EventDispatcher:
 
     @staticmethod
     def _extract_business_data(event: dict) -> dict:
-        if str(event.get("event_type", "")).startswith("recognition.") and isinstance(event.get("data"), dict):
-            return dict(event.get("data") or {})
+        if str(event.get("event_type", "")).startswith("recognition."):
+            if isinstance(event.get("data"), dict):
+                return dict(event.get("data") or {})
+            if isinstance(event.get("recognitiondata"), dict):
+                return dict(event.get("recognitiondata") or {})
+            if isinstance(event.get("recognition_data"), dict):
+                return dict(event.get("recognition_data") or {})
         return dict(event)
 
     @classmethod
@@ -142,11 +243,42 @@ class EventDispatcher:
         return data.get("best_similarity", data.get("similarity"))
 
     @classmethod
-    def _extract_image_base64_for_event(cls, event: dict) -> str:
+    def _extract_image_base64_for_event(cls, event: dict) -> str | None:
         data = cls._extract_business_data(event)
-        return str(data.get("face_image_base64") or data.get("image_base64") or event.get("image_base64") or "")
+        recognition_data = {}
+        if isinstance(event.get("recognitiondata"), dict):
+            recognition_data = event.get("recognitiondata") or {}
+        elif isinstance(event.get("recognition_data"), dict):
+            recognition_data = event.get("recognition_data") or {}
 
-    def _persist_checkin_event(self, event: dict) -> dict:
+        def first_non_empty_string(*values) -> str | None:
+            for value in values:
+                if value is None:
+                    continue
+                if isinstance(value, str):
+                    candidate = value.strip()
+                else:
+                    candidate = str(value).strip()
+                if candidate:
+                    return candidate
+            return None
+
+        return first_non_empty_string(
+            data.get("faceimagebase64"),
+            data.get("face_image_base64"),
+            data.get("imagebase64"),
+            data.get("image_base64"),
+            recognition_data.get("faceimagebase64"),
+            recognition_data.get("face_image_base64"),
+            recognition_data.get("imagebase64"),
+            recognition_data.get("image_base64"),
+            event.get("faceimagebase64"),
+            event.get("face_image_base64"),
+            event.get("imagebase64"),
+            event.get("image_base64"),
+        )
+
+    def _persist_checkin_event(self, event: dict) -> dict | tuple[dict, dict]:
         payload = dict(event)
         subject_id = str(event.get("subject_id", "")).strip()
         timestamp = self._parse_timestamp(event.get("timestamp"))
@@ -160,6 +292,9 @@ class EventDispatcher:
                     timestamp=timestamp,
                     subject_id=subject_id,
                 )
+                if isinstance(orphaned_payload, tuple):
+                    db.commit()
+                    return orphaned_payload
                 if orphaned_payload.get("event_type") in {"check_in", "check_in_ignored"}:
                     record_feed_event(db, orphaned_payload, source="auto_face")
                 db.commit()
@@ -206,6 +341,26 @@ class EventDispatcher:
             )
             db.add(record)
             db.flush()
+
+            log_reason = str(payload.get("method") or "").strip() or None
+            existing_log = db.scalar(
+                select(RecognitionLog).where(
+                    RecognitionLog.timestamp == timestamp,
+                    RecognitionLog.best_subject_id == subject_id,
+                    RecognitionLog.status == RecognitionStatus.SUCCESS,
+                )
+            )
+            if existing_log is None:
+                self._create_recognition_log(
+                    db,
+                    status=RecognitionStatus.SUCCESS,
+                    best_subject_id=subject_id,
+                    similarity=payload.get("best_similarity", payload.get("similarity")),
+                    second_subject_id=payload.get("second_subject_id"),
+                    second_similarity=payload.get("second_similarity"),
+                    timestamp=timestamp,
+                    reason=log_reason,
+                )
 
             payload["persist_status"] = "ok"
             payload["member_id"] = str(member.id)
@@ -270,8 +425,8 @@ class EventDispatcher:
         event: dict,
         timestamp: datetime,
         subject_id: str,
-    ) -> dict:
-        image_base64 = str(event.get("face_image_base64") or event.get("image_base64") or "")
+    ) -> tuple[dict, dict]:
+        image_base64 = self._extract_image_base64_for_event(event)
         best_subject_id = subject_id or "unknown"
         best_subject_name = self._resolve_member_name_by_subject(db, best_subject_id)
         best_subject_name_chn = self._resolve_member_name_chn_by_subject(db, best_subject_id)
@@ -332,16 +487,20 @@ class EventDispatcher:
                 "second_subject_id": None,
                 "second_similarity": None,
                 "reason": "orphaned_profile",
-                "face_image_base64": None,
+                "face_image_base64": image_base64,
                 "box": event.get("box"),
             },
         }
-        # Do not include the base64 image in websocket payloads for Channel A
-        # to avoid large strings polluting the reception/check-in views.
-        return payload
+        if image_base64:
+            payload["face_image_base64"] = image_base64
+
+        full_payload = payload
+        light_payload = self._make_light_payload(full_payload)
+        return light_payload, full_payload
 
     def _persist_recognition_log_event(self, event: dict) -> None:
         status = self._safe_status(event.get("status"))
+        reason = str(event.get("reason") or "").strip() or None
         with SessionLocal() as db:
             self._create_recognition_log(
                 db,
@@ -351,16 +510,17 @@ class EventDispatcher:
                 second_subject_id=event.get("second_subject_id"),
                 second_similarity=event.get("second_similarity"),
                 timestamp=self._parse_timestamp(event.get("timestamp")),
+                reason=reason,
             )
             db.commit()
 
-    def _persist_pending_event(self, event: dict) -> dict | None:
+    def _persist_pending_event(self, event: dict) -> tuple[dict, dict] | None:
         return self._persist_queue_event(event, decision="pending")
 
-    def _persist_unknown_event(self, event: dict) -> dict | None:
+    def _persist_unknown_event(self, event: dict) -> tuple[dict, dict] | None:
         return self._persist_queue_event(event, decision="unknown")
 
-    def _persist_queue_event(self, event: dict, decision: str) -> dict | None:
+    def _persist_queue_event(self, event: dict, decision: str) -> tuple[dict, dict] | None:
         payload = dict(event)
         data = self._extract_business_data(event)
         timestamp = self._parse_timestamp(event.get("timestamp"))
@@ -374,6 +534,32 @@ class EventDispatcher:
         image_base64 = self._extract_image_base64_for_event(event)
         similarity = self._safe_float(data.get("best_similarity", data.get("similarity")))
         second_similarity = self._safe_float(data.get("second_similarity"))
+        try:
+            img_len_preview = len(image_base64) if image_base64 else 0
+        except Exception:
+            img_len_preview = 0
+
+        # Remember whether the original event actually carried an image
+        original_image_present = bool(image_base64)
+
+        # If there is no image, persist a small placeholder so the front-end shows a card.
+        # Use a tiny 1x1 PNG placeholder (transparent) as base64.
+        PLACEHOLDER_PNG_BASE64 = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAA"
+            "AASUVORK5CYII="
+        )
+        if not original_image_present:
+            logger.info(
+                "persist_queue_event: no image for decision=%s subject=%s timestamp=%s, using placeholder",
+                decision,
+                best_subject_id,
+                timestamp.isoformat(),
+            )
+            image_base64 = PLACEHOLDER_PNG_BASE64
+            try:
+                img_len_preview = len(image_base64)
+            except Exception:
+                img_len_preview = 0
 
         with SessionLocal() as db:
             if decision == "unknown" and self._should_suppress_unknown_after_successful_checkin(
@@ -439,7 +625,36 @@ class EventDispatcher:
                 note=note,
             )
             db.add(row)
-            db.commit()
+            # Flush to populate row.id before commit and log debug info about image
+            db.flush()
+            try:
+                img_len = len(image_base64) if image_base64 else 0
+            except Exception:
+                img_len = 0
+            logger.info(
+                "persist_queue_event: created UnknownFaceCase id=%s decision=%s timestamp=%s queue_kind=%s image_len=%d",
+                str(row.id),
+                decision,
+                timestamp.isoformat(),
+                queue_kind,
+                img_len,
+            )
+            try:
+                db.commit()
+                logger.info(
+                    "persist_queue_event: commit success id=%s decision=%s timestamp=%s",
+                    str(row.id),
+                    decision,
+                    timestamp.isoformat(),
+                )
+            except Exception:
+                logger.exception(
+                    "persist_queue_event: commit failed id=%s decision=%s timestamp=%s",
+                    getattr(row, "id", None),
+                    decision,
+                    timestamp.isoformat(),
+                )
+                raise
 
             source_event_type = str(event.get("event_type") or "")
             if source_event_type == "unknown_face":
@@ -468,12 +683,17 @@ class EventDispatcher:
                 "second_subject_id": second_subject_id,
                 "second_similarity": second_similarity,
                 "reason": reason,
-                "face_image_base64": None,
+                "face_image_base64": image_base64,
+                # whether the original event provided a real image (not placeholder)
+                "image_available": original_image_present,
                 "box": data.get("box"),
             }
-            payload.pop("image_base64", None)
-            payload.pop("face_image_base64", None)
-            return payload
+            if image_base64:
+                payload["face_image_base64"] = image_base64
+
+            full_payload = payload
+            light_payload = self._make_light_payload(full_payload)
+            return light_payload, full_payload
 
     def _should_suppress_unknown_after_successful_checkin(
         self,
@@ -523,6 +743,7 @@ class EventDispatcher:
         second_subject_id,
         second_similarity,
         timestamp: datetime,
+        reason: str | None = None,
     ) -> None:
         best_subject_id_str = str(best_subject_id) if best_subject_id else "unknown"
         second_subject_id_str = str(second_subject_id) if second_subject_id else None
@@ -535,6 +756,7 @@ class EventDispatcher:
             second_similarity=EventDispatcher._safe_float(second_similarity),
             best_subject_name=EventDispatcher._resolve_member_name_by_subject(db, best_subject_id_str),
             second_subject_name=EventDispatcher._resolve_member_name_by_subject(db, second_subject_id_str),
+            reason=reason,
             status=status,
         )
         db.add(row)
@@ -621,14 +843,8 @@ class EventDispatcher:
 
     @staticmethod
     def _safe_status(value) -> RecognitionStatus:
-        if isinstance(value, RecognitionStatus):
-            return value
         try:
-            return RecognitionStatus(str(value))
-        except ValueError:
-            pass
-
-        try:
-            return RecognitionStatus[str(value).split(".")[-1].upper()]
-        except (KeyError, AttributeError):
+            return RecognitionStatus(value)
+        except (ValueError, KeyError):
+            logger.warning("unknown recognition status value: %r, falling back to UNKNOWN", value)
             return RecognitionStatus.UNKNOWN

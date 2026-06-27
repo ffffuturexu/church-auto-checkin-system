@@ -42,11 +42,12 @@ class CheckInMethod(str, enum.Enum):
 
 
 class RecognitionStatus(str, enum.Enum):
-    SUCCESS = "success"
-    PENDING = "pending"
-    FAILED_MARGIN = "failed_margin" # 相似度未达到阈值，但仍有一个或多个候选人，可能需要人工审核。
-    FAILED_THRESHOLD = "failed_threshold" # 相似度未达到阈值，且没有候选人，直接识别失败。
-    UNKNOWN = "unknown"
+    SUCCESS = "success"  # reason: auto_face_absolute | auto_face_vote
+    PENDING = "pending"  # reason: ambiguous_margin | weak_consensus | vote_timeout | insufficient_frames | weak_candidate
+    NO_DECISION = "no_decision"  # reason: similarity_gap
+    UNKNOWN = "unknown"  # reason: stranger_detected
+    FAILED_MARGIN = "failed_margin"  # deprecated，保留兼容
+    FAILED_THRESHOLD = "failed_threshold"  # deprecated，保留兼容
 
 
 class UnknownCaseStatus(str, enum.Enum):
@@ -141,6 +142,7 @@ class RecognitionLog(Base):
     second_subject_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     second_subject_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     second_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     status: Mapped[RecognitionStatus] = mapped_column(
         Enum(RecognitionStatus, native_enum=False, length=32),
         nullable=False,

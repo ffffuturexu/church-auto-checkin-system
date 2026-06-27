@@ -191,6 +191,31 @@ def test_dispatch_unknown_face_persists_and_pushes_channel_a(dispatcher_ws_conte
         assert rows[0].reason == "failed_threshold"
 
 
+def test_dispatch_unknown_face_persists_top_level_face_image_base64(dispatcher_ws_context):
+    client = dispatcher_ws_context["client"]
+    session_factory = dispatcher_ws_context["session_factory"]
+
+    with client.websocket_connect("/ws/channel-a") as ws:
+        payload = {
+            "event_type": "unknown_face",
+            "timestamp": "2026-04-04T10:00:00",
+            "reason": "failed_threshold",
+            "face_image_base64": "ZmFrZS10b3AtbGV2ZWwtZmFjZQ==",
+        }
+        resp = client.post("/_test/dispatch", json=payload)
+        assert resp.status_code == 200
+
+        pushed = ws.receive_json()
+        assert pushed["event_type"] == "unknown_face"
+        assert pushed["queue_status"] == "pending"
+        assert pushed.get("case_id")
+
+    with session_factory() as db:
+        rows = db.execute(select(UnknownFaceCase)).scalars().all()
+        assert len(rows) == 1
+        assert rows[0].image_base64 == "ZmFrZS10b3AtbGV2ZWwtZmFjZQ=="
+
+
 def test_dispatch_unknown_face_after_successful_checkin_is_suppressed(dispatcher_ws_context):
     client = dispatcher_ws_context["client"]
     session_factory = dispatcher_ws_context["session_factory"]

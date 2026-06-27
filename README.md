@@ -562,3 +562,26 @@ pytest tests/ --cov=app --cov-report=html
 **最后更新**: 2026-06-19  
 **维护者**: Weilai Xu@Rugiada
 **仓库**: [github.com/ffffuturexu/church-auto-checkin-system](https://github.com/ffffuturexu/church-auto-checkin-system)
+
+### 补充变更（2026-06-27）
+
+以下为 6 月份更新，按功能域归类以便快速查阅：
+
+- **识别引擎（Recognition Engine）**:
+   - Pending 候选快照改为双缓存 `latest` + `best`，避免 finalize 时覆盖或丢失最佳抓拍；在 finalize 前先读取 snapshot 再 clear state。
+   - 新增轻量可用性检查 `_is_snapshot_usable`，以及选择策略 `_select_pending_snapshot`，只返回可编码的候选。
+   - 增加编码回退逻辑 `_encode_pending_snapshot_with_fallback`：优先编码 `best`，若失败则回退尝试 `latest`，最终将成功编码的 base64 与对应 box 放入 `recognition.pending` 事件。
+   - 修正 finalize 时序 bug（先取 snapshot，再 clear state），并保持 `latest` 始终更新、`best` 仅在更高相似度且 snapshot 可用时更新。
+   - 增加类型注解：`PendingSnapshotTuple` 顶层定义，确保 snapshot tuple 为五元组 `(frame, box, second_subject_id, second_similarity, similarity)`。
+
+- **事件与日志**:
+   - `RecognitionEngine._commit_checkin` 解耦 `method`（签到渠道）与 `recognition_reason`（识别日志原因），保持事件载荷向后兼容。
+   - `recognition.pending`、`recognition.unknown`、`recognition.success` 的 payload schema 保持不变，事件字段名未修改。
+
+- **运维 & 调试**:
+   - 小幅修正 finalize 的 reason 判定顺序（`ambiguous_margin` → `weak_consensus` → `vote_timeout`），并为被丢弃候选补写 `insufficient_frames` 与 `weak_candidate` 日志，便于审计与调试。
+
+- **文档 & 测试说明**:
+   - 本次变更为代码层面的小幅修复与健壮性增强，保持对外事件 schema 向后兼容；建议在 CI 中运行识别引擎相关单元测试（`tests/test_recognition_engine_logic.py`）以验证行为。
+
+注：以上改动均为最小侵入式修复，未修改 `recognition.pending` 的事件字段名或主流程的 stranger / success 路径。

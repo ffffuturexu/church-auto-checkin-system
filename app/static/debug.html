@@ -464,10 +464,31 @@
       return '';
     }
 
+    function sanitizeChannelAEvent(event) {
+      const safeEvent = event && typeof event === 'object' ? { ...event } : {};
+      const imageFieldNames = ['faceimagebase64', 'face_image_base64', 'imagebase64', 'image_base64'];
+
+      for (const fieldName of imageFieldNames) {
+        delete safeEvent[fieldName];
+      }
+
+      for (const nestedKey of ['data', 'recognitiondata', 'recognition_data']) {
+        const nestedValue = safeEvent[nestedKey];
+        if (!nestedValue || typeof nestedValue !== 'object' || Array.isArray(nestedValue)) {
+          continue;
+        }
+        const cleanedNested = { ...nestedValue };
+        for (const fieldName of imageFieldNames) {
+          delete cleanedNested[fieldName];
+        }
+        safeEvent[nestedKey] = cleanedNested;
+      }
+
+      return safeEvent;
+    }
+
     function addEvent(event) {
-      const safeEvent = { ...event };
-      delete safeEvent.face_image_base64;
-      delete safeEvent.image_base64;
+      const safeEvent = sanitizeChannelAEvent(event);
       const li = document.createElement('li');
       const evtClass = classifyEventClass(safeEvent);
       if (evtClass) {

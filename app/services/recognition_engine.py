@@ -11,6 +11,10 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Any
+from typing import Any, Tuple
+
+# Pending snapshot tuple: (frame, box, second_subject_id, second_similarity, similarity)
+PendingSnapshotTuple = tuple[Any, dict[str, int] | None, str | None, float | None, float]
 
 import cv2
 import numpy as np
@@ -102,7 +106,12 @@ class RecognitionEngine:
         self._vote_buffer_last_seen: dict[str, datetime] = {}
         self._pending_candidates: dict[str, deque[dict[str, Any]]] = {}
         self._pending_last_seen: dict[str, datetime] = {}
-        self._pending_snapshots: dict[str, tuple[Any, dict[str, int] | None, str | None, float | None]] = {}
+        # pending snapshots now keep both a 'latest' and a 'best' entry per subject.
+        # Each entry value is a tuple:
+        # (frame, box, second_subject_id, second_similarity, similarity)
+        # This preserves a recent frame (latest) and a historically best-quality
+        # frame (best). Finalize must read snapshot before clearing the pending state.
+        self._pending_snapshots: dict[str, dict[str, PendingSnapshotTuple | None]] = {}
         self._stranger_candidates: dict[str, deque[tuple[datetime, float]]] = {}
         self._stranger_last_seen: dict[str, datetime] = {}
         self._stranger_snapshots: dict[str, tuple[Any, dict[str, int] | None, float]] = {}
@@ -336,7 +345,8 @@ class RecognitionEngine:
                     box=box,
                     second_subject_id=second_subject,
                     second_similarity=second_similarity,
-                    method="auto_face_absolute",
+                    method="auto_face",
+                    recognition_reason="auto_face_absolute",
                 )
                 debug_annotations.append(
                     {
@@ -394,6 +404,14 @@ class RecognitionEngine:
                 best_subject or "<none>",
                 best_similarity,
             )
+            self._emit_log(
+                status="no_decision",
+                best_subject_id=best_subject or "unknown",
+                similarity=best_similarity,
+                second_subject_id=second_subject,
+                second_similarity=second_similarity,
+                reason="similarity_gap",
+            )
             debug_annotations.append(
                 {
                     "box": box,
@@ -439,7 +457,39 @@ class RecognitionEngine:
             subject_buffer.popleft()
 
         self._pending_last_seen[subject] = now
-        self._pending_snapshots[subject] = (frame, box, second_subject_id, second_similarity)
+
+        # Ensure dict structure for pending snapshots per subject.
+        entry = self._pending_snapshots.get(subject)
+        latest_tuple = (frame, box, second_subject_id, float(second_similarity), float(similarity))
+        if entry is None:
+            # Initialize with latest; best is set only when a usable better snapshot appears.
+            best_tuple = None
+            if self._is_snapshot_usable(frame, box):
+                # Seed best if no prior best and current snapshot is usable.
+                best_tuple = latest_tuple
+            self._pending_snapshots[subject] = {"latest": latest_tuple, "best": best_tuple}
+        else:
+            # Always update latest
+            entry["latest"] = latest_tuple
+            best = entry.get("best")
+            # Update best only if current similarity strictly greater than stored best
+            # and current snapshot is usable. This avoids overwriting a good image
+            # with a lower-quality/bad frame.
+            try:
+                current_sim = float(similarity)
+            except Exception:
+                current_sim = float(0.0)
+
+            if best is None:
+                if self._is_snapshot_usable(frame, box):
+                    entry["best"] = latest_tuple
+            else:
+                try:
+                    best_sim = float(best[4] if len(best) > 4 else 0.0)
+                except Exception:
+                    best_sim = float(0.0)
+                if current_sim > best_sim and self._is_snapshot_usable(frame, box):
+                    entry["best"] = latest_tuple
 
     def _finalize_pending_candidates(self, now: datetime) -> None:
         if not self._pending_candidates:
@@ -467,9 +517,25 @@ class RecognitionEngine:
                 continue
 
             samples = list(buffer)
+
+            # Select and attempt encoding BEFORE clearing pending state. Use
+            # a fallback encoding strategy: try best (if usable) first, then
+            # try latest if encoding of best fails.
+            frame, box, second_subject_id, second_similarity, face_image_base64 = self._encode_pending_snapshot_with_fallback(subject_id)
+
+            # Now clear per-subject pending state to avoid leakage.
             self._clear_pending_state(subject_id)
 
             if len(samples) < min_frames:
+                max_similarity = max((float(item["similarity"]) for item in samples), default=0.0)
+                self._emit_log(
+                    status="pending",
+                    best_subject_id=subject_id,
+                    similarity=max_similarity,
+                    second_subject_id=None,
+                    second_similarity=None,
+                    reason="insufficient_frames",
+                )
                 logger.info(
                     "recognition discarded: subject=%s reason=insufficient_frames samples=%d",
                     subject_id,
@@ -479,6 +545,14 @@ class RecognitionEngine:
 
             max_similarity = max(float(item["similarity"]) for item in samples)
             if max_similarity < float(self.params.pending_min_similarity):
+                self._emit_log(
+                    status="pending",
+                    best_subject_id=subject_id,
+                    similarity=max_similarity,
+                    second_subject_id=None,
+                    second_similarity=None,
+                    reason="weak_candidate",
+                )
                 logger.info(
                     "recognition discarded: subject=%s reason=weak_candidate similarity=%.3f",
                     subject_id,
@@ -493,16 +567,12 @@ class RecognitionEngine:
                 for item in samples
             )
 
-            reason = "vote_timeout"
             if max_margin < margin:
                 reason = "ambiguous_margin"
             elif qualified_ratio < vote_ratio:
                 reason = "weak_consensus"
-
-            frame, box, second_subject_id, second_similarity = self._pending_snapshots.get(
-                subject_id,
-                (None, None, None, None),
-            )
+            else:
+                reason = "vote_timeout"
 
             self._emit_log(
                 status="pending",
@@ -510,6 +580,7 @@ class RecognitionEngine:
                 similarity=max_similarity,
                 second_subject_id=second_subject_id,
                 second_similarity=second_similarity,
+                reason=reason,
             )
             self._emit_business_event(
                 event_type="recognition.pending",
@@ -521,7 +592,7 @@ class RecognitionEngine:
                 second_subject_id=second_subject_id,
                 second_similarity=second_similarity,
                 reason=reason,
-                face_image_base64=self._encode_unknown_face(frame, box) if frame is not None else None,
+                face_image_base64=face_image_base64,
                 box=box,
             )
 
@@ -614,6 +685,7 @@ class RecognitionEngine:
                 similarity=max_similarity,
                 second_subject_id=None,
                 second_similarity=None,
+                reason="stranger_detected",
             )
             self._emit_business_event(
                 event_type="recognition.unknown",
@@ -624,7 +696,7 @@ class RecognitionEngine:
                 best_similarity=max_similarity,
                 second_subject_id=None,
                 second_similarity=None,
-                reason="stranger_low_similarity",
+                reason="stranger_detected",
                 face_image_base64=image_b64,
                 box=box,
             )
@@ -645,6 +717,162 @@ class RecognitionEngine:
         self._pending_candidates.pop(subject_id, None)
         self._pending_last_seen.pop(subject_id, None)
         self._pending_snapshots.pop(subject_id, None)
+
+    def _is_snapshot_usable(self, frame: Any, box: dict[str, int] | None) -> bool:
+        """Lightweight usability check for a pending snapshot.
+
+        Requirements:
+        - frame is not None and has `.shape`
+        - can safely read `frame.shape[:2]`
+        - if box provided, width/height > 0 and the padded crop area is large enough
+          (uses same minimal thresholds as `_encode_unknown_face` to avoid tiny crops)
+        """
+        if frame is None:
+            return False
+        if not hasattr(frame, "shape"):
+            return False
+        try:
+            h, w = frame.shape[:2]
+        except Exception:
+            return False
+
+        if box is None:
+            return True
+
+        try:
+            x_min = max(0, int(box.get("x_min", 0)))
+            y_min = max(0, int(box.get("y_min", 0)))
+            width = max(0, int(box.get("width", 0)))
+            height = max(0, int(box.get("height", 0)))
+        except Exception:
+            return False
+
+        if width <= 0 or height <= 0:
+            return False
+
+        # replicate lightweight padding logic from _encode_unknown_face to ensure
+        # the final crop won't be trivially small or invalid.
+        try:
+            x_max = min(w, x_min + width)
+            y_max = min(h, y_min + height)
+            pad_x = max(6, int(width * 0.2))
+            pad_y = max(6, int(height * 0.2))
+            x0 = max(0, x_min - pad_x)
+            y0 = max(0, y_min - pad_y)
+            x1 = min(w, x_max + pad_x)
+            y1 = min(h, y_max + pad_y)
+        except Exception:
+            return False
+
+        if x1 <= x0 or y1 <= y0:
+            return False
+        if (x1 - x0) < 24 or (y1 - y0) < 24:
+            return False
+        return True
+
+    def _select_pending_snapshot(self, subject_id: str) -> tuple[Any | None, dict[str, int] | None, str | None, float | None]:
+        """Select the pending snapshot for `subject_id`.
+
+        Selection rules:
+        1. Prefer `best` if present and usable.
+        2. Otherwise return `latest` if present.
+        3. If nothing available return (None, None, None, None).
+
+        Return value kept compatible with legacy callers: (frame, box, second_subject_id, second_similarity)
+        """
+        entry = self._pending_snapshots.get(subject_id)
+        if not entry:
+            return (None, None, None, None)
+
+        best = entry.get("best")
+        latest = entry.get("latest")
+
+        # Prefer best only if usable, otherwise use latest only if usable.
+        if best is not None:
+            try:
+                b_frame, b_box, b_second_id, b_second_sim, _b_sim = best
+            except Exception:
+                b_frame, b_box, b_second_id, b_second_sim = (None, None, None, None)
+            if self._is_snapshot_usable(b_frame, b_box):
+                return (b_frame, b_box, b_second_id, b_second_sim)
+
+        if latest is not None:
+            try:
+                l_frame, l_box, l_second_id, l_second_sim, _l_sim = latest
+            except Exception:
+                l_frame, l_box, l_second_id, l_second_sim = (None, None, None, None)
+            if self._is_snapshot_usable(l_frame, l_box):
+                return (l_frame, l_box, l_second_id, l_second_sim)
+
+        return (None, None, None, None)
+
+    def _encode_pending_snapshot_with_fallback(self, subject_id: str) -> tuple[Any | None, dict[str, int] | None, str | None, float | None, str | None]:
+        """Attempt to encode a pending snapshot for `subject_id` with fallback.
+
+        Order:
+        - prefer `best` if usable
+        - else prefer `latest` if usable
+        - try to encode the preferred snapshot; if encoding fails and `latest`
+          is different and usable, try encoding `latest` as a fallback
+        - return tuple: (frame, box, second_subject_id, second_similarity, image_b64_or_None)
+
+        Note: if neither best nor latest are considered usable, returns all Nones.
+        """
+        entry = self._pending_snapshots.get(subject_id)
+        if not entry:
+            return (None, None, None, None, None)
+
+        best = entry.get("best")
+        latest = entry.get("latest")
+
+        pref = None
+        # prepare best
+        if best is not None:
+            try:
+                b_frame, b_box, b_second_id, b_second_sim, b_sim = best
+            except Exception:
+                b_frame = b_box = b_second_id = b_second_sim = b_sim = None
+            if self._is_snapshot_usable(b_frame, b_box):
+                pref = ("best", b_frame, b_box, b_second_id, b_second_sim)
+
+        if pref is None and latest is not None:
+            try:
+                l_frame, l_box, l_second_id, l_second_sim, l_sim = latest
+            except Exception:
+                l_frame = l_box = l_second_id = l_second_sim = l_sim = None
+            if self._is_snapshot_usable(l_frame, l_box):
+                pref = ("latest", l_frame, l_box, l_second_id, l_second_sim)
+
+        if pref is None:
+            return (None, None, None, None, None)
+
+        kind, p_frame, p_box, p_second_id, p_second_sim = pref
+        image_b64 = None
+        if p_frame is not None:
+            try:
+                image_b64 = self._encode_unknown_face(p_frame, p_box)
+            except Exception:
+                image_b64 = None
+
+        if image_b64:
+            return (p_frame, p_box, p_second_id, p_second_sim, image_b64)
+
+        # fallback: if preferred was best, try latest if different and usable
+        if kind != "latest" and latest is not None:
+            try:
+                l_frame, l_box, l_second_id, l_second_sim, l_sim = latest
+            except Exception:
+                l_frame = l_box = l_second_id = l_second_sim = l_sim = None
+            if (l_frame is not None) and self._is_snapshot_usable(l_frame, l_box):
+                try:
+                    l_b64 = self._encode_unknown_face(l_frame, l_box)
+                except Exception:
+                    l_b64 = None
+                if l_b64:
+                    return (l_frame, l_box, l_second_id, l_second_sim, l_b64)
+
+        # both attempts failed, return preferred values but with None for image
+        return (p_frame, p_box, p_second_id, p_second_sim, None)
 
     def _clear_stranger_state(self, key: str) -> None:
         self._stranger_candidates.pop(key, None)
@@ -705,7 +933,8 @@ class RecognitionEngine:
             box=box,
             second_subject_id=second_subject_id,
             second_similarity=second_similarity,
-            method="auto_face_vote",
+            method="auto_face",
+            recognition_reason="auto_face_vote",
         )
         return True
 
@@ -732,7 +961,8 @@ class RecognitionEngine:
         box: dict[str, int] | None,
         second_subject_id: str | None = None,
         second_similarity: float | None = None,
-        method: str = "auto_face",
+        method: str = "auto_face", # 签到途径method和识别原因recognition_reason解耦，前者用于业务事件，后者用于日志记录
+        recognition_reason: str | None = None,
     ) -> None:
         now = now_local()
         dedupe_window = timedelta(seconds=max(0, int(self.params.dedupe_seconds)))
@@ -760,6 +990,7 @@ class RecognitionEngine:
             similarity=similarity,
             second_subject_id=second_subject_id,
             second_similarity=second_similarity,
+            reason=recognition_reason,
         )
         self._emit_business_event(
             event_type="recognition.success",
@@ -821,6 +1052,7 @@ class RecognitionEngine:
         similarity: float,
         second_subject_id: str | None,
         second_similarity: float | None,
+        reason: str | None = None,
     ) -> None:
         self._emit_event(
             "recognition_log",
@@ -830,6 +1062,7 @@ class RecognitionEngine:
             similarity=similarity,
             second_subject_id=second_subject_id,
             second_similarity=second_similarity,
+            reason=reason,
         )
 
     def _emit_business_event(

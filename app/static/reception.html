@@ -730,8 +730,8 @@
     }
 
     function getDisplayName(payload) {
-      const primary = String(payload.member_name || payload.subject_id || '').trim();
-      const chn = String(payload.member_name_chn || payload.member_name_zh || payload.name_chn || '').trim();
+      const primary = String(payload.member_name || payload.subject_id || payload.best_subject_name || '').trim();
+      const chn = String(payload.member_name_chn || payload.member_name_zh || payload.name_chn || payload.best_subject_name_chn || '').trim();
       if (primary && chn && primary !== chn) {
         return `${primary} (${chn})`;
       }
@@ -777,6 +777,25 @@
       // remove repeated commas/whitespace
       s = s.replace(/\s*,\s*/g, '，');
       return s;
+    }
+
+    function firstNonEmptyString(...values) {
+      for (const value of values) {
+        if (value === null || value === undefined) continue;
+        const text = String(value).trim();
+        if (text) return text;
+      }
+      return '';
+    }
+
+    function getUnknownCardImageBase64(payload) {
+      const data = payload && typeof payload.data === 'object' ? payload.data : {};
+      return firstNonEmptyString(
+        data.face_image_base64,
+        payload.face_image_base64,
+        payload.image_base64,
+        data.image_base64,
+      );
     }
 
     function getActiveSearchEventId() {
@@ -983,7 +1002,7 @@
         similarity: Number(data.best_similarity ?? data.similarity ?? payload.best_similarity ?? payload.similarity ?? 0) || 0,
         secondSimilarity: Number(data.second_similarity ?? payload.second_similarity ?? 0) || 0,
         reason: String(data.reason || payload.reason || payload.persist_status || '').trim(),
-        faceImageBase64: data.face_image_base64 || payload.image_base64 || payload.face_image_base64 || null,
+        faceImageBase64: getUnknownCardImageBase64(payload) || null,
         box: data.box || payload.box || null,
       };
 
@@ -1067,8 +1086,7 @@
       const rawTs = normalized.timestamp;
       const ts = formatTimestamp(rawTs);
       const methodLabel = getFeedMethodLabel(normalized.method);
-      const fallbackName = payload.member_name || payload.member_name_chn || payload.best_subject_name || normalized.subjectId || '-';
-      const name = String(fallbackName || '-').trim() || '-';
+      const name = getDisplayName(payload);
       const memberKey = String(payload.member_id || normalized.subjectId || '').trim();
       const dayKey = toLocalDayKey(rawTs);
       const dedupeKey = memberKey && dayKey ? `${memberKey}|${dayKey}` : '';
@@ -1154,8 +1172,9 @@
 
       const img = document.createElement('img');
       img.alt = 'queue face';
-      if (payload.image_base64) {
-        img.src = `data:image/jpeg;base64,${payload.image_base64}`;
+      const imageBase64 = getUnknownCardImageBase64(payload);
+      if (imageBase64) {
+        img.src = `data:image/jpeg;base64,${imageBase64}`;
       }
 
 
@@ -1285,7 +1304,14 @@
 
       const imageFrame = document.createElement('div');
       imageFrame.className = 'unknown-image-frame';
-      imageFrame.appendChild(img);
+      if (imageBase64) {
+        imageFrame.appendChild(img);
+      } else {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'tiny';
+        placeholder.textContent = '暂无图片';
+        imageFrame.appendChild(placeholder);
+      }
 
       card.appendChild(imageFrame);
       card.appendChild(candidateInfo);
@@ -2066,25 +2092,45 @@
 
         if (normalized.businessType === 'pending' || normalized.businessType === 'unknown') {
           addLiveItem(payload);
-          const queuePayload = {
-            ...payload,
-            timestamp: payload.timestamp || new Date().toISOString(),
-            reason: normalized.reason || (normalized.businessType === 'pending' ? 'pending_review' : 'stranger_low_similarity'),
-            queue_kind: (payload.data && payload.data.queue_kind) || payload.queue_kind || (normalized.businessType === 'pending' ? 'pending_review' : 'stranger'),
-            best_subject_id: payload.best_subject_id || normalized.subjectId || '',
-            best_subject_name: payload.best_subject_name || (payload.data && payload.data.subject_name) || '',
-            similarity: normalized.similarity,
-            second_subject_id: payload.second_subject_id || normalized.secondSubjectId || '',
-            second_similarity: normalized.secondSimilarity,
-            image_base64: (payload.data && payload.data.face_image_base64) || payload.image_base64 || payload.face_image_base64 || '',
-            note: payload.note || '',
-          };
-          upsertUnknownCard(queuePayload);
+          return;
         }
       };
 
       ws.onclose = () => {
         setTimeout(connectChannelA, 2500);
+      };
+
+      setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send('ping');
+        }
+      }, 15000);
+    }
+
+    function connectQueueChannel() {
+      const ws = new WebSocket(`${wsBase()}/ws/reception/queue`);
+
+      ws.onmessage = (evt) => {
+        let payload;
+        try {
+          payload = JSON.parse(evt.data);
+        } catch {
+          return;
+        }
+
+        const eventType = String(payload.event_type || '');
+        const allowed = eventType === 'recognition.pending' || eventType === 'recognition.unknown' || eventType === 'unknown_face';
+        if (!allowed) {
+          return;
+        }
+        if (!payload.case_id) {
+          return;
+        }
+        upsertUnknownCard(payload);
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectQueueChannel, 2500);
       };
 
       setInterval(() => {
@@ -2261,6 +2307,7 @@
     refreshCurrentService();
     loadLiveFeed();
     connectChannelA();
+    connectQueueChannel();
   </script>
 </body>
 </html>

@@ -271,6 +271,9 @@ def _migrate_recognition_logs_fields(conn) -> None:
         conn.execute(text("ALTER TABLE recognition_logs ADD COLUMN second_subject_name VARCHAR(120)"))
     if "second_similarity" not in column_names:
         conn.execute(text("ALTER TABLE recognition_logs ADD COLUMN second_similarity FLOAT"))
+    if "reason" not in column_names:
+        conn.execute(text("ALTER TABLE recognition_logs ADD COLUMN reason VARCHAR(64)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_recognition_logs_reason ON recognition_logs (reason)"))
 
     conn.execute(
         text(
