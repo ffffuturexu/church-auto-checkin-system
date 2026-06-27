@@ -236,62 +236,31 @@
 
 ## 开发进度
 
-### ✅ 已完成阶段
+### 月度进度概览
 
-| 阶段 | 关键内容 | 时间 |
-|------|---------|------|
-| **Phase A** | FastAPI 框架搭建与基础配置 | 2026-03 |
-| **Phase B** | 核心数据模型与数据库初始化 | 2026-03 |
-| **Phase C** | 多线程摄像头采集、识别引擎、管道 | 2026-03 |
-| **Phase D** | WebSocket 双通道与事件分发系统 | 2026-04 |
-| **Phase E** | Web UI（调试、接待、管理工作台） | 2026-04 |
-| **Phase F** | 人脸库闭环、接待队列、业务完整性 | 2026-04 |
-| **Phase G** | 最小测试套件与集成测试 | 2026-04 |
-| **Phase H** | 识别链路并发化、Unknown 队列去全局锁、数据孤岛补偿 | 2026-04 |
-| **Phase I** | 人脸主键映射收敛、模型简化、历史兼容迁移 | 2026-04 |
-| **Phase J** | 会友信息展示、字段收敛、照片增强管理 | 2026-04 |
-| **Phase K** | 历史签到迁移入库（11790+ 条历史记录） | 2026-04 |
-| **Phase L** | 统计口径修正、时区统一（Europe/Rome）、筛选优化 | 2026-04 |
-| **Phase M** | 识别参数调优、接待体验优化、噪声抑制 | 2026-05 |
-| **Phase N** | 接待检索增强、语音输入、交互优化 | 2026-05 |
-| **Phase O** | 照片选择器与接待页布局优化 | 2026-05 |
-| **Phase P** | 接待页交互增强与响应式优化 | 2026-05 |
-| **Phase Q** | 关怀中心设计与开发 | 2026-05 |
-| **Phase R** | 照片缩略图与报表布局优化 | 2026-05 |
+| 日期 | 版本号 | 主要更新内容 |
+|------|------|------|
+| 2026-03 | v0.1.0 | FastAPI 基础框架、配置与数据库初始化。 |
+| 2026-03 | v0.1.1 | 多线程摄像头采集、识别引擎与运行管道雏形。 |
+| 2026-04 | v0.2.0 | WebSocket 双通道、事件分发与基础系统看板。 |
+| 2026-04 | v0.2.1 | Web UI 雏形、人脸库闭环与接待队列联动。 |
+| 2026-04 | v0.2.2 | 历史签到迁移入库、时区统一与统计口径修正。 |
+| 2026-05 | v0.3.0 | 接待页体验与响应式优化、检索增强与语音输入。 |
+| 2026-05 | v0.3.1 | 照片缩略图机制、报表布局优化与移动端展示优化。 |
+| 2026-05 | v0.3.2 | 关怀中心设计与开发、风险分层与成员画像。 |
+| 2026-06 | v0.4.0 | 运维稳定性增强：Channel A/B 广播超时保护、队列负载看板与调试控制。 |
+| 2026-06 | v0.4.1 | 调试标注优化、中文姓名 CJK 渲染、超参数展示/编辑拆分。 |
+| 2026-06 | v0.4.2 | 接待页启动优化、状态告警待定态与首屏自动补填。 |
+| 2026-06 | v0.4.3 | 生日提醒脚本、birthday_reminder_logs 运行日志模型与 systemd 定时器。 |
+| 2026-06 | v0.4.4 | 识别事件模型重构：recognition.success / pending / unknown，兼容旧 check_in / unknown_face 映射。 |
+| 2026-06 | v0.4.5 | Pending 候选双缓存、snapshot 编码回退、finalize 时序修正与审计日志补强。 |
 
-### 📅 当前进度（Phase R 完成）
+### 当前进度摘要
 
-- ✅ **业务闭环**: MVP 完整，涵盖签到、人脸库、接待、管理全流程
-- ✅ **API 就绪**: 20+ 核心接口、双通道 WebSocket 实时推送
-- ✅ **测试覆盖**: 400+ 行单元测试 + 386 行集成测试
-- ✅ **体验优化**: 
-  - 接待工作台降噪处理（每人每天去重、图片压缩）
-  - 手动查找会友（拼音、首字母、语音输入）
-   - 识别参数调优（阈值 0.70、Margin 0.20）
-   - 照片选择器性别筛选修复与接待页响应式优化
-   - 状态告警条、签到/完整模式切换与照片选择器分页
-- ✅ **图片体验**: 
-   - 接待页会友卡片与管理后台会友列表切换为缩略图展示
-   - 照片上传、替换、删除链路自动维护缩略图文件
-   - 场次与历史报表签到记录支持缩略图展示
-- ✅ **关怀中心**: 
-   - 关怀成员检索（含拼音/首字母匹配）
-   - 风险等级中文化展示（低/中/高）与公式说明
-   - 成员画像、分群与报告导出能力
-- ✅ **管理后台体验**:
-   - 会友分组输入支持下拉选择与手动输入
-   - 移动端历史签到改为卡片式展示
-- ✅ **数据支持**: 历史签到已入库（11790+ 行），完整统计数据看板
-- ✅ **系统诊断**: 完整的自检诊断与日志清理机制
-
-### 2026-06 进展
-
-- ✅ **运维稳定性**: Channel A/B 广播增加超时保护，慢连接不会拖垮事件分发。
-- ✅ **运行时监控**: 状态看板新增队列负载卡片，可直接查看帧队列与事件队列占用比。
-- ✅ **调试控制**: 调试页新增运行时重启按钮、调试视频开关与识别标注开关，方便隔离调试流量。
-- ✅ **链路瘦身**: `check_in` 事件出站前移除 base64 图像字段，降低 Channel A 传输成本。
-- ✅ **调试标注**: 调试画面叠字改用成员名称显示，并保留相似度与分段颜色提示。
-- ✅ **接待页体验**: 增加状态告警待定状态（Pending）与启动重试逻辑；照片选择器支持视野未满时自动补填。
+- ✅ **业务闭环**: MVP 已完整覆盖签到、人脸库、接待、管理与关怀中心流程
+- ✅ **实时能力**: 双通道 WebSocket 与识别事件分发已可稳定运行
+- ✅ **体验优化**: 接待页、调试页与管理后台已完成多轮交互和移动端优化
+- ✅ **数据支持**: 历史签到已完成迁移入库，报表与缩略图链路可用
 
 ### 📌 后续计划
 
@@ -321,80 +290,19 @@
 
 ## 项目结构
 
-```
+```text
 church-auto-checkin-system/
-├── app/
-│   ├── api.py                      # CompreFace 客户端
-│   ├── config.py                   # 全局配置
-│   ├── main.py                     # FastAPI 应用入口 + 生命周期
-│   ├── core/
-│   │   ├── config.py               # 配置加载
-│   │   ├── database.py             # SQLAlchemy 设置与会话
-│   │   ├── process_metrics.py      # 进程与GPU监控指标
-│   │   ├── websocket_manager.py    # WebSocket 管理器
-│   │   ├── service_event.py        # 事件定义
-│   │   └── time_utils.py           # 时间工具函数
-│   ├── models/
-│   │   └── models.py               # SQLAlchemy ORM 模型
-│   ├── schemas/
-│   │   ├── member.py               # 会友 Pydantic Schema
-│   │   ├── attendance.py           # 签到 Schema
-│   │   ├── care.py                 # 关怀中心 Schema
-│   │   ├── event.py                # 场次 Schema
-│   │   ├── face_library.py         # 人脸库 Schema
-│   │   └── ...                     # 其他 Schema
-│   ├── routers/
-│   │   ├── index.py                # 主页与 WebSocket 入口
-│   │   ├── members.py              # 会友 CRUD API
-│   │   ├── attendance.py           # 签到与历史 API
-│   │   ├── care.py                 # 关怀中心 API
-│   │   ├── events.py               # 场次管理 API
-│   │   ├── face_library.py         # 人脸库 API
-│   │   ├── reception_queue.py      # 接待队列 API
-│   │   ├── debug.py                # 调试工作台路由
-│   │   ├── admin.py                # 管理后台路由
-│   │   ├── health.py               # 健康检查
-│   │   ├── system.py               # 系统控制 API
-│   │   ├── websocket.py            # WebSocket 路由
-│   │   └── ...
-│   ├── services/
-│   │   ├── camera_service.py       # 摄像头采集线程
-│   │   ├── recognition_engine.py   # 识别引擎（投票、去重）
-│   │   ├── runtime_pipeline.py     # 摄像头→识别 管道
-│   │   ├── event_dispatcher.py     # 事件消费与分发
-│   │   ├── face_library_service.py # 人脸库同步
-│   │   ├── cleanup_service.py      # 日志清理任务
-│   │   └── ...
-│   ├── static/
-│   │   ├── index.html              # 主页 UI
-│   │   ├── reception.html          # 接待工作台
-│   │   ├── debug.html              # 调试工作台
-│   │   └── admin.html              # 管理后台
-│   └── __init__.py
-├── scripts/
-│   ├── migrate_*.py                # 数据迁移脚本
-│   ├── recover_*.py                # 数据恢复脚本
-│   └── ...
-├── tests/
-│   ├── conftest.py                 # Pytest 配置与 Fixtures
-│   ├── test_api_minimal.py         # 最小 API 测试
-│   ├── test_recognition_engine_logic.py  # 识别引擎单元测试
-│   ├── test_event_dispatcher_websocket_integration.py  # 集成测试
-│   └── ...
-├── data/
-│   ├── face_gallery/               # 本地人脸库存储
-│   ├── history/                    # 历史数据与备份
-│   ├── backups/                    # 数据库备份
-│   └── checkin.db                  # SQLite 数据库文件
-├── records/
-│   └── camera_attendance.csv       # 签到记录 CSV
-├── config.ini                      # 配置文件（git 忽略）
-├── requirements.txt                # Python 依赖
-├── docs/
-│   └── DEVELOPMENT_PROGRESS.md     # 开发进度记录
-├── MAINTENANCE.md                  # 维护与部署指南
-├── README.md                       # 本文件
-└── LICENSE                         # MIT License
+├── app/                     # FastAPI 后端、路由、服务与静态页面
+├── scripts/                 # 数据迁移、恢复与运维脚本
+├── tests/                   # 单元测试与集成测试
+├── data/                    # 本地人脸库、历史数据与数据库文件
+├── records/                 # 签到记录与导出文件
+├── config.ini               # 配置文件（git 忽略）
+├── requirements.txt         # Python 依赖
+├── docs/DEVELOPMENT_PROGRESS.md
+├── MAINTENANCE.md           # 维护与部署指南
+├── README.md                # 本文件
+└── LICENSE                  # MIT License
 ```
 
 ---
@@ -548,40 +456,3 @@ pytest tests/ --cov=app --cov-report=html
 如有任何问题或建议，欢迎通过以下方式联系：
 - 提交 GitHub Issues
 
----
-
-### 本轮重构（2026-06-19）
-
-- **识别事件模型**：将业务事件统一为 `recognition.success`、`recognition.pending`、`recognition.unknown`，同时保留对外 `check_in` / `unknown_face` 的兼容出站映射以兼容现有前端。
-- **事件载荷规范**：在 `data` 中统一提供 `decision`（`success|pending|unknown`）与 `queue_kind`（`pending_review|stranger|null`）字段，简化前端分类与展示逻辑。
-- **超参数与收敛**：新增 `max_finalize_sec`，并在运行时强制约束 `stranger_max_similarity < pending_min_similarity <= vote_threshold <= absolute_threshold`，避免参数不一致导致的不确定行为。
-- **最终化策略**：待复核与陌生人队列采用“idle-first”（空闲优先）最终化逻辑，并以 `max_finalize_sec` 做最长等待时间回退，防止长时间悬而不决的候选。
-- **前端联动**：已对 `reception.html` 与 `debug.html` 做兼容性更新（接待页将“异常抓拍队列（Unknown）”改为“待处理队列”，区分 Pending / Unknown 展示；调试页超参数标签与 Channel A 事件色标更新）。
-- **数据库与测试**：修复了重复索引导致的建表错误（移除多余索引）、为避免重复插入增加了判重逻辑；相关单元与集成测试已调整并通过。
-
-**最后更新**: 2026-06-19  
-**维护者**: Weilai Xu@Rugiada
-**仓库**: [github.com/ffffuturexu/church-auto-checkin-system](https://github.com/ffffuturexu/church-auto-checkin-system)
-
-### 补充变更（2026-06-27）
-
-以下为 6 月份更新，按功能域归类以便快速查阅：
-
-- **识别引擎（Recognition Engine）**:
-   - Pending 候选快照改为双缓存 `latest` + `best`，避免 finalize 时覆盖或丢失最佳抓拍；在 finalize 前先读取 snapshot 再 clear state。
-   - 新增轻量可用性检查 `_is_snapshot_usable`，以及选择策略 `_select_pending_snapshot`，只返回可编码的候选。
-   - 增加编码回退逻辑 `_encode_pending_snapshot_with_fallback`：优先编码 `best`，若失败则回退尝试 `latest`，最终将成功编码的 base64 与对应 box 放入 `recognition.pending` 事件。
-   - 修正 finalize 时序 bug（先取 snapshot，再 clear state），并保持 `latest` 始终更新、`best` 仅在更高相似度且 snapshot 可用时更新。
-   - 增加类型注解：`PendingSnapshotTuple` 顶层定义，确保 snapshot tuple 为五元组 `(frame, box, second_subject_id, second_similarity, similarity)`。
-
-- **事件与日志**:
-   - `RecognitionEngine._commit_checkin` 解耦 `method`（签到渠道）与 `recognition_reason`（识别日志原因），保持事件载荷向后兼容。
-   - `recognition.pending`、`recognition.unknown`、`recognition.success` 的 payload schema 保持不变，事件字段名未修改。
-
-- **运维 & 调试**:
-   - 小幅修正 finalize 的 reason 判定顺序（`ambiguous_margin` → `weak_consensus` → `vote_timeout`），并为被丢弃候选补写 `insufficient_frames` 与 `weak_candidate` 日志，便于审计与调试。
-
-- **文档 & 测试说明**:
-   - 本次变更为代码层面的小幅修复与健壮性增强，保持对外事件 schema 向后兼容；建议在 CI 中运行识别引擎相关单元测试（`tests/test_recognition_engine_logic.py`）以验证行为。
-
-注：以上改动均为最小侵入式修复，未修改 `recognition.pending` 的事件字段名或主流程的 stranger / success 路径。
