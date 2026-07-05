@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
@@ -562,12 +562,33 @@ class EventDispatcher:
                 img_len_preview = 0
 
         with SessionLocal() as db:
-            if decision == "unknown" and self._should_suppress_unknown_after_successful_checkin(
+            if self._should_suppress_unknown_after_successful_checkin(
                 db,
                 event=event,
                 timestamp=timestamp,
+                decision=decision,
             ):
                 return None
+
+            if decision == "pending" and best_subject_id:
+                day_start = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+                day_end = day_start + timedelta(days=1)
+                existing_pending_case_id = db.scalar(
+                    select(UnknownFaceCase.id).where(
+                        UnknownFaceCase.status == UnknownCaseStatus.PENDING,
+                        UnknownFaceCase.timestamp >= day_start,
+                        UnknownFaceCase.timestamp < day_end,
+                        UnknownFaceCase.note.contains(f"best_subject_id={best_subject_id}"),
+                    )
+                )
+                if existing_pending_case_id is not None:
+                    logger.info(
+                        "persist_queue_event: suppressing duplicate pending case subject=%s date=%s existing_case_id=%s",
+                        best_subject_id,
+                        day_start.date().isoformat(),
+                        str(existing_pending_case_id),
+                    )
+                    return None
 
             best_subject_name = self._resolve_member_name_by_subject(db, best_subject_id)
             best_subject_name_chn = self._resolve_member_name_chn_by_subject(db, best_subject_id)
@@ -700,7 +721,11 @@ class EventDispatcher:
         db,
         event: dict,
         timestamp: datetime,
+        decision: str = "unknown",
     ) -> bool:
+        if decision not in {"unknown", "pending"}:
+            return False
+
         best_subject_id = self._extract_subject_id_for_event(event) or ""
         if not best_subject_id:
             return False
@@ -717,7 +742,17 @@ class EventDispatcher:
                 AttendanceEvent.event_date == timestamp.date(),
             )
         )
-        return existing is not None
+        if existing is None:
+            return False
+
+        logger.info(
+            "persist_queue_event: suppressing %s after successful check-in subject=%s date=%s member_id=%s",
+            decision,
+            best_subject_id,
+            timestamp.date().isoformat(),
+            str(member.id),
+        )
+        return True
 
     @staticmethod
     def _find_member_by_subject(db, subject_id: str) -> Member | None:
