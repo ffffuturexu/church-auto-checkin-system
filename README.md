@@ -254,6 +254,7 @@
 | 2026-06 | v0.4.3 | 生日提醒脚本、birthday_reminder_logs 运行日志模型与 systemd 定时器。 |
 | 2026-06 | v0.4.4 | 识别事件模型重构：recognition.success / pending / unknown，兼容旧 check_in / unknown_face 映射。 |
 | 2026-06 | v0.4.5 | Pending 候选双缓存、snapshot 编码回退、finalize 时序修正与审计日志补强。 |
+| 2026-07 | v0.5.1 | 识别引擎健壮性更新：pending 双缓存、编码回退、finalize 时序修正、超参数约束与去重优化。 |
 
 ### 当前进度摘要
 
