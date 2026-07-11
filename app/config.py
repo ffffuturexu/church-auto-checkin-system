@@ -40,6 +40,12 @@ class Config:
         )
         self.STRANGER_WINDOW_SEC = self.config.getfloat('Script', 'StrangerWindowSec', fallback=self.VOTE_WINDOW_SEC)
         self.STRANGER_MIN_FRAMES = self.config.getint('Script', 'StrangerMinFrames', fallback=max(2, self.VOTE_MIN_SAMPLES))
+        # Tracking and finalization settings (kept in Script section)
+        self.TRACK_MAX_AGE_SEC = self.config.getfloat('Script', 'TrackMaxAgeSec', fallback=2.5)
+        self.ELIGIBILITY_WINDOW_SEC = self.config.getfloat('Script', 'EligibilityWindowSec', fallback=6.0)
+        self.TRACK_MATCH_IOU_THRESHOLD = self.config.getfloat('Script', 'TrackMatchIouThreshold', fallback=0.15)
+        self.TRACK_MATCH_CENTER_DISTANCE_PX = self.config.getfloat('Script', 'TrackMatchCenterDistancePx', fallback=80.0)
+        self.MAX_FINALIZE_SEC = self.config.getfloat('Script', 'MaxFinalizeSec', fallback=6.0)
         self.MAX_QUEUE_SIZE = self.config.getint('Script', 'MaxQueueSize', fallback=3)
         self.PREDICTION_COUNT = self.config.getint('Script', 'PredictionCount', fallback=5)
 

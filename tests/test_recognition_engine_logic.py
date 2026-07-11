@@ -3,12 +3,13 @@ from __future__ import annotations
 import base64
 import threading
 import time
+from collections import deque
 from datetime import timedelta
 
 import cv2
 import numpy as np
 
-from app.services.recognition_engine import RecognitionEngine, RecognitionHyperParams
+from app.services.recognition_engine import RecognitionEngine, RecognitionHyperParams, TrackState
 from app.core.time_utils import now_local
 
 
@@ -214,3 +215,133 @@ def test_recognition_engine_parallel_requests_reach_multiple_inflight_workers():
         engine.stop()
 
     assert client.max_active >= 2
+
+
+def test_track_gate_allows_votes_only_within_one_track_lifetime():
+    class DummyClient:
+        def recognize_image(self, _image_bytes):
+            return {"result": []}
+
+    engine = RecognitionEngine(
+        api_client=DummyClient(),
+        params=RecognitionHyperParams(
+            absolute_threshold=0.95,
+            vote_threshold=0.70,
+            pending_min_similarity=0.70,
+            vote_min_samples=2,
+            vote_window_sec=5.0,
+        ),
+    )
+    frame = np.zeros((160, 240, 3), dtype=np.uint8)
+    result = {
+        "result": [
+            {
+                "box": {"x_min": 30, "y_min": 30, "width": 80, "height": 80},
+                "subjects": [{"subject": "member-a", "similarity": 0.75}],
+            }
+        ]
+    }
+
+    engine._handle_recognition_result(frame, result)
+    track = engine._tracks[1]
+    track.first_seen -= timedelta(seconds=engine.params.eligibility_window_sec + 1)
+    engine._handle_recognition_result(frame, result)
+
+    assert engine._vote_buffers == {}
+    assert not any(event["event_type"] == "recognition.success" for event in _drain_events(engine))
+
+
+def test_track_vote_buffer_isolated_for_same_subject_on_two_tracks():
+    class DummyClient:
+        def recognize_image(self, _image_bytes):
+            return {"result": []}
+
+    engine = RecognitionEngine(
+        api_client=DummyClient(),
+        params=RecognitionHyperParams(
+            absolute_threshold=0.95,
+            vote_threshold=0.70,
+            pending_min_similarity=0.70,
+            vote_min_samples=2,
+        ),
+    )
+    frame = np.zeros((180, 320, 3), dtype=np.uint8)
+    result = {
+        "result": [
+            {
+                "box": {"x_min": 20, "y_min": 30, "width": 70, "height": 70},
+                "subjects": [{"subject": "member-a", "similarity": 0.75}],
+            },
+            {
+                "box": {"x_min": 220, "y_min": 30, "width": 70, "height": 70},
+                "subjects": [{"subject": "member-a", "similarity": 0.75}],
+            },
+        ]
+    }
+
+    engine._handle_recognition_result(frame, result)
+
+    assert set(engine._vote_buffers) == {(1, "member-a"), (2, "member-a")}
+
+
+def test_deduped_checkin_expires_track_and_clears_track_state():
+    class DummyClient:
+        def recognize_image(self, _image_bytes):
+            return {"result": []}
+
+    engine = RecognitionEngine(api_client=DummyClient())
+    track_id = 1
+    now = now_local()
+    engine._tracks[track_id] = TrackState(
+        track_id=track_id,
+        bbox={"x_min": 20, "y_min": 20, "width": 60, "height": 60},
+        first_seen=now,
+        last_seen=now,
+    )
+    engine._last_seen["member-a"] = now
+    engine._vote_buffers[(track_id, "member-a")] = deque([(now, 0.8)])
+    engine._pending_candidates[(track_id, "member-a")] = deque([{"timestamp": now, "similarity": 0.8}])
+
+    engine._commit_checkin("member-a", 0.8, None, None, track_id=track_id)
+
+    assert engine._tracks[track_id].eligibility_expired is True
+    assert (track_id, "member-a") not in engine._vote_buffers
+    assert (track_id, "member-a") not in engine._pending_candidates
+    assert engine.read_event_nowait()["event_type"] == "deduped"
+
+
+def test_tracking_parameters_are_hot_updated_and_normalized():
+    class DummyClient:
+        def recognize_image(self, _image_bytes):
+            return {"result": []}
+
+    engine = RecognitionEngine(api_client=DummyClient())
+
+    updated = engine.update_hyperparams(
+        track_max_age_sec=0.01,
+        eligibility_window_sec=0.1,
+        track_match_iou_threshold=2.0,
+        track_match_center_distance_px=0.0,
+    )
+
+    assert updated.track_max_age_sec == 0.2
+    assert updated.eligibility_window_sec == 1.0
+    assert updated.track_match_iou_threshold == 1.0
+    assert updated.track_match_center_distance_px == 1.0
+
+
+def test_ambiguous_track_match_is_marked_for_conservative_gate():
+    class DummyClient:
+        def recognize_image(self, _image_bytes):
+            return {"result": []}
+
+    engine = RecognitionEngine(api_client=DummyClient())
+    candidates = [
+        (0.80, 0.60, 10.0, 1, 0),
+        (0.75, 0.55, 12.0, 2, 0),
+    ]
+
+    ambiguous_detections, ambiguous_tracks = engine._find_ambiguous_matches(candidates)
+
+    assert ambiguous_detections == {0}
+    assert ambiguous_tracks == {1, 2}

@@ -35,6 +35,10 @@ class HyperParamsUpdateRequest(BaseModel):
     stranger_window_sec: float | None = None
     stranger_min_frames: int | None = None
     max_finalize_sec: float | None = None
+    track_max_age_sec: float | None = None
+    eligibility_window_sec: float | None = None
+    track_match_iou_threshold: float | None = None
+    track_match_center_distance_px: float | None = None
 
 
 class DebugVideoToggleRequest(BaseModel):

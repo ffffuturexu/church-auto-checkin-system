@@ -616,7 +616,7 @@
         <div class="card live-feed-card stack-card">
           <div class="card-header">
             <h2>实时签到动态（Channel A）</h2>
-            <button id="expandLiveFeedBtn" class="expand-btn" type="button">扩大</button>
+            <button id="expandLiveFeedBtn" class="expand-btn" type="button">展开</button>
           </div>
           <div class="card-body">
             <div class="toolbar" style="margin-bottom:8px">
@@ -637,7 +637,7 @@
         <div class="card unknown-queue-card stack-card">
           <div class="card-header">
             <h2>待处理队列（Pending / Unknown）</h2>
-            <button id="expandUnknownQueueBtn" class="expand-btn" type="button">扩大</button>
+            <button id="expandUnknownQueueBtn" class="expand-btn" type="button">展开</button>
           </div>
           <div class="card-body">
             <div class="toolbar">
@@ -1917,10 +1917,10 @@
 
     function updateExpandButtons(mode) {
       if (expandLiveFeedBtn) {
-        expandLiveFeedBtn.textContent = mode === 'live' ? '还原' : '扩大';
+        expandLiveFeedBtn.textContent = mode === 'live' ? '收起' : '展开';
       }
       if (expandUnknownQueueBtn) {
-        expandUnknownQueueBtn.textContent = mode === 'queue' ? '还原' : '扩大';
+        expandUnknownQueueBtn.textContent = mode === 'queue' ? '收起' : '展开';
       }
     }
 

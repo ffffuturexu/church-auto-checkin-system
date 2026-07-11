@@ -11,7 +11,6 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Any
-from typing import Any, Tuple
 
 # Pending snapshot tuple: (frame, box, second_subject_id, second_similarity, similarity)
 PendingSnapshotTuple = tuple[Any, dict[str, int] | None, str | None, float | None, float]
@@ -46,6 +45,25 @@ class RecognitionHyperParams:
     stranger_window_sec: float = 1.5
     stranger_min_frames: int = 4
     max_finalize_sec: float = 6.0
+    track_max_age_sec: float = 2.0
+    eligibility_window_sec: float = 8.0
+    track_match_iou_threshold: float = 0.15
+    track_match_center_distance_px: float = 80.0
+
+
+@dataclass
+class TrackState:
+    # 轨迹生命周期决定一次自动签到资格，避免停留者持续喂票。
+    track_id: int
+    bbox: dict[str, int]
+    first_seen: datetime
+    last_seen: datetime
+    eligibility_expired: bool = False
+    matched_subject_id: str | None = None
+    hit_streak: int = 1
+    miss_count: int = 0
+    velocity_x: float = 0.0
+    velocity_y: float = 0.0
 
 
 class RecognitionEngine:
@@ -87,6 +105,12 @@ class RecognitionEngine:
             stranger_window_sec=float(getattr(settings, "STRANGER_WINDOW_SEC", settings.VOTE_WINDOW_SEC)),
             stranger_min_frames=int(getattr(settings, "STRANGER_MIN_FRAMES", max(2, settings.VOTE_MIN_SAMPLES))),
             max_finalize_sec=float(getattr(settings, "MAX_FINALIZE_SEC", 6.0)),
+            track_max_age_sec=float(getattr(settings, "TRACK_MAX_AGE_SEC", getattr(settings, "TrackMaxAgeSec", 2.5))),
+            eligibility_window_sec=float(getattr(settings, "ELIGIBILITY_WINDOW_SEC", getattr(settings, "EligibilityWindowSec", 6.0))),
+            track_match_iou_threshold=float(getattr(settings, "TRACK_MATCH_IOU_THRESHOLD", getattr(settings, "TrackMatchIouThreshold", 0.15))),
+            track_match_center_distance_px=float(
+                getattr(settings, "TRACK_MATCH_CENTER_DISTANCE_PX", getattr(settings, "TrackMatchCenterDistancePx", 80.0))
+            ),
         )
         self.params = self._normalize_hyperparams(self.params)
 
@@ -102,16 +126,16 @@ class RecognitionEngine:
         self._last_seen: dict[str, datetime] = {}
         self._unknown_last_seen: dict[str, datetime] = {}
         self._unknown_cooldown_sec = 2.0
-        self._vote_buffers: dict[str, deque[tuple[datetime, float]]] = {}
-        self._vote_buffer_last_seen: dict[str, datetime] = {}
-        self._pending_candidates: dict[str, deque[dict[str, Any]]] = {}
-        self._pending_last_seen: dict[str, datetime] = {}
+        self._vote_buffers: dict[tuple[int, str], deque[tuple[datetime, float]]] = {}
+        self._vote_buffer_last_seen: dict[tuple[int, str], datetime] = {}
+        self._pending_candidates: dict[tuple[int, str], deque[dict[str, Any]]] = {}
+        self._pending_last_seen: dict[tuple[int, str], datetime] = {}
         # pending snapshots now keep both a 'latest' and a 'best' entry per subject.
         # Each entry value is a tuple:
         # (frame, box, second_subject_id, second_similarity, similarity)
         # This preserves a recent frame (latest) and a historically best-quality
         # frame (best). Finalize must read snapshot before clearing the pending state.
-        self._pending_snapshots: dict[str, dict[str, PendingSnapshotTuple | None]] = {}
+        self._pending_snapshots: dict[tuple[int, str], dict[str, PendingSnapshotTuple | None]] = {}
         self._stranger_candidates: dict[str, deque[tuple[datetime, float]]] = {}
         self._stranger_last_seen: dict[str, datetime] = {}
         self._stranger_snapshots: dict[str, tuple[Any, dict[str, int] | None, float]] = {}
@@ -130,6 +154,10 @@ class RecognitionEngine:
         self._subject_name_resolver: Callable[[str], str | None] | None = None
         self._subject_name_cache: dict[str, tuple[str | None, datetime]] = {}
         self._subject_name_cache_ttl_sec = 120.0
+        self._tracks: dict[int, TrackState] = {}
+        self._next_track_id = 1
+        self._ambiguous_detection_indices: set[int] = set()
+        self._ambiguous_track_ids: set[int] = set()
 
     def start(self) -> None:
         with self._lock:
@@ -314,15 +342,18 @@ class RecognitionEngine:
         self._prune_subject_state(now)
 
         if not detections:
+            self._update_tracks([], now)
             self._emit_debug_frame(frame, box=None, best_subject_id="No Face", similarity=0.0, status="scanning")
             self._finalize_pending_candidates(now)
             self._finalize_stranger_candidates(now)
             return
 
+        # 先关联轨迹，再决定本次识别是否有资格进入自动签到链路。
+        boxes = [self._extract_box(item) for item in detections]
+        track_ids = self._update_tracks(boxes, now)
         debug_annotations: list[dict[str, Any]] = []
 
-        for item in detections:
-            box = self._extract_box(item)
+        for detection_index, (item, box, track_id) in enumerate(zip(detections, boxes, track_ids)):
             subjects = item.get("subjects", [])
             best, second = self._pick_best_two(subjects)
 
@@ -335,9 +366,22 @@ class RecognitionEngine:
             absolute_threshold = self._get_absolute_threshold(vote_threshold)
             margin = float(self.params.margin)
 
-            if best_subject and best_similarity >= absolute_threshold and (best_similarity - second_similarity) >= margin:
-                self._clear_subject_vote_state(best_subject)
-                self._clear_pending_state(best_subject)
+            # 交叉或近距离匹配不做自动决策，宁可暂缓也不串轨误签到。
+            if self._is_detection_ambiguous(detection_index, track_id):
+                debug_annotations.append(
+                    {
+                        "box": box,
+                        "best_subject_id": best_subject or "Ambiguous",
+                        "similarity": best_similarity,
+                        "status": "ambiguous",
+                    }
+                )
+                continue
+
+            # 高置信度仍须经过轨迹资格 gate，不能绕过一次性生命周期限制。
+            if best_subject and best_similarity >= absolute_threshold and (best_similarity - second_similarity) >= margin and self._is_track_eligible(track_id, now):
+                self._clear_subject_vote_state(best_subject, track_id)
+                self._clear_pending_state(best_subject, track_id)
                 self._commit_checkin(
                     best_subject,
                     best_similarity,
@@ -347,6 +391,7 @@ class RecognitionEngine:
                     second_similarity=second_similarity,
                     method="auto_face",
                     recognition_reason="auto_face_absolute",
+                    track_id=track_id,
                 )
                 debug_annotations.append(
                     {
@@ -358,7 +403,8 @@ class RecognitionEngine:
                 )
                 continue
 
-            if best_subject and best_similarity >= float(self.params.pending_min_similarity):
+            # pending/vote 只服务于仍在资格窗口内的同一条轨迹。
+            if best_subject and best_similarity >= float(self.params.pending_min_similarity) and self._is_track_eligible(track_id, now):
                 self._track_pending_candidate(
                     subject=best_subject,
                     similarity=best_similarity,
@@ -366,6 +412,7 @@ class RecognitionEngine:
                     second_similarity=second_similarity,
                     frame=frame,
                     box=box,
+                    track_id=track_id,
                 )
                 committed = self._add_vote_and_maybe_checkin(
                     best_subject,
@@ -374,6 +421,7 @@ class RecognitionEngine:
                     box=box,
                     second_subject_id=str(second_subject).strip() if second_subject else None,
                     second_similarity=second_similarity,
+                    track_id=track_id,
                 )
                 debug_annotations.append(
                     {
@@ -385,6 +433,10 @@ class RecognitionEngine:
                 )
                 continue
 
+            if best_subject and best_similarity >= float(self.params.pending_min_similarity):
+                logger.debug("recognition rejected: track=%s eligibility_expired subject=%s", track_id, best_subject)
+
+            # stranger 只做低相似度观察，不改变现有 unknown 事件语义。
             # Stranger tracking: no known subject, or known subject but similarity is low enough
             # to be closer to stranger/unregistered profile.
             if (not best_subject) or (best_similarity <= float(self.params.stranger_max_similarity)):
@@ -427,6 +479,171 @@ class RecognitionEngine:
         if debug_annotations:
             self._emit_debug_frame_batch(frame, debug_annotations)
 
+    def _update_tracks(self, boxes: list[dict[str, int] | None], now: datetime) -> list[int]:
+        """Associate detections with short-lived, constant-velocity tracks."""
+        # 用简单预测缩小关联范围；不确定时标记为 ambiguous 而不是强行认领。
+        predictions = self._predict_tracks(now)
+        candidates: list[tuple[float, float, float, int, int]] = []
+        for track_id, predicted in predictions.items():
+            for detection_index, box in enumerate(boxes):
+                if box is None:
+                    continue
+                iou = self._box_iou(predicted, box)
+                distance = self._center_distance(predicted, box)
+                if iou >= self.params.track_match_iou_threshold or distance <= self.params.track_match_center_distance_px:
+                    distance_score = max(0.0, 1.0 - distance / max(1.0, self.params.track_match_center_distance_px))
+                    score = iou + distance_score * 0.25
+                    candidates.append((score, iou, distance, track_id, detection_index))
+
+        self._ambiguous_detection_indices, self._ambiguous_track_ids = self._find_ambiguous_matches(candidates)
+
+        matched_tracks: set[int] = set()
+        matched_detections: set[int] = set()
+        detection_track_ids = [0] * len(boxes)
+        for _score, _iou, _distance, track_id, detection_index in sorted(candidates, reverse=True):
+            if track_id in matched_tracks or detection_index in matched_detections:
+                continue
+            track = self._tracks[track_id]
+            box = boxes[detection_index]
+            if box is None:
+                continue
+            old_center = self._box_center(track.bbox)
+            new_center = self._box_center(box)
+            track.velocity_x = new_center[0] - old_center[0]
+            track.velocity_y = new_center[1] - old_center[1]
+            track.bbox = box
+            track.last_seen = now
+            track.hit_streak += 1
+            track.miss_count = 0
+            matched_tracks.add(track_id)
+            matched_detections.add(detection_index)
+            detection_track_ids[detection_index] = track_id
+            logger.debug("recognition track matched: track=%s iou=%.3f", track_id, _iou)
+
+        for track_id, track in self._tracks.items():
+            if track_id not in matched_tracks:
+                track.miss_count += 1
+
+        for detection_index, box in enumerate(boxes):
+            if detection_index in matched_detections or box is None:
+                continue
+            track_id = self._next_track_id
+            self._next_track_id += 1
+            self._tracks[track_id] = TrackState(
+                track_id=track_id,
+                bbox=box,
+                first_seen=now,
+                last_seen=now,
+            )
+            detection_track_ids[detection_index] = track_id
+            logger.debug("recognition track created: track=%s", track_id)
+
+        self._prune_tracks(now)
+        return detection_track_ids
+
+    def _predict_tracks(self, now: datetime) -> dict[int, dict[str, int]]:
+        # 用上一帧位移做低成本外推，短暂漏检时仍可维持轨迹。
+        predictions: dict[int, dict[str, int]] = {}
+        for track_id, track in self._tracks.items():
+            elapsed = max(0.0, (now - track.last_seen).total_seconds())
+            predictions[track_id] = self._shift_box(
+                track.bbox,
+                track.velocity_x * max(1.0, elapsed * 10.0),
+                track.velocity_y * max(1.0, elapsed * 10.0),
+            )
+        return predictions
+
+    def _prune_tracks(self, now: datetime) -> None:
+        # 轨迹过久未见即清理，避免旧资格重新污染新人物。
+        cutoff = max(0.2, float(self.params.track_max_age_sec))
+        for track_id, track in list(self._tracks.items()):
+            if (now - track.last_seen).total_seconds() > cutoff:
+                logger.debug("recognition track removed: track=%s", track_id)
+                self._clear_track_state(track_id)
+                self._tracks.pop(track_id, None)
+
+    def _is_track_eligible(self, track_id: int, now: datetime) -> bool:
+        # 资格只覆盖入镜初期，超时后清掉该轨迹的所有自动识别状态。
+        track = self._tracks.get(track_id)
+        if track is None:
+            return False
+        if not track.eligibility_expired and (now - track.first_seen).total_seconds() > self.params.eligibility_window_sec:
+            track.eligibility_expired = True
+            self._clear_track_state(track_id)
+            logger.debug("recognition track eligibility expired: track=%s", track_id)
+        return not track.eligibility_expired
+
+    def _find_ambiguous_matches(
+        self,
+        candidates: list[tuple[float, float, float, int, int]],
+    ) -> tuple[set[int], set[int]]:
+        ambiguous_detections: set[int] = set()
+        ambiguous_tracks: set[int] = set()
+        by_detection: dict[int, list[tuple[float, int]]] = {}
+        by_track: dict[int, list[tuple[float, int]]] = {}
+        for score, _iou, _distance, track_id, detection_index in candidates:
+            by_detection.setdefault(detection_index, []).append((score, track_id))
+            by_track.setdefault(track_id, []).append((score, detection_index))
+
+        def mark_close_matches(groups: dict[int, list[tuple[float, int]]], target: set[int], other: set[int]) -> None:
+            for owner, matches in groups.items():
+                ranked = sorted(matches, reverse=True)
+                if len(ranked) < 2:
+                    continue
+                best_score, best_peer = ranked[0]
+                second_score, second_peer = ranked[1]
+                if best_score - second_score < 0.10:
+                    target.add(owner)
+                    other.update((best_peer, second_peer))
+
+        # detection 对多个 track 不确定，或 track 对多个 detection 不确定，都暂停。
+        mark_close_matches(by_detection, ambiguous_detections, ambiguous_tracks)
+        mark_close_matches(by_track, ambiguous_tracks, ambiguous_detections)
+        return ambiguous_detections, ambiguous_tracks
+
+    def _is_detection_ambiguous(self, detection_index: int, track_id: int) -> bool:
+        return detection_index in self._ambiguous_detection_indices or track_id in self._ambiguous_track_ids
+
+    def _clear_track_state(self, track_id: int) -> None:
+        for key in list(self._vote_buffers):
+            if key[0] == track_id:
+                self._vote_buffers.pop(key, None)
+                self._vote_buffer_last_seen.pop(key, None)
+        for key in list(self._pending_candidates):
+            if key[0] == track_id:
+                self._pending_candidates.pop(key, None)
+                self._pending_last_seen.pop(key, None)
+                self._pending_snapshots.pop(key, None)
+
+    @staticmethod
+    def _box_center(box: dict[str, int]) -> tuple[float, float]:
+        return (box["x_min"] + box["width"] / 2.0, box["y_min"] + box["height"] / 2.0)
+
+    @classmethod
+    def _center_distance(cls, first: dict[str, int], second: dict[str, int]) -> float:
+        first_center = cls._box_center(first)
+        second_center = cls._box_center(second)
+        return float(np.hypot(first_center[0] - second_center[0], first_center[1] - second_center[1]))
+
+    @classmethod
+    def _box_iou(cls, first: dict[str, int], second: dict[str, int]) -> float:
+        x0 = max(first["x_min"], second["x_min"])
+        y0 = max(first["y_min"], second["y_min"])
+        x1 = min(first["x_min"] + first["width"], second["x_min"] + second["width"])
+        y1 = min(first["y_min"] + first["height"], second["y_min"] + second["height"])
+        intersection = max(0, x1 - x0) * max(0, y1 - y0)
+        union = first["width"] * first["height"] + second["width"] * second["height"] - intersection
+        return intersection / union if union > 0 else 0.0
+
+    @staticmethod
+    def _shift_box(box: dict[str, int], shift_x: float, shift_y: float) -> dict[str, int]:
+        return {
+            "x_min": int(round(box["x_min"] + shift_x)),
+            "y_min": int(round(box["y_min"] + shift_y)),
+            "width": box["width"],
+            "height": box["height"],
+        }
+
     def _track_pending_candidate(
         self,
         subject: str,
@@ -435,15 +652,17 @@ class RecognitionEngine:
         second_similarity: float,
         frame: Any,
         box: dict[str, int] | None,
+        track_id: int = 0,
     ) -> None:
         now = now_local()
         window = max(0.2, float(self.params.vote_window_sec))
         cutoff = now - timedelta(seconds=window)
 
-        subject_buffer = self._pending_candidates.get(subject)
+        state_key = (track_id, subject)
+        subject_buffer = self._pending_candidates.get(state_key)
         if subject_buffer is None:
             subject_buffer = deque()
-            self._pending_candidates[subject] = subject_buffer
+            self._pending_candidates[state_key] = subject_buffer
 
         subject_buffer.append(
             {
@@ -456,10 +675,10 @@ class RecognitionEngine:
         while subject_buffer and subject_buffer[0]["timestamp"] < cutoff:
             subject_buffer.popleft()
 
-        self._pending_last_seen[subject] = now
+        self._pending_last_seen[state_key] = now
 
         # Ensure dict structure for pending snapshots per subject.
-        entry = self._pending_snapshots.get(subject)
+        entry = self._pending_snapshots.get(state_key)
         latest_tuple = (frame, box, second_subject_id, float(second_similarity), float(similarity))
         if entry is None:
             # Initialize with latest; best is set only when a usable better snapshot appears.
@@ -467,7 +686,7 @@ class RecognitionEngine:
             if self._is_snapshot_usable(frame, box):
                 # Seed best if no prior best and current snapshot is usable.
                 best_tuple = latest_tuple
-            self._pending_snapshots[subject] = {"latest": latest_tuple, "best": best_tuple}
+            self._pending_snapshots[state_key] = {"latest": latest_tuple, "best": best_tuple}
         else:
             # Always update latest
             entry["latest"] = latest_tuple
@@ -492,6 +711,7 @@ class RecognitionEngine:
                     entry["best"] = latest_tuple
 
     def _finalize_pending_candidates(self, now: datetime) -> None:
+        # pending 到窗口结束才落事件，避免短暂低质量结果直接污染业务。
         if not self._pending_candidates:
             return
 
@@ -502,9 +722,10 @@ class RecognitionEngine:
         vote_ratio = float(self.params.vote_ratio)
         margin = float(self.params.margin)
 
-        for subject_id, buffer in list(self._pending_candidates.items()):
+        for state_key, buffer in list(self._pending_candidates.items()):
+            track_id, subject_id = state_key
             if not buffer:
-                self._clear_pending_state(subject_id)
+                self._clear_pending_state(subject_id, track_id)
                 continue
 
             first_ts = buffer[0]["timestamp"]
@@ -517,14 +738,17 @@ class RecognitionEngine:
                 continue
 
             samples = list(buffer)
+            # 先保存最佳 snapshot，再清理候选状态，避免 pending 截图丢失。
 
             # Select and attempt encoding BEFORE clearing pending state. Use
             # a fallback encoding strategy: try best (if usable) first, then
             # try latest if encoding of best fails.
-            frame, box, second_subject_id, second_similarity, face_image_base64 = self._encode_pending_snapshot_with_fallback(subject_id)
+            frame, box, second_subject_id, second_similarity, face_image_base64 = self._encode_pending_snapshot_with_fallback(
+                subject_id, track_id
+            )
 
             # Now clear per-subject pending state to avoid leakage.
-            self._clear_pending_state(subject_id)
+            self._clear_pending_state(subject_id, track_id)
 
             if len(samples) < min_frames:
                 max_similarity = max((float(item["similarity"]) for item in samples), default=0.0)
@@ -620,6 +844,7 @@ class RecognitionEngine:
             self._stranger_snapshots[key] = (frame, box, float(similarity))
 
     def _finalize_stranger_candidates(self, now: datetime) -> None:
+        # stranger 也要等观察窗口结束后再使用最佳截图，减少瞬时误报。
         if not self._stranger_candidates:
             return
 
@@ -641,6 +866,8 @@ class RecognitionEngine:
                 continue
 
             samples = list(buffer)
+            # 先取出最佳 snapshot，再清理候选状态，避免 unknown 截图丢失。
+            frame, box, _snapshot_similarity = self._stranger_snapshots.get(key, (None, None, 0.0))
             self._clear_stranger_state(key)
 
             if len(samples) < min_frames:
@@ -655,7 +882,6 @@ class RecognitionEngine:
                 )
                 continue
 
-            frame, box, _ = self._stranger_snapshots.get(key, (None, None, 0.0))
             if frame is None:
                 continue
 
@@ -704,19 +930,21 @@ class RecognitionEngine:
     def _prune_subject_state(self, now: datetime) -> None:
         self._prune_vote_buffers(now=now, cutoff=now - timedelta(seconds=max(0.1, float(self.params.vote_window_sec))))
         stale_pending_cutoff = now - timedelta(seconds=max(5.0, float(self.params.vote_window_sec) * 3.0))
-        for subject_id, last_seen in list(self._pending_last_seen.items()):
+        for state_key, last_seen in list(self._pending_last_seen.items()):
             if last_seen < stale_pending_cutoff:
-                self._clear_pending_state(subject_id)
+                self._clear_pending_state(state_key[1], state_key[0])
 
         stale_stranger_cutoff = now - timedelta(seconds=max(5.0, float(self.params.stranger_window_sec) * 3.0))
         for key, last_seen in list(self._stranger_last_seen.items()):
             if last_seen < stale_stranger_cutoff:
                 self._clear_stranger_state(key)
 
-    def _clear_pending_state(self, subject_id: str) -> None:
-        self._pending_candidates.pop(subject_id, None)
-        self._pending_last_seen.pop(subject_id, None)
-        self._pending_snapshots.pop(subject_id, None)
+    def _clear_pending_state(self, subject_id: str, track_id: int | None = None) -> None:
+        keys = [(track_id, subject_id)] if track_id is not None else [key for key in self._pending_candidates if key[1] == subject_id]
+        for key in keys:
+            self._pending_candidates.pop(key, None)
+            self._pending_last_seen.pop(key, None)
+            self._pending_snapshots.pop(key, None)
 
     def _is_snapshot_usable(self, frame: Any, box: dict[str, int] | None) -> bool:
         """Lightweight usability check for a pending snapshot.
@@ -770,7 +998,7 @@ class RecognitionEngine:
             return False
         return True
 
-    def _select_pending_snapshot(self, subject_id: str) -> tuple[Any | None, dict[str, int] | None, str | None, float | None]:
+    def _select_pending_snapshot(self, subject_id: str, track_id: int = 0) -> tuple[Any | None, dict[str, int] | None, str | None, float | None]:
         """Select the pending snapshot for `subject_id`.
 
         Selection rules:
@@ -780,7 +1008,7 @@ class RecognitionEngine:
 
         Return value kept compatible with legacy callers: (frame, box, second_subject_id, second_similarity)
         """
-        entry = self._pending_snapshots.get(subject_id)
+        entry = self._pending_snapshots.get((track_id, subject_id))
         if not entry:
             return (None, None, None, None)
 
@@ -806,7 +1034,7 @@ class RecognitionEngine:
 
         return (None, None, None, None)
 
-    def _encode_pending_snapshot_with_fallback(self, subject_id: str) -> tuple[Any | None, dict[str, int] | None, str | None, float | None, str | None]:
+    def _encode_pending_snapshot_with_fallback(self, subject_id: str, track_id: int = 0) -> tuple[Any | None, dict[str, int] | None, str | None, float | None, str | None]:
         """Attempt to encode a pending snapshot for `subject_id` with fallback.
 
         Order:
@@ -818,7 +1046,7 @@ class RecognitionEngine:
 
         Note: if neither best nor latest are considered usable, returns all Nones.
         """
-        entry = self._pending_snapshots.get(subject_id)
+        entry = self._pending_snapshots.get((track_id, subject_id))
         if not entry:
             return (None, None, None, None, None)
 
@@ -887,26 +1115,28 @@ class RecognitionEngine:
         box: dict[str, int] | None,
         second_subject_id: str | None = None,
         second_similarity: float | None = None,
+        track_id: int = 0,
     ) -> bool:
         now = now_local()
         window = max(0.1, float(self.params.vote_window_sec))
         cutoff = now - timedelta(seconds=window)
         self._prune_vote_buffers(now=now, cutoff=cutoff)
 
-        subject_buffer = self._vote_buffers.get(subject)
+        state_key = (track_id, subject)
+        subject_buffer = self._vote_buffers.get(state_key)
         if subject_buffer is None:
             subject_buffer = deque()
-            self._vote_buffers[subject] = subject_buffer
+            self._vote_buffers[state_key] = subject_buffer
 
         subject_buffer.append((now, similarity))
-        self._vote_buffer_last_seen[subject] = now
+        self._vote_buffer_last_seen[state_key] = now
 
         while subject_buffer and subject_buffer[0][0] < cutoff:
             subject_buffer.popleft()
 
         if not subject_buffer:
-            self._vote_buffers.pop(subject, None)
-            self._vote_buffer_last_seen.pop(subject, None)
+            self._vote_buffers.pop(state_key, None)
+            self._vote_buffer_last_seen.pop(state_key, None)
             return False
 
         min_samples = max(1, int(self.params.vote_min_samples))
@@ -923,9 +1153,9 @@ class RecognitionEngine:
             return False
 
         final_similarity = max(qualified_sims)
-        self._vote_buffers.pop(subject, None)
-        self._vote_buffer_last_seen.pop(subject, None)
-        self._clear_pending_state(subject)
+        self._vote_buffers.pop(state_key, None)
+        self._vote_buffer_last_seen.pop(state_key, None)
+        self._clear_pending_state(subject, track_id)
         self._commit_checkin(
             subject,
             final_similarity,
@@ -935,23 +1165,24 @@ class RecognitionEngine:
             second_similarity=second_similarity,
             method="auto_face",
             recognition_reason="auto_face_vote",
+            track_id=track_id,
         )
         return True
 
     def _prune_vote_buffers(self, now: datetime, cutoff: datetime) -> None:
         stale_subject_cutoff = now - timedelta(seconds=max(10.0, float(self.params.vote_window_sec) * 4.0))
 
-        for subject_id, subject_buffer in list(self._vote_buffers.items()):
+        for state_key, subject_buffer in list(self._vote_buffers.items()):
             while subject_buffer and subject_buffer[0][0] < cutoff:
                 subject_buffer.popleft()
             if not subject_buffer:
-                self._vote_buffers.pop(subject_id, None)
-                self._vote_buffer_last_seen.pop(subject_id, None)
+                self._vote_buffers.pop(state_key, None)
+                self._vote_buffer_last_seen.pop(state_key, None)
 
-        for subject_id, last_seen in list(self._vote_buffer_last_seen.items()):
+        for state_key, last_seen in list(self._vote_buffer_last_seen.items()):
             if last_seen < stale_subject_cutoff:
-                self._vote_buffer_last_seen.pop(subject_id, None)
-                self._vote_buffers.pop(subject_id, None)
+                self._vote_buffer_last_seen.pop(state_key, None)
+                self._vote_buffers.pop(state_key, None)
 
     def _commit_checkin(
         self,
@@ -963,8 +1194,15 @@ class RecognitionEngine:
         second_similarity: float | None = None,
         method: str = "auto_face", # 签到途径method和识别原因recognition_reason解耦，前者用于业务事件，后者用于日志记录
         recognition_reason: str | None = None,
+        track_id: int | None = None,
     ) -> None:
         now = now_local()
+        # 无论 success 还是 deduped，一条轨迹都只能消耗一次自动资格。
+        if track_id is not None:
+            track = self._tracks.get(track_id)
+            if track is not None:
+                track.eligibility_expired = True
+            self._clear_track_state(track_id)
         dedupe_window = timedelta(seconds=max(0, int(self.params.dedupe_seconds)))
         last = self._last_seen.get(subject_id)
 
@@ -1249,6 +1487,10 @@ class RecognitionEngine:
         normalized.vote_threshold = max(0.0, min(1.0, float(normalized.vote_threshold)))
         normalized.pending_min_similarity = max(0.0, min(1.0, float(normalized.pending_min_similarity)))
         normalized.stranger_max_similarity = max(0.0, min(1.0, float(normalized.stranger_max_similarity)))
+        normalized.track_max_age_sec = max(0.2, float(normalized.track_max_age_sec))
+        normalized.eligibility_window_sec = max(1.0, float(normalized.eligibility_window_sec))
+        normalized.track_match_iou_threshold = max(0.0, min(1.0, float(normalized.track_match_iou_threshold)))
+        normalized.track_match_center_distance_px = max(1.0, float(normalized.track_match_center_distance_px))
 
         # Enforce ordering: stranger < pending <= vote <= absolute
         if normalized.pending_min_similarity > normalized.vote_threshold:
@@ -1282,9 +1524,11 @@ class RecognitionEngine:
         fallback_vote_threshold = self._get_vote_threshold() if vote_threshold is None else float(vote_threshold)
         return float(getattr(self.params, "absolute_threshold", fallback_vote_threshold))
 
-    def _clear_subject_vote_state(self, subject_id: str) -> None:
-        self._vote_buffers.pop(subject_id, None)
-        self._vote_buffer_last_seen.pop(subject_id, None)
+    def _clear_subject_vote_state(self, subject_id: str, track_id: int | None = None) -> None:
+        keys = [(track_id, subject_id)] if track_id is not None else [key for key in self._vote_buffers if key[1] == subject_id]
+        for key in keys:
+            self._vote_buffers.pop(key, None)
+            self._vote_buffer_last_seen.pop(key, None)
 
     def _resolve_subject_label(self, subject_id: str) -> str:
         if subject_id in {"", "Unknown", "No Face"}:

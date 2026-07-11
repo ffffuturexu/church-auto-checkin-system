@@ -315,18 +315,23 @@
       </div>
 
       <div class="card">
-        <h2>超参数热更新</h2>
-        <div class="param-section">
-          <div class="section-title">当前参数</div>
-          <div id="currentParamsGrid" class="hyperparams-current-grid"></div>
-          <div class="params-actions" style="margin-top:10px">
-            <button id="toggleEditParamsBtn">修改参数</button>
-            <button id="resetParamsBtn" class="alt">还原默认参数</button>
-          </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <h2>超参数热更新</h2>
+          <button id="toggleHyperparamsBtn" class="alt" type="button">收起</button>
         </div>
-        <div class="param-section">
-          <div class="section-title">说明</div>
-          <div class="muted">点击“修改参数”可编辑当前参数；保存后会将修改下发到运行时。</div>
+        <div id="hyperparamsContainer">
+          <div class="param-section">
+            <div class="section-title">当前参数</div>
+            <div id="currentParamsGrid" class="hyperparams-current-grid"></div>
+            <div class="params-actions" style="margin-top:10px">
+              <button id="toggleEditParamsBtn">修改参数</button>
+              <button id="resetParamsBtn" class="alt">还原默认参数</button>
+            </div>
+          </div>
+          <div class="param-section">
+            <div class="section-title">说明</div>
+            <div class="muted">点击“修改参数”可编辑当前参数；保存后会将修改下发到运行时。</div>
+          </div>
         </div>
       </div>
     </div>
@@ -352,6 +357,9 @@
     const toggleOverlayBtn = document.getElementById('toggleOverlayBtn');
     const debugOverlayHintEl = document.getElementById('debugOverlayHint');
     const currentParamsGridEl = document.getElementById('currentParamsGrid');
+
+    const toggleHyperparamsBtn = document.getElementById('toggleHyperparamsBtn');
+    const hyperparamsContainer = document.getElementById('hyperparamsContainer');
 
     let debugVideoEnabled = true;
     let debugVideoPaused = false;
@@ -381,6 +389,10 @@
       stranger_window_sec: 1.5,
       stranger_min_frames: 4,
       max_finalize_sec: 6.0,
+      track_max_age_sec: 2.5,
+      eligibility_window_sec: 6.0,
+      track_match_iou_threshold: 0.15,
+      track_match_center_distance_px: 80.0,
     };
 
     const HYPERPARAM_FIELDS = [
@@ -400,6 +412,10 @@
       { key: 'stranger_window_sec', label: '陌生人窗口秒数', suffix: ' s' },
       { key: 'stranger_min_frames', label: '陌生人最少帧数', suffix: '' },
       { key: 'max_finalize_sec', label: '最长 finalize 等待秒数', suffix: ' s' },
+      { key: 'track_max_age_sec', label: '轨迹最大丢失秒数', suffix: ' s' },
+      { key: 'eligibility_window_sec', label: '签到资格窗口', suffix: ' s' },
+      { key: 'track_match_iou_threshold', label: '轨迹 IoU 门槛', suffix: '' },
+      { key: 'track_match_center_distance_px', label: '轨迹中心距离门槛', suffix: ' px' },
     ];
 
     const api = {
@@ -603,9 +619,10 @@
       ) {
         return num.toFixed(2);
       }
-      if (key === 'vote_window_sec' || key === 'stranger_window_sec' || key === 'max_finalize_sec') {
+      if (key === 'vote_window_sec' || key === 'stranger_window_sec' || key === 'max_finalize_sec' || key === 'track_max_age_sec' || key === 'eligibility_window_sec') {
         return num.toFixed(1);
       }
+      if (key === 'track_match_iou_threshold') return num.toFixed(2);
       return String(Math.round(num));
     }
 
@@ -817,6 +834,24 @@
       btn.textContent = hyperparamsEditMode ? '保存并更新参数' : '修改参数';
     }
 
+    function updateHyperparamsUi() {
+      if (!hyperparamsContainer || !toggleHyperparamsBtn) return;
+      const collapsed = hyperparamsContainer.dataset.collapsed === '1';
+      toggleHyperparamsBtn.textContent = collapsed ? '展开' : '收起';
+      for (const el of hyperparamsContainer.querySelectorAll('.param-section')) {
+        el.style.display = collapsed ? 'none' : '';
+      }
+    }
+
+    if (toggleHyperparamsBtn) {
+      toggleHyperparamsBtn.addEventListener('click', () => {
+        if (!hyperparamsContainer) return;
+        const collapsed = hyperparamsContainer.dataset.collapsed === '1';
+        hyperparamsContainer.dataset.collapsed = collapsed ? '0' : '1';
+        updateHyperparamsUi();
+      });
+    }
+
     function connectChannelA() {
       const ws = new WebSocket(`${wsBase()}/ws/channel-a`);
       ws.onopen = () => addEvent({ info: 'Channel A 已连接' });
@@ -940,6 +975,7 @@
     updateDebugPauseUi();
     updateDebugOverlayUi();
     connectChannelB();
+    updateHyperparamsUi();
     setInterval(refreshStatus, 3000);
   </script>
 </body>

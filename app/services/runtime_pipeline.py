@@ -60,6 +60,11 @@ class RuntimePipeline:
                 stranger_max_similarity=settings.STRANGER_MAX_SIMILARITY,
                 stranger_window_sec=settings.STRANGER_WINDOW_SEC,
                 stranger_min_frames=settings.STRANGER_MIN_FRAMES,
+                max_finalize_sec=getattr(settings, "MAX_FINALIZE_SEC", 6.0),
+                track_max_age_sec=getattr(settings, "TRACK_MAX_AGE_SEC", 2.5),
+                eligibility_window_sec=getattr(settings, "ELIGIBILITY_WINDOW_SEC", 6.0),
+                track_match_iou_threshold=getattr(settings, "TRACK_MATCH_IOU_THRESHOLD", 0.15),
+                track_match_center_distance_px=getattr(settings, "TRACK_MATCH_CENTER_DISTANCE_PX", 80.0),
             )
         )
 
