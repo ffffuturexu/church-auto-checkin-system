@@ -276,6 +276,7 @@ def search_members(
 def photo_picker_members(
     event_id: UUID | None = Query(default=None),
     gender: str | None = Query(default=None, max_length=16),
+    attendance_status: str | None = Query(default=None, max_length=16),
     include_no_photo: bool = Query(default=False),
     active_only: bool = Query(default=True),
     limit: int = Query(default=20, ge=1, le=200),
@@ -306,9 +307,23 @@ def photo_picker_members(
     if gender_values:
         stmt = stmt.where(Member.gender.in_(gender_values))
 
+    attendance_status_value = (attendance_status or "").strip().lower()
+    if attendance_status_value and attendance_status_value not in {"all", "checked_in", "not_checked_in"}:
+        raise HTTPException(status_code=400, detail="invalid attendance_status")
+
+    checked_in_member_ids_query = None
+    attendance_map: dict[UUID, AttendanceRecord] = {}
     if event_id is not None:
-        checked_in = select(AttendanceRecord.member_id).where(AttendanceRecord.event_id == event_id)
-        stmt = stmt.where(~Member.id.in_(checked_in))
+        records = db.execute(
+            select(AttendanceRecord).where(AttendanceRecord.event_id == event_id)
+        ).scalars().all()
+        attendance_map = {record.member_id: record for record in records}
+        checked_in_member_ids_query = select(AttendanceRecord.member_id).where(AttendanceRecord.event_id == event_id)
+
+        if attendance_status_value == "checked_in":
+            stmt = stmt.where(Member.id.in_(checked_in_member_ids_query))
+        elif attendance_status_value == "not_checked_in":
+            stmt = stmt.where(~Member.id.in_(checked_in_member_ids_query))
 
     stmt = stmt.order_by(recent_count.desc(), Member.name.asc()).offset(offset).limit(limit)
     rows = db.execute(stmt).all()
@@ -318,8 +333,14 @@ def photo_picker_members(
         member = row[0]
         out = _to_member_out(member)
         if event_id is not None:
-            out.attendance_status = "not_checked_in"
-            out.attendance_event_id = event_id
+            record = attendance_map.get(member.id)
+            if record is not None:
+                out.attendance_status = "checked_in"
+                out.attendance_record_id = record.id
+                out.attendance_event_id = record.event_id
+            else:
+                out.attendance_status = "not_checked_in"
+                out.attendance_event_id = event_id
         items.append(out)
 
     return MemberSearchResponse(total=len(items), items=items)

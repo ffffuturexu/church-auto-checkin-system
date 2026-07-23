@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from io import BytesIO
 from uuid import UUID
 
 from requests import HTTPError, Response
 
 import app.routers.attendance as attendance_router_module
 from app.models.models import AttendanceEvent, UnknownCaseStatus, UnknownFaceCase
+from PIL import Image
 
 
 def _create_member(client, name: str = "Test Member") -> dict:
@@ -43,6 +45,13 @@ def _get_event_name(session_factory, event_id: str) -> str:
         row = db.get(AttendanceEvent, UUID(event_id))
         assert row is not None
         return row.event_name
+
+
+def _make_test_jpeg_bytes() -> bytes:
+    image = Image.new("RGB", (1, 1), color=(255, 0, 0))
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+    return buffer.getvalue()
 
 
 def test_face_library_crud_sync(api_context):
@@ -462,6 +471,78 @@ def test_reception_queue_resolve_auto_split_by_case_time(api_context):
     event_id = payload["case"]["event_id"]
     event_name = _get_event_name(session_factory, event_id)
     assert event_name == "主日崇拜（意语） 2026-04-12"
+
+
+def test_photo_picker_filters_by_attendance_and_includes_no_photo_members(api_context):
+    client = api_context["client"]
+
+    event_resp = client.post(
+        "/events",
+        json={"event_name": "Sunday Service Photo Picker", "event_date": "2026-04-12"},
+    )
+    assert event_resp.status_code == 200
+    event_id = event_resp.json()["id"]
+
+    checked_in_member_resp = client.post(
+        "/members",
+        json={"name": "Photo Checked In", "status": True},
+    )
+    assert checked_in_member_resp.status_code == 200
+    checked_in_member_id = checked_in_member_resp.json()["id"]
+
+    checked_in_photo = client.post(
+        f"/face-library/members/{checked_in_member_id}/photos",
+        files={"file": ("checked-in.jpg", _make_test_jpeg_bytes(), "image/jpeg")},
+    )
+    assert checked_in_photo.status_code == 200
+
+    not_checked_photo_resp = client.post(
+        "/members",
+        json={"name": "Photo Not Checked", "status": True},
+    )
+    assert not_checked_photo_resp.status_code == 200
+    not_checked_photo_id = not_checked_photo_resp.json()["id"]
+
+    not_checked_photo_upload = client.post(
+        f"/face-library/members/{not_checked_photo_id}/photos",
+        files={"file": ("not-checked.jpg", _make_test_jpeg_bytes(), "image/jpeg")},
+    )
+    assert not_checked_photo_upload.status_code == 200
+
+    not_checked_no_photo_resp = client.post(
+        "/members",
+        json={"name": "No Photo Not Checked", "status": True},
+    )
+    assert not_checked_no_photo_resp.status_code == 200
+    not_checked_no_photo_id = not_checked_no_photo_resp.json()["id"]
+
+    manual_checkin = client.post(
+        "/attendance/manual-checkin",
+        json={"member_id": checked_in_member_id, "event_id": event_id},
+    )
+    assert manual_checkin.status_code == 200
+
+    checked_in_list = client.get(
+        f"/members/photo-picker?event_id={event_id}&attendance_status=checked_in&include_no_photo=true&limit=20&offset=0"
+    )
+    assert checked_in_list.status_code == 200
+    checked_in_payload = checked_in_list.json()
+    assert {item["id"] for item in checked_in_payload["items"]} == {checked_in_member_id}
+    assert checked_in_payload["items"][0]["attendance_status"] == "checked_in"
+    assert checked_in_payload["items"][0]["has_photo"] is True
+
+    not_checked_list = client.get(
+        f"/members/photo-picker?event_id={event_id}&attendance_status=not_checked_in&include_no_photo=true&limit=20&offset=0"
+    )
+    assert not_checked_list.status_code == 200
+    not_checked_payload = not_checked_list.json()
+    returned_ids = {item["id"] for item in not_checked_payload["items"]}
+    assert returned_ids == {not_checked_photo_id, not_checked_no_photo_id}
+    returned_map = {item["id"]: item for item in not_checked_payload["items"]}
+    assert returned_map[not_checked_photo_id]["attendance_status"] == "not_checked_in"
+    assert returned_map[not_checked_photo_id]["has_photo"] is True
+    assert returned_map[not_checked_no_photo_id]["attendance_status"] == "not_checked_in"
+    assert returned_map[not_checked_no_photo_id]["has_photo"] is False
 
 
 def test_reception_queue_resolve_first_sunday_after_15_stays_zh(api_context):

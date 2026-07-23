@@ -600,6 +600,14 @@
                 <button type="button" data-gender="女" role="tab" aria-selected="false">女</button>
               </div>
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span class="feed-mode-label">签到：</span>
+                <div id="photoAttendanceFilter" class="segmented" role="tablist">
+                  <button type="button" class="active" data-attendance="" role="tab" aria-selected="true">全部</button>
+                  <button type="button" data-attendance="checked_in" role="tab" aria-selected="false">已签到</button>
+                  <button type="button" data-attendance="not_checked_in" role="tab" aria-selected="false">未签到</button>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                 <span class="feed-mode-label">分组：</span>
                 <div id="photoGroupFilter" class="segmented" role="tablist">
                   <button type="button" class="active" data-group="" role="tab" aria-selected="true">全部</button>
@@ -665,6 +673,7 @@
     const photoPickerPanel = document.getElementById('photoPickerPanel');
     const photoPickerStatus = document.getElementById('photoPickerStatus');
     const photoGenderFilter = document.getElementById('photoGenderFilter');
+    const photoAttendanceFilter = document.getElementById('photoAttendanceFilter');
     const photoGroupFilter = document.getElementById('photoGroupFilter');
     const liveFeedModeSwitch = document.getElementById('liveFeedModeSwitch');
     const rightColumn = document.querySelector('.right-column');
@@ -682,6 +691,7 @@
     const memberPhotoObservers = new Map();
     let photoPickerOffset = 0;
     let photoPickerGender = '';
+    let photoPickerAttendance = '';
     let photoPickerNewcomerOnly = false;
     let photoPickerLoading = false;
     const photoPickerLimit = 20;
@@ -1255,7 +1265,8 @@
         try {
           const reqBody = {
             member_id: memberId,
-            service_language: 'zh',
+            event_id: getActiveSearchEventId() || undefined,
+            service_language: 'auto',
             note: null
           };
           const res = await fetch(`/reception/queue/unknown/${encodeURIComponent(caseId)}/resolve`, {
@@ -1781,12 +1792,13 @@
         event_id: eventId,
         limit: String(photoPickerLimit),
         offset: String(offset),
+        include_no_photo: 'true',
       });
       if (photoPickerGender) {
         params.append('gender', photoPickerGender);
       }
-      if (photoPickerNewcomerOnly) {
-        params.append('include_no_photo', 'true');
+      if (photoPickerAttendance) {
+        params.append('attendance_status', photoPickerAttendance);
       }
       const res = await fetch(`/members/photo-picker?${params.toString()}`);
       const rawText = await res.text();
@@ -2270,6 +2282,24 @@
         photoPickerGender = gender;
         for (const el of photoGenderFilter.querySelectorAll('button')) {
           const isActive = el.dataset.gender === gender;
+          el.classList.toggle('active', isActive);
+          el.setAttribute('aria-selected', String(isActive));
+        }
+        if (photoPickerActive) {
+          loadPhotoPicker(true);
+        }
+      });
+    }
+    if (photoAttendanceFilter) {
+      photoAttendanceFilter.addEventListener('click', (evt) => {
+        const btn = evt.target;
+        if (!btn || !btn.dataset) {
+          return;
+        }
+        const attendance = btn.dataset.attendance || '';
+        photoPickerAttendance = attendance;
+        for (const el of photoAttendanceFilter.querySelectorAll('button')) {
+          const isActive = (el.dataset.attendance || '') === attendance;
           el.classList.toggle('active', isActive);
           el.setAttribute('aria-selected', String(isActive));
         }
