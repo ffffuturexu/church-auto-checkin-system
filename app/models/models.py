@@ -263,3 +263,20 @@ class BirthdayReminderLog(Base):
 
 
 # BirthdayReminderLog.timestamp already has column-level index; explicit Index removed to avoid duplicate creation
+
+
+class WeeklyReportLog(Base):
+    __tablename__ = "weekly_report_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+    recipients: Mapped[str] = mapped_column(String(1024), nullable=False)
+    recipients_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sent_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+

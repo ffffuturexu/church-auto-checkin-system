@@ -10,6 +10,10 @@ from app.core.database import SessionLocal
 from app.core.process_metrics import get_process_metrics
 
 from app.services.runtime_pipeline import RuntimePipeline
+from pathlib import Path
+import json
+import os
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -176,3 +180,150 @@ async def restart_system(request: Request) -> dict[str, Any]:
     if dispatcher is not None and not dispatcher.is_running():
         await dispatcher.start()
     return {"status": "restarted", "runtime": runtime.state().__dict__}
+
+
+class WeeklyReportConfig(BaseModel):
+    smtp_user: str | None = None
+    mail_from: str | None = None
+    mail_to: str | None = None
+
+
+def _config_path() -> Path:
+    repo_root = Path(__file__).resolve().parents[2]
+    data_dir = repo_root / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir / "weekly_report_config.json"
+
+
+@router.get("/weekly-report-config")
+def get_weekly_report_config(request: Request) -> dict[str, Any]:
+    path = _config_path()
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    # fallback to environment variables (do NOT return password)
+    return {
+        "smtp_user": os.getenv("REPORT_SMTP_USER"),
+        "mail_from": os.getenv("REPORT_MAIL_FROM"),
+        "mail_to": os.getenv("REPORT_MAIL_TO"),
+    }
+
+
+@router.put("/weekly-report-config")
+def put_weekly_report_config(payload: WeeklyReportConfig, request: Request) -> dict[str, Any]:
+    data = payload.model_dump(exclude_none=True)
+    path = _config_path()
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"status": "saved", "config": data}
+
+
+# Note: web-based credential editing was removed for security; maintain credentials manually on server.
+
+
+@router.get("/generate-weekly-brief")
+def generate_weekly_brief(request: Request) -> dict[str, Any]:
+    # Run the send_weekly_care_brief.py in dry-run mode and return its stdout
+    import subprocess, sys
+
+    repo_root = Path(__file__).resolve().parents[2]
+    script = repo_root / "scripts" / "send_weekly_care_brief.py"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(repo_root)
+    try:
+        proc = subprocess.run([sys.executable, str(script), "--dry-run"], capture_output=True, text=True, env=env, timeout=120)
+        return {"stdout": proc.stdout, "stderr": proc.stderr, "returncode": proc.returncode}
+    except subprocess.TimeoutExpired:
+        return {"error": "timeout"}
+
+
+@router.post("/send-weekly-brief")
+def send_weekly_brief(request: Request) -> dict[str, Any]:
+    import subprocess, sys
+    from app.core.database import SessionLocal
+    from app.models.models import WeeklyReportLog
+
+    repo_root = Path(__file__).resolve().parents[2]
+    script = repo_root / "scripts" / "send_weekly_care_brief.py"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(repo_root)
+
+    # Load stored config and inject into env for the subprocess (password must be set in env)
+    cfg_path = _config_path()
+    cfg = {}
+    if cfg_path.exists():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except Exception:
+            cfg = {}
+
+    if cfg.get("smtp_user"):
+        env["REPORT_SMTP_USER"] = cfg.get("smtp_user")
+    if cfg.get("mail_from"):
+        env["REPORT_MAIL_FROM"] = cfg.get("mail_from")
+    if cfg.get("mail_to"):
+        env["REPORT_MAIL_TO"] = cfg.get("mail_to")
+
+    # Ensure password present in server environment (do not store password in file)
+    if not env.get("REPORT_SMTP_PASS"):
+        return {"error": "Missing REPORT_SMTP_PASS in server environment. Set it securely before sending."}
+
+    # First, generate the brief (dry-run) to capture the body
+    try:
+        gen = subprocess.run([sys.executable, str(script), "--dry-run"], capture_output=True, text=True, env=env, timeout=120)
+    except subprocess.TimeoutExpired:
+        return {"error": "generation timeout"}
+
+    brief_text = gen.stdout or ""
+    if gen.returncode != 0:
+        return {"error": "generation_failed", "stderr": gen.stderr or ""}
+
+    # Now run actual sending
+    try:
+        proc = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, env=env, timeout=300)
+    except subprocess.TimeoutExpired:
+        return {"error": "send timeout"}
+
+    # persist log into DB
+    try:
+        with SessionLocal() as db:
+            recipients = env.get("REPORT_MAIL_TO", "")
+            recipients_count = len([r for r in recipients.split(",") if r.strip()])
+            sent_count = 1 if proc.returncode == 0 else 0
+            subject = f"[关怀周报] 本周聚会概览 — {''}"
+            log = WeeklyReportLog(
+                recipients=recipients,
+                recipients_count=recipients_count,
+                sent_count=sent_count,
+                subject=subject,
+                body=brief_text,
+                status=("sent" if sent_count else "failed"),
+                note=(proc.stderr or None),
+            )
+            db.add(log)
+            db.commit()
+    except Exception as e:
+        return {"error": "db_save_failed", "detail": str(e), "stdout": proc.stdout, "stderr": proc.stderr, "returncode": proc.returncode}
+
+    return {"stdout": proc.stdout, "stderr": proc.stderr, "returncode": proc.returncode}
+
+
+@router.get("/weekly-report-latest")
+def weekly_report_latest(request: Request) -> dict[str, Any]:
+    from app.core.database import SessionLocal
+    from app.models.models import WeeklyReportLog
+
+    with SessionLocal() as db:
+        row = db.query(WeeklyReportLog).order_by(WeeklyReportLog.timestamp.desc()).limit(1).first()
+        if not row:
+            return {"found": False}
+        return {
+            "found": True,
+            "timestamp": row.timestamp.isoformat(),
+            "subject": row.subject,
+            "body": row.body,
+            "status": row.status,
+            "recipients": row.recipients,
+            "sent_count": row.sent_count,
+        }

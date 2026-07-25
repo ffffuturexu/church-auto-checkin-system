@@ -1192,28 +1192,19 @@
 
         <div class="card">
           <div class="trend-head">
-            <h2>汇总报告</h2>
-            <div>
-              <button class="alt collapse-toggle" data-target="careSummarySection">展开</button>
-            </div>
-          </div>
-          <div id="careSummarySection" class="collapsible-content hidden">
-            <div id="careSummaryGrid" class="care-summary-grid"></div>
-            <div class="care-dist-grid">
-              <div class="care-dist-card">
-                <h3>按分组分布</h3>
-                <div id="careGroupDistribution" class="care-dist-list"></div>
-              </div>
-              <div class="care-dist-card">
-                <h3>按风险分布</h3>
-                <div id="careRiskDistribution" class="care-dist-list"></div>
-              </div>
-              <div class="care-dist-card">
-                <h3>按参与度分布</h3>
-                <div id="careEngagementDistribution" class="care-dist-list"></div>
+              <h2>每周简报</h2>
+              <div>
+                <button class="alt collapse-toggle" data-target="careSummarySection">展开</button>
               </div>
             </div>
-          </div>
+            <div id="careSummarySection" class="collapsible-content hidden">
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                <button id="generateBriefBtn">生成并显示（干跑）</button>
+                <button id="generateAndSendBtn" class="warn">生成并发送（服务器端）</button>
+              </div>
+              <pre id="weeklyBriefOutput" style="white-space:pre-wrap;background:#fff;border:1px solid #e6efe6;padding:12px;border-radius:8px;min-height:120px;"></pre>
+              <div class="muted" style="margin-top:8px">提示：周报发送由系统定时任务负责；可在调试页面修改发送邮箱配置。</div>
+            </div>
         </div>
       </div>
     </div>
@@ -3323,6 +3314,53 @@
     }
 
     initPage();
+    // load latest stored weekly brief for display
+    async function loadLatestWeeklyBrief() {
+      const out = document.getElementById('weeklyBriefOutput');
+      try {
+        const res = await fetch('/system/weekly-report-latest');
+        const data = await res.json();
+        if (data.found) {
+          out.textContent = `最近发送: ${data.timestamp}\n状态: ${data.status}\n收件: ${data.recipients}\n\n${data.body || ''}`;
+        } else {
+          out.textContent = '尚无已发送的周报记录。';
+        }
+      } catch (e) {
+        out.textContent = '加载最新周报失败: ' + e;
+      }
+    }
+    loadLatestWeeklyBrief();
+
+    // Weekly brief generator bindings
+    document.getElementById('generateBriefBtn').addEventListener('click', async () => {
+      const out = document.getElementById('weeklyBriefOutput');
+      out.textContent = '生成中...';
+      try {
+        const res = await fetch('/system/generate-weekly-brief');
+        const data = await res.json();
+        if (data.stdout) out.textContent = data.stdout;
+        else if (data.error) out.textContent = 'Error: ' + data.error;
+        else out.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        out.textContent = '生成失败: ' + e;
+      }
+    });
+
+    document.getElementById('generateAndSendBtn').addEventListener('click', async () => {
+      const ok = confirm('确定要在服务器上生成并发送本周简报吗？');
+      if (!ok) return;
+      const out = document.getElementById('weeklyBriefOutput');
+      out.textContent = '发送中...';
+      try {
+        const res = await fetch('/system/send-weekly-brief', { method: 'POST' });
+        const data = await res.json();
+        if (data.stdout) out.textContent = data.stdout;
+        else if (data.error) out.textContent = 'Error: ' + data.error;
+        else out.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        out.textContent = '发送失败: ' + e;
+      }
+    });
   </script>
 </body>
 </html>
