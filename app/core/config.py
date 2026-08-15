@@ -14,7 +14,7 @@ class Settings:
     face_storage_dir: str = os.getenv("FACE_STORAGE_DIR", "./data/face_gallery")
     app_timezone: str = os.getenv("APP_TIMEZONE", "Europe/Rome")
     debug_basic_user: str = os.getenv("DEBUG_BASIC_USER", "tech")
-    debug_basic_password: str = os.getenv("DEBUG_BASIC_PASSWORD", "9090")
+    debug_basic_password: str = os.getenv("DEBUG_BASIC_PASSWORD", "0000")
 
 
 settings = Settings()

@@ -1,461 +1,257 @@
-# Church Auto Checkin System
+# Church Auto Check-in System
 
-一个基于人脸识别技术的教堂自动签到系统，提供实时签到、人脸库管理、接待工作台和管理后台功能。
+An intelligent church attendance platform powered by face recognition, with real-time check-in, face library management, reception workflows, and admin operations.
 
-中文
+Language:
+- English (default)
+- Chinese: [README.zh-CN.md](./README.zh-CN.md)
 
-## 📋 目录
+## Table of Contents
 
-- [简介](#简介)
-- [主要功能](#主要功能)
-- [系统架构](#系统架构)
-- [技术栈](#技术栈)
-- [快速开始](#快速开始)
-- [开发进度](#开发进度)
-- [项目结构](#项目结构)
-- [API 概览](#api-概览)
-- [维护和部署](#维护和部署)
-- [许可证](#许可证)
-
----
-
-## 简介
-
-**Church Auto Checkin System** 是一套为教堂设计的智能签到解决方案。通过实时摄像头直播和 CompreFace 人脸识别引擎，自动识别与会者身份并记录签到信息，同时为接待同工和事工管理提供高效的工作台界面。
-
-核心特性：
-- ✅ **实时人脸识别签到** - 多摄像头支持，毫秒级响应
-- ✅ **人脸库闭环管理** - 成员照片上传、编辑、删除与 CompreFace 同步
-- ✅ **接待队列管理** - 智能处理未知人脸，支持现场补签
-- ✅ **关怀中心分析** - 风险分层、分组分布、会友画像与 CSV 导出
-- ✅ **签到历史与报表** - 灵活的数据查询和 CSV 导出
-- ✅ **多角色工作台** - 调试工作台、接待工作台、管理后台
-- ✅ **WebSocket 实时推送** - 双通道事件与视频帧同步
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+- [Progress](#progress)
+- [Roadmap](#roadmap)
+- [Project Structure](#project-structure)
+- [API Overview](#api-overview)
+- [Operations](#operations)
+- [Testing](#testing)
+- [License](#license)
 
 ---
 
-## 主要功能
+## Overview
 
-### 1. 实时签到引擎
-- 支持 RTSP 和 FFmpeg TCP 流媒体输入
-- 多帧投票机制，提高识别准确率
-- 阈值 + Margin 双重防护，减少误识别
-- 自动去重，同场次仅记录一次签到
-- 非主日自动忽略，主日下午 3 点后切换意语场次
-- 识别链路并发处理，降低高峰时段阻塞
+Church Auto Check-in System is designed for church attendance and care workflows.
+It connects live camera streams with CompreFace to identify attendees, records attendance events, and provides dedicated interfaces for reception, debugging, and admin teams.
 
-### 2. 人脸库管理
-- 会友照片本地存储与版本管理
-- 与 CompreFace 远程库自动同步
-- 支持缩略图生成与按需下载，减少大图传输开销
-- 支持批量修改和删除操作
-- 同步失败自动重试机制
+Core capabilities:
+- Real-time check-in with multi-frame voting and dedupe controls
+- End-to-end face library management (local + CompreFace sync)
+- Reception queue for unknown faces and manual resolution
+- Care-center analytics (risk tiers, cohorts, profile views, CSV export)
+- Event and attendance management with history queries and export
+- Real-time WebSocket channels for events and debug video frames
 
-### 3. 接待工作台
-- 实时展示签到动态
-- 未知人脸队列（包含相似度分析）
-- 支持搜索成员后关联补签
-- 支持姓名、中文名、拼音、首字母和性别筛选的快速检索
-- 支持带照片优先的选人场景（photo picker），并可按“已签到 / 未签到”筛选，返回有照片和无照片的符合条件成员
-- 支持签到/完整模式切换与“只看新人”过滤
-- 现场异常抓拍归档
+## Key Features
 
-### 4. 管理后台
-- 会友档案管理（新增、编辑、停用）
-- 生日、分组、备注等扩展信息
-- 分组下拉选择与移动端列表/报表展示优化
-- 签到场次创建与编辑
-- 场次归档与历史查询
-- CSV 批量导出
+### 1. Real-time Recognition Pipeline
+- RTSP and camera index input support
+- Multi-frame voting for better recognition stability
+- Threshold + margin protection against false positives
+- Per-service dedupe to avoid repeated check-ins
+- Sunday service behavior controls and session split logic
 
-### 5. 关怀中心
-- 会友关怀列表（支持状态/是否有照片/性别/分组/关键词筛选）
-- 风险等级评估（低/中/高）与风险值解释
-- 会友关怀画像（近月签到、连续主日缺席、趋势与近期记录）
-- 关怀群组与整体报告（分组分布、参与度分布、风险分布）
-- 关怀名单 CSV 导出（中文业务字段）
+### 2. Face Library Management
+- Member photo upload, replace, delete, and active-version handling
+- Local storage plus remote CompreFace synchronization
+- Thumbnail paths for faster list rendering
+- Rebuild/sync workflows for operational recovery
 
-### 6. 系统控制
-- 流媒体启动/停止
-- 超参数热更新（阈值、Margin、投票数等）
-- 自检诊断（数据库、运行时、WebSocket 等）
-- 调试视频开关、识别标注开关与运行时重启
-- 调试画面中文姓名标注已改用 CJK 字体渲染，避免出现 `????`
-- 调试台超参数区将“当前参数展示”和“编辑输入”分离，并提供一键恢复默认参数
-- 队列负载与 WebSocket 连接状态监控
-- 进程级监控指标（CPU、内存、GPU、系统负载）
-- 自动清理过期日志与接待记录
+### 3. Reception Workbench
+- Live attendance and unknown-case queue
+- Candidate search and manual resolution flows
+- Keyword search across name, Chinese name, pinyin, initials, and gender filters
+- Photo-picker mode with signed-in / not-signed-in filtering
 
----
+### 4. Admin Workbench
+- Member CRUD and profile fields (group, birthday, notes)
+- Attendance event creation, update, archive
+- Attendance history filtering and CSV export
+- Weekly care brief generation/send management
 
-## 系统架构
+### 5. Care Center
+- Risk-based member list with multi-condition filters
+- Individual profile panels (recent check-ins, Sunday absence streak, trends)
+- Cohort recommendations and aggregate care report views
+- Care list CSV export with Chinese business labels
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Web UI Layer                         │
-├──────────┬──────────────┬──────────────┬────────────────────┤
-│  Index   │  Reception   │  Debug       │  Admin             │
-└──────────┴──────────────┴──────────────┴────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    FastAPI Backend (8001)                   │
-├──────────────────────────────────────────────────────────────┤
-│  REST API Routers  │  WebSocket Handlers  │  Health Checks  │
-└──────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   Core Services Layer                       │
-├──────────────────────────────────────────────────────────────┤
-│ RuntimePipeline (摄像头→识别管道) ← 多线程异步处理           │
-│ RecognitionEngine (独立识别线程池)   - 投票/去重/阈值       │
-│ CameraService (摄像头采集)         - 帧队列缓冲             │
-│ EventDispatcher (事件消费和落库)    - 广播+持久化            │
-│ FaceLibraryService (人脸库同步)    - 本地+远端双路维护       │
-└──────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│                      SQLite Database                        │
-├──────────────────────────────────────────────────────────────┤
-│ Members  │  AttendanceRecords  │  AttendanceEvents          │
-│ FacePhotos │ UnknownFaceCases  │  RecognitionLogs           │
-└──────────────────────────────────────────────────────────────┘
-                          ↓
-                    ┌─────────────┐
-                    │ CompreFace  │ (远程人脸识别服务)
-                    │ API (REST)  │
-                    └─────────────┘
+### 6. System Controls and Diagnostics
+- Stream start/stop and runtime restart
+- Hyperparameter hot updates for recognition tuning
+- Health/self-check endpoints and runtime status payload
+- Debug video and overlay toggles
+- Process-level metrics (CPU, memory, GPU, load)
+
+## Architecture
+
+```text
+Web UI (index / reception / debug / admin)
+            |
+            v
+FastAPI Backend (REST + WebSocket)
+            |
+            v
+Core Services (RuntimePipeline, RecognitionEngine, CameraService,
+              EventDispatcher, FaceLibraryService, Cleanup services)
+            |
+            v
+SQLite (members, attendance, events, queue, logs)
+            |
+            v
+CompreFace REST API
 ```
 
-### 关键数据流
+## Tech Stack
 
-```
-摄像头输入 → RuntimePipeline → RecognitionEngine → 事件队列
-                                    ↓
-                            EventDispatcher
-                            ↙           ↘
-                    WebSocket Channel A  Channel B
-                    (事件推送)        (调试视频)
-                    ↓                 ↓
-                 落库/更新          实时显示
-```
+- FastAPI 0.115.12
+- Uvicorn 0.34.0
+- SQLAlchemy 2.0.39
+- SQLite
+- OpenCV 4.11.0
+- Pillow 11.1.0
+- Requests 2.32.3
+- Pytest 8.3.5
+- CompreFace REST API
 
----
+## Quick Start
 
-## 技术栈
-
-| 组件 | 版本 | 用途 |
-|------|------|------|
-| **FastAPI** | 0.115.12 | Web 框架 |
-| **Uvicorn** | 0.34.0 | ASGI 服务器 |
-| **SQLAlchemy** | 2.0.39 | ORM |
-| **SQLite** | 内置 | 数据库 |
-| **OpenCV** | 4.11.0 | 视频处理与图像编码 |
-| **Pillow** | 11.1.0 | 图像处理 |
-| **Requests** | 2.32.3 | HTTP 客户端 |
-| **Pytest** | 8.3.5 | 测试框架 |
-| **CompreFace** | REST API | 人脸识别引擎 |
-
----
-
-## 快速开始
-
-### 前置要求
+### Prerequisites
 
 - Python 3.9+
-- CompreFace 服务（自托管或云服务）
-- 摄像头设备或 RTSP 流源
+- CompreFace service
+- Camera device or RTSP source
 
-### 安装步骤
+### Install
 
-1. **克隆仓库**
-   ```bash
-   git clone https://github.com/ffffuturexu/church-auto-checkin-system.git
-   cd church-auto-checkin-system
-   ```
+1. Clone repository
+```bash
+git clone https://github.com/ffffuturexu/church-auto-checkin-system.git
+cd church-auto-checkin-system
+```
 
-2. **创建虚拟环境**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Linux/macOS
-   # 或
-   venv\Scripts\activate  # Windows
-   ```
+2. Create venv
+```bash
+python -m venv venv
+source venv/bin/activate
+```
 
-3. **安装依赖**
-   ```bash
-   pip install -r requirements.txt
-   ```
+3. Install dependencies
+```bash
+pip install -r requirements.txt
+```
 
-4. **配置参数**
-   
-   创建 `config.ini`：
-   ```ini
-   [CompreFace]
-   ApiKey = your-api-key
-   BaseUrl = http://compreface-host:8000
+4. Configure `config.ini`
+```ini
+[CompreFace]
+ApiKey = your-api-key
+BaseUrl = http://compreface-host:8000
 
-   [Script]
-   Threshold = 0.70
-   Margin = 0.20
-   DedupeSeconds = 60
-   FrameSkip = 2
-   VoteWindowSec = 1.5
-   VoteMinSamples = 5
-   VoteRatio = 0.65
-   UnknownMinSimilarity = 0.65
-   UnknownMinFaceSize = 64
-   MaxQueueSize = 3
-   PredictionCount = 5
+[Script]
+Threshold = 0.70
+Margin = 0.20
+DedupeSeconds = 60
+FrameSkip = 2
+VoteWindowSec = 1.5
+VoteMinSamples = 5
+VoteRatio = 0.65
+UnknownMinSimilarity = 0.65
+UnknownMinFaceSize = 64
+MaxQueueSize = 3
+PredictionCount = 5
 
-   [DataSource]
-   RTSP_URL = rtsp://camera-url
-   CameraIndex = 0
-   RtspTcp = true
+[DataSource]
+RTSP_URL = rtsp://camera-url
+CameraIndex = 0
+RtspTcp = true
+```
 
-   [GUI]
-   Preview = true
-   ```
+5. Initialize database
+```bash
+python -c "from app.core.database import init_db; init_db()"
+```
 
-5. **初始化数据库**
-   ```bash
-   python -c "from app.core.database import init_db; init_db()"
-   ```
+6. Start server
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+```
 
-6. **启动服务**
-   ```bash
-   python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
-   ```
+7. Open app
+- Home: http://localhost:8001/
+- Reception: http://localhost:8001/reception
+- Debug: http://localhost:8001/debug
+- Admin: http://localhost:8001/admin
 
-7. **访问应用**
-   - 主页: http://localhost:8001/
-   - 接待工作台: http://localhost:8001/reception
-   - 调试工作台: http://localhost:8001/debug
-   - 管理后台: http://localhost:8001/admin
+## Progress
 
----
+- MVP business flow is complete across check-in, face library, reception, admin, and care center.
+- WebSocket dual-channel event/video streaming is stable in production workflow.
+- Mobile-focused UI refinements have been applied across primary pages.
+- Historical attendance migration, reporting, and thumbnail flow are in place.
 
-## 开发进度
+## Roadmap
 
-### 月度进度概览
+### Engineering
+- [ ] CI/CD automation (unit + integration test pipelines)
+- [ ] Containerized deployment (Docker + Compose)
+- [x] Health-check endpoints and runtime diagnostics baseline
+- [ ] Alerting strategy completion (on-call notifications and rules)
 
-| 日期 | 版本号 | 主要更新内容 |
-|------|------|------|
-| 2026-03 | v0.1.0 | FastAPI 基础框架、配置与数据库初始化。 |
-| 2026-03 | v0.1.1 | 多线程摄像头采集、识别引擎与运行管道雏形。 |
-| 2026-04 | v0.2.0 | WebSocket 双通道、事件分发与基础系统看板。 |
-| 2026-04 | v0.2.1 | Web UI 雏形、人脸库闭环与接待队列联动。 |
-| 2026-04 | v0.2.2 | 历史签到迁移入库、时区统一与统计口径修正。 |
-| 2026-05 | v0.3.0 | 接待页体验与响应式优化、检索增强与语音输入。 |
-| 2026-05 | v0.3.1 | 照片缩略图机制、报表布局优化与移动端展示优化。 |
-| 2026-05 | v0.3.2 | 关怀中心设计与开发、风险分层与成员画像。 |
-| 2026-06 | v0.4.0 | 运维稳定性增强：Channel A/B 广播超时保护、队列负载看板与调试控制。 |
-| 2026-06 | v0.4.1 | 调试标注优化、中文姓名 CJK 渲染、超参数展示/编辑拆分。 |
-| 2026-06 | v0.4.2 | 接待页启动优化、状态告警待定态与首屏自动补填。 |
-| 2026-06 | v0.4.3 | 生日提醒脚本、birthday_reminder_logs 运行日志模型与 systemd 定时器。 |
-| 2026-06 | v0.4.4 | 识别事件模型重构：recognition.success / pending / unknown，兼容旧 check_in / unknown_face 映射。 |
-| 2026-06 | v0.4.5 | Pending 候选双缓存、snapshot 编码回退、finalize 时序修正与审计日志补强。 |
-| 2026-07 | v0.5.1 | 识别引擎健壮性更新：pending 双缓存、编码回退、finalize 时序修正、超参数约束与去重优化。 |
-| 2026-07 | v0.5.2 | 接待页补签场次修正与 photo picker 签到状态筛选增强。 |
-| 2026-07 | v0.5.3 | 新增每周关怀简报生产化链路：模板化周报生成与 SMTP 发送脚本、`weekly_report_logs` 日志模型、后台周报接口与管理页查看/触发能力、systemd 定时发送配置、周报测试用例。 |
+### Feature Expansion
+- [ ] Multi-camera support and load balancing
+- [x] Group/time-based statistics dashboards (admin + care views)
+- [ ] Group/time-based alert rules
+- [ ] Recognition model tuning and A/B testing
+- [x] Basic performance monitoring dashboard
 
-### 当前进度摘要
+### Security
+- [ ] Full role-based auth (Reception / Admin / Ops)
+- [ ] Data access controls and audit hardening
+- [ ] Secondary confirmation for sensitive actions
 
-- ✅ **业务闭环**: MVP 已完整覆盖签到、人脸库、接待、管理与关怀中心流程
-- ✅ **实时能力**: 双通道 WebSocket 与识别事件分发已可稳定运行
-- ✅ **体验优化**: 接待页、调试页与管理后台已完成多轮交互和移动端优化
-- ✅ **数据支持**: 历史签到已完成迁移入库，报表与缩略图链路可用
+### User Experience
+- [ ] Internationalization (English / Traditional Chinese)
+- [x] Mobile responsive design
+- [ ] Dark theme support
+- [ ] Bulk member import workflow
 
-### 📌 后续计划
-
-**工程化完善**
-- [ ] CI/CD 自动化（单元测试 + 集成测试自动运行）
-- [ ] 容器化部署（Docker + Compose）
-- [ ] 健康检查与告警机制完善
-
-**功能扩展**
-- [ ] 多摄像头支持与负载均衡
-- [ ] 按成员分组/时段维度的统计与告警
-- [ ] 人脸识别精度模型微调与 A/B 测试
-- [ ] 性能监控仪表板
-
-**业务安全**
-- [ ] 接入鉴权与角色权限（Reception / Admin / Ops）
-- [ ] 数据访问控制与审计日志
-- [ ] 敏感操作二次确认机制
-
-**用户体验**
-- [ ] 国际化支持（英文、繁体中文）
-- [ ] 移动端响应式设计
-- [ ] 深色主题支持
-- [ ] 批量导入会友功能
-
----
-
-## 项目结构
+## Project Structure
 
 ```text
 church-auto-checkin-system/
-├── app/                     # FastAPI 后端、路由、服务与静态页面
-├── scripts/                 # 数据迁移、恢复与运维脚本
-├── tests/                   # 单元测试与集成测试
-├── data/                    # 本地人脸库、历史数据与数据库文件
-├── records/                 # 签到记录与导出文件
-├── config.ini               # 配置文件（git 忽略）
-├── requirements.txt         # Python 依赖
-├── docs/DEVELOPMENT_PROGRESS.md
-├── MAINTENANCE.md           # 维护与部署指南
-├── README.md                # 本文件
-└── LICENSE                  # MIT License
+├── app/
+├── scripts/
+├── tests/
+├── data/
+├── records/
+├── config.ini
+├── requirements.txt
+├── docs/
+├── README.md
+├── README.zh-CN.md
+└── LICENSE
 ```
 
----
+## API Overview
 
-## API 概览
+- Members: `/members`, `/members/search`, `/members/photo-picker`
+- Attendance: `/attendance/current-service`, `/attendance/manual-checkin`, `/attendance/history`
+- Events: `/events`
+- Face library: `/face-library/...`
+- Care: `/care/members`, `/care/report`, `/care/cohorts`
+- Reception queue: `/reception/queue/unknown`
+- System: `/health`, `/system/self-check`, `/system/status`, `/system/stream/start`
+- WebSocket: `/ws/channel-a`, `/ws/channel-b`
 
-### 会友管理
-- `GET /members` - 列表会友（支持分页与筛选）
-- `GET /members?gender=` - 按性别筛选会友
-- `POST /members` - 新增会友
-- `GET /members/{member_id}` - 获取会友详情
-- `PUT /members/{member_id}` - 更新会友信息
-- `DELETE /members/{member_id}` - 停用会友
-- `GET /members/search?q=` - 快速搜索
-- `GET /members/photo-picker` - 接待/选图场景的候选会友列表
+See OpenAPI docs at `/docs` and `/redoc`.
 
-### 签到服务
-- `GET /attendance/current-service` - 获取当前服务信息
-- `POST /attendance/manual-checkin` - 手动签到
-- `GET /attendance/history` - 查询签到历史
-- `GET /attendance/history/export.csv` - 导出签到记录
+## Operations
 
-### 场次管理
-- `GET /events` - 场次列表（含归档）
-- `POST /events` - 创建新场次
-- `PUT /events/{event_id}` - 编辑场次
-- `POST /events/{event_id}/archive` - 归档场次
+- Service/unit files and maintenance scripts are in `scripts/systemd/`.
+- Birthday reminder and weekly care brief jobs are included.
+- Common maintenance procedures: [docs/MAINTENANCE.md](./docs/MAINTENANCE.md)
 
-### 人脸库
-- `GET /face-library/members/{member_id}/photos` - 会友照片列表
-- `POST /face-library/members/{member_id}/photos` - 上传照片
-- `PUT /face-library/photos/{photo_id}` - 替换照片
-- `DELETE /face-library/photos/{photo_id}` - 删除照片
-- `GET /face-library/photos/{photo_id}/download` - 下载原图
-- `GET /face-library/photos/{photo_id}/thumbnail` - 下载照片缩略图
-- `GET /face-library/members/{member_id}/thumbnail` - 下载会友主缩略图
-- `POST /face-library/sync/rebuild` - 重建人脸库
+## Testing
 
-### 关怀中心
-- `GET /care/members` - 关怀成员列表与风险筛选
-- `GET /care/members/{member_id}/profile` - 单个会友关怀画像
-- `GET /care/cohorts` - 关怀分群建议
-- `GET /care/report` - 关怀统计报告
-- `GET /care/members/export.csv` - 关怀名单导出
-
-### 接待队列
-- `GET /reception/queue/unknown` - 未知人脸队列
-- `POST /reception/queue/unknown/{case_id}/ignore` - 忽略案例
-- `POST /reception/queue/unknown/{case_id}/resolve` - 关联补签
-- `POST /reception/queue/unknown/clear` - 批量清理
-
-### 系统控制
-- `GET /health` - 服务健康检查
-- `GET /system/self-check` - 系统自检诊断
-- `GET /system/status` - 系统状态与资源指标
-- `POST /system/stream/start` - 启动流媒体
-- `POST /system/stream/stop` - 停止流媒体
-- `PUT /system/hyperparameters` - 热更新超参数
-- `PUT /system/debug-video` - 开关调试视频
-- `PUT /system/debug-overlay` - 开关识别标注
-- `POST /system/restart` - 重启运行时
-
-### WebSocket
-- `WS /ws/channel-a` - 实时签到事件（Channel A）
-- `WS /ws/channel-b` - 调试视频帧（Channel B）
-
-详见 FastAPI 自动文档：`/docs` 和 `/redoc`
-
----
-
-## 维护和部署
-
-### Systemd 服务管理
 ```bash
-# 启动/停止服务
-sudo systemctl start checkin-system
-sudo systemctl stop checkin-system
-sudo systemctl restart checkin-system
-
-# 查看日志
-sudo journalctl -u checkin-system -f
-```
-
-### 生日提醒（关怀中心）
-
-本仓库新增了一个轻量化的生日提醒脚本与可选 systemd 定时器：
-
-- 脚本：`scripts/send_birthday_reminders.py`，可配置同工收件人、SMTP、提前天数（默认当天，`BIRTHDAY_REMINDER_DAYS_AHEAD=0`）。
-- 数据库：会在 `birthday_reminder_logs` 表记录每次执行（包括无生日、dry-run 与实际发送），由 ORM 模型 `BirthdayReminderLog` 管理。
-- 定时：提供 `scripts/systemd/birthday_reminder.service` 与 `scripts/systemd/birthday_reminder.timer`，在系统侧设置为每天 08:00 触发；脚本仅在当天有会友生日时发送邮件。
-
-部署提示：不要将 SMTP 凭据放入仓库，请将其放在 `/etc/default/birthday_reminder` 或系统级安全存储中。
-
-### Nginx 反向代理
-```bash
-# 测试配置
-sudo nginx -t
-
-# 重新加载
-sudo systemctl reload nginx
-```
-
-### 常用诊断命令
-```bash
-# 检查 API 端口
-ss -lntp | grep 8001
-
-# HTTP 健康检查
-curl -I http://127.0.0.1:8001/health
-
-# WebSocket 连接测试
-curl -i -N -H "Connection: Upgrade" \
-  -H "Upgrade: websocket" \
-  http://127.0.0.1:8001/ws/channel-a
-```
-
-更多维护命令见 [MAINTENANCE.md](./MAINTENANCE.md)
-
----
-
-## 测试
-
-运行测试套件：
-```bash
-# 所有测试
 pytest tests/ -v
-
-# 特定测试文件
 pytest tests/test_api_minimal.py -v
-
-# 包含覆盖率报告
 pytest tests/ --cov=app --cov-report=html
 ```
 
-测试范围：
-- ✅ API 功能测试（CRUD、错误处理）
-- ✅ 识别引擎逻辑测试（投票、去重、阈值）
-- ✅ WebSocket 集成测试（事件推送、持久化）
-- ✅ 业务流程测试（签到、补签、场次分割）
+## License
 
----
-
-## 许可证
-
-本项目采用 **MIT License** 开源。详见 [LICENSE](./LICENSE) 文件。
-
----
-
-## 联系方式
-
-如有任何问题或建议，欢迎通过以下方式联系：
-- 提交 GitHub Issues
-
+MIT License. See [LICENSE](./LICENSE).

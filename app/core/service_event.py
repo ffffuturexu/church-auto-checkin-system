@@ -39,7 +39,7 @@ def infer_sunday_service_language(checkin_time_local: datetime) -> str:
         # First Sunday has only Chinese service.
         return SUNDAY_SERVICE_LANGUAGE_ZH
 
-    split = time(hour=15, minute=0, second=0)
+    split = time(hour=14, minute=45, second=0)
     if checkin_time_local.time() < split:
         return SUNDAY_SERVICE_LANGUAGE_ZH
     return SUNDAY_SERVICE_LANGUAGE_IT

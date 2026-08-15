@@ -346,6 +346,30 @@ def test_current_service_sunday_after_15_is_it(api_context, monkeypatch):
     assert payload["event_name"] == "主日崇拜（意语） 2026-04-12"
 
 
+def test_current_service_sunday_split_at_1445(api_context, monkeypatch):
+    client = api_context["client"]
+
+    monkeypatch.setattr(
+        attendance_router_module,
+        "now_local_naive",
+        lambda: datetime(2026, 4, 12, 14, 44, 59),
+    )
+
+    before_resp = client.get("/attendance/current-service")
+    assert before_resp.status_code == 200
+    assert before_resp.json()["service_language"] == "zh"
+
+    monkeypatch.setattr(
+        attendance_router_module,
+        "now_local_naive",
+        lambda: datetime(2026, 4, 12, 14, 45, 0),
+    )
+
+    at_resp = client.get("/attendance/current-service")
+    assert at_resp.status_code == 200
+    assert at_resp.json()["service_language"] == "it"
+
+
 def test_current_service_first_sunday_after_15_stays_zh(api_context, monkeypatch):
     client = api_context["client"]
 
