@@ -55,7 +55,7 @@ Core capabilities:
 - Live attendance and unknown-case queue
 - Candidate search and manual resolution flows
 - Keyword search across name, Chinese name, pinyin, initials, and gender filters
-- Photo-picker mode with signed-in / not-signed-in filtering
+- Photo-picker mode with signed-in / not-signed-in filtering; signed-in members are ordered by the selected event's check-in time, newest first
 
 ### 4. Admin Workbench
 - Member CRUD and profile fields (group, birthday, notes)
@@ -181,6 +181,11 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 - WebSocket dual-channel event/video streaming is stable in production workflow.
 - Mobile-focused UI refinements have been applied across primary pages.
 - Historical attendance migration, reporting, and thumbnail flow are in place.
+- Reception photo-picker signed-in results now prioritize the most recent check-ins for the selected event; the ordering regression test passes in the `autocheckin` conda environment.
+
+### Latest Release
+
+- **v0.5.5 (2026-08-23)**: Sort signed-in photo-picker results by selected-event check-in time descending and add regression coverage.
 
 ## Roadmap
 

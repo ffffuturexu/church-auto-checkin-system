@@ -313,6 +313,7 @@ def photo_picker_members(
 
     checked_in_member_ids_query = None
     attendance_map: dict[UUID, AttendanceRecord] = {}
+    checked_in_order = None
     if event_id is not None:
         records = db.execute(
             select(AttendanceRecord).where(AttendanceRecord.event_id == event_id)
@@ -322,10 +323,23 @@ def photo_picker_members(
 
         if attendance_status_value == "checked_in":
             stmt = stmt.where(Member.id.in_(checked_in_member_ids_query))
+            checked_in_order = (
+                select(func.max(AttendanceRecord.check_in_time))
+                .where(
+                    AttendanceRecord.event_id == event_id,
+                    AttendanceRecord.member_id == Member.id,
+                )
+                .correlate(Member)
+                .scalar_subquery()
+            )
         elif attendance_status_value == "not_checked_in":
             stmt = stmt.where(~Member.id.in_(checked_in_member_ids_query))
 
-    stmt = stmt.order_by(recent_count.desc(), Member.name.asc()).offset(offset).limit(limit)
+    if checked_in_order is not None:
+        stmt = stmt.order_by(checked_in_order.desc(), Member.name.asc())
+    else:
+        stmt = stmt.order_by(recent_count.desc(), Member.name.asc())
+    stmt = stmt.offset(offset).limit(limit)
     rows = db.execute(stmt).all()
 
     items: list[MemberOut] = []

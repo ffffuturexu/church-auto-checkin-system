@@ -7,7 +7,7 @@ from uuid import UUID
 from requests import HTTPError, Response
 
 import app.routers.attendance as attendance_router_module
-from app.models.models import AttendanceEvent, UnknownCaseStatus, UnknownFaceCase
+from app.models.models import AttendanceEvent, AttendanceRecord, UnknownCaseStatus, UnknownFaceCase
 from PIL import Image
 
 
@@ -499,6 +499,7 @@ def test_reception_queue_resolve_auto_split_by_case_time(api_context):
 
 def test_photo_picker_filters_by_attendance_and_includes_no_photo_members(api_context):
     client = api_context["client"]
+    session_factory = api_context["session_factory"]
 
     event_resp = client.post(
         "/events",
@@ -546,14 +547,32 @@ def test_photo_picker_filters_by_attendance_and_includes_no_photo_members(api_co
     )
     assert manual_checkin.status_code == 200
 
+    later_member_resp = client.post(
+        "/members",
+        json={"name": "Photo Checked In Later", "status": True},
+    )
+    assert later_member_resp.status_code == 200
+    later_member_id = later_member_resp.json()["id"]
+    later_checkin = client.post(
+        "/attendance/manual-checkin",
+        json={"member_id": later_member_id, "event_id": event_id},
+    )
+    assert later_checkin.status_code == 200
+
+    with session_factory() as db:
+        records = db.query(AttendanceRecord).filter(AttendanceRecord.event_id == UUID(event_id)).all()
+        for record in records:
+            record.check_in_time = datetime(2026, 4, 12, 10 if str(record.member_id) == checked_in_member_id else 11, 0, 0)
+        db.commit()
+
     checked_in_list = client.get(
         f"/members/photo-picker?event_id={event_id}&attendance_status=checked_in&include_no_photo=true&limit=20&offset=0"
     )
     assert checked_in_list.status_code == 200
     checked_in_payload = checked_in_list.json()
-    assert {item["id"] for item in checked_in_payload["items"]} == {checked_in_member_id}
+    assert [item["id"] for item in checked_in_payload["items"]] == [later_member_id, checked_in_member_id]
     assert checked_in_payload["items"][0]["attendance_status"] == "checked_in"
-    assert checked_in_payload["items"][0]["has_photo"] is True
+    assert checked_in_payload["items"][1]["attendance_status"] == "checked_in"
 
     not_checked_list = client.get(
         f"/members/photo-picker?event_id={event_id}&attendance_status=not_checked_in&include_no_photo=true&limit=20&offset=0"
