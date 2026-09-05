@@ -8,6 +8,7 @@ scripts/
 config.ini
 .env
 .env.local
+AGENTS.md
 
 # Python
 __pycache__/

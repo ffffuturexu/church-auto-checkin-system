@@ -44,6 +44,7 @@ Core capabilities:
 - Threshold + margin protection against false positives
 - Per-service dedupe to avoid repeated check-ins
 - Sunday service behavior controls and session split logic
+- Inactive or missing members are filtered before check-in and pending decisions
 
 ### 2. Face Library Management
 - Member photo upload, replace, delete, and active-version handling
@@ -56,12 +57,14 @@ Core capabilities:
 - Candidate search and manual resolution flows
 - Keyword search across name, Chinese name, pinyin, initials, and gender filters
 - Photo-picker mode with signed-in / not-signed-in filtering; signed-in members are ordered by the selected event's check-in time, newest first
+- Attendance records distinguish recognition, manual search, pending queue, and historical backfill sources
 
 ### 4. Admin Workbench
 - Member CRUD and profile fields (group, birthday, notes)
 - Attendance event creation, update, archive
 - Attendance history filtering and CSV export
 - Weekly care brief generation/send management
+- New-member form supports gender, controlled groups, Latin-name validation, and automatic check-in for the current Sunday service
 
 ### 5. Care Center
 - Risk-based member list with multi-condition filters
@@ -74,6 +77,7 @@ Core capabilities:
 - Hyperparameter hot updates for recognition tuning
 - Health/self-check endpoints and runtime status payload
 - Debug video and overlay toggles
+- Chinese/English language switching across the web workbenches
 - Process-level metrics (CPU, memory, GPU, load)
 
 ## Architecture
@@ -182,9 +186,12 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 - Mobile-focused UI refinements have been applied across primary pages.
 - Historical attendance migration, reporting, and thumbnail flow are in place.
 - Reception photo-picker signed-in results now prioritize the most recent check-ins for the selected event; the ordering regression test passes in the `autocheckin` conda environment.
+- Attendance history now exposes a durable `source` field with automatic SQLite migration and source-based dashboard counts.
+- Recognition candidate filtering, new-member admin flow, and Chinese/English UI localization are implemented.
 
 ### Latest Release
 
+- **v0.6.1 (2026-09-05)**: Add attendance source classification and SQLite migration, filter inactive recognition candidates, improve new-member registration with automatic Sunday check-in, and add Chinese/English UI localization.
 - **v0.5.5 (2026-08-23)**: Sort signed-in photo-picker results by selected-event check-in time descending and add regression coverage.
 
 ## Roadmap
@@ -208,7 +215,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 - [ ] Secondary confirmation for sensitive actions
 
 ### User Experience
-- [ ] Internationalization (English / Traditional Chinese)
+- [x] English / Chinese UI localization baseline
 - [x] Mobile responsive design
 - [ ] Dark theme support
 - [ ] Bulk member import workflow
@@ -234,6 +241,7 @@ church-auto-checkin-system/
 
 - Members: `/members`, `/members/search`, `/members/photo-picker`
 - Attendance: `/attendance/current-service`, `/attendance/manual-checkin`, `/attendance/history`
+- Attendance history and CSV responses expose `source`: `recognition`, `manual_search`, `pending_queue`, or `backfill`; existing SQLite databases receive the field automatically at startup.
 - Events: `/events`
 - Face library: `/face-library/...`
 - Care: `/care/members`, `/care/report`, `/care/cohorts`
@@ -242,6 +250,8 @@ church-auto-checkin-system/
 - WebSocket: `/ws/channel-a`, `/ws/channel-b`
 
 See OpenAPI docs at `/docs` and `/redoc`.
+
+Recognition events also carry the attendance source, while inactive or missing members are excluded before success or pending decisions.
 
 ## Operations
 
@@ -256,6 +266,8 @@ pytest tests/ -v
 pytest tests/test_api_minimal.py -v
 pytest tests/ --cov=app --cov-report=html
 ```
+
+The v0.6.1 regression coverage includes attendance-source API assertions and protection against inactive members entering recognition success or pending flows. Run tests in the `autocheckin` conda environment.
 
 ## License
 

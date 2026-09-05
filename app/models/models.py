@@ -41,6 +41,13 @@ class CheckInMethod(str, enum.Enum):
     MANUAL_BACKFILL = "manual_backfill"
 
 
+class CheckInSource(str, enum.Enum):
+    RECOGNITION = "recognition"
+    MANUAL_SEARCH = "manual_search"
+    PENDING_QUEUE = "pending_queue"
+    BACKFILL = "backfill"
+
+
 class RecognitionStatus(str, enum.Enum):
     SUCCESS = "success"  # reason: auto_face_absolute | auto_face_vote
     PENDING = "pending"  # reason: ambiguous_margin | weak_consensus | vote_timeout | insufficient_frames | weak_candidate
@@ -120,6 +127,11 @@ class AttendanceRecord(Base):
     method: Mapped[CheckInMethod] = mapped_column(
         Enum(CheckInMethod, native_enum=False, length=32, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
+    )
+    source: Mapped[CheckInSource] = mapped_column(
+        Enum(CheckInSource, native_enum=False, length=32, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=CheckInSource.MANUAL_SEARCH,
     )
 
     event: Mapped[AttendanceEvent] = relationship("AttendanceEvent", back_populates="attendance_records")

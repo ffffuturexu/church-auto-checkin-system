@@ -15,6 +15,7 @@ from app.models.models import (
     AttendanceEvent,
     AttendanceRecord,
     CheckInMethod,
+    CheckInSource,
     Member,
     RecognitionLog,
     UnknownCaseStatus,
@@ -389,6 +390,7 @@ async def resolve_unknown_case(
             member_id=member.id,
             check_in_time=now_local_naive(),
             method=CheckInMethod.MANUAL_RECEPTION,
+            source=CheckInSource.PENDING_QUEUE,
         )
         db.add(record)
         db.flush()
@@ -420,6 +422,7 @@ async def resolve_unknown_case(
         payload = {
             "event_type": "check_in",
             "method": "manual_reception",
+            "source": CheckInSource.PENDING_QUEUE.value,
             "timestamp": now_local().isoformat(timespec="seconds"),
             "subject_id": str(member.id),
             "member_id": str(member.id),

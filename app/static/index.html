@@ -162,11 +162,8 @@
   <main class="shell">
     <section class="hero">
       <div class="eyebrow">Church Auto Check-in System</div>
-      <h1>自动签到系统入口</h1>
-      <p class="lead">
-        这是系统总首页，用来进入三个工作台：事工管理后台、系统调试工作台、接待同工工作台。
-        首页由 FastAPI 提供，Nginx 只负责把根路径和 WebSocket / API 反代到后端。
-      </p>
+      <h1 data-i18n="homeTitle">自动签到系统入口</h1>
+      <p class="lead">从这里进入接待、管理和系统调试工作台。</p>
       <div class="meta">
         <span>主页：/</span>
         <span>管理台：/admin</span>
@@ -176,18 +173,18 @@
       <div class="grid">
         <a class="card" href="/reception">
           <div class="badge reception">RECEPTION</div>
-          <h2>接待同工工作台</h2>
-          <p>查看实时签到、异常抓拍队列、快捷搜索与手动补签。</p>
+          <h2 data-i18n="reception">接待同工工作台</h2>
+          <p data-i18n="receptionDescription">查看实时签到、异常抓拍队列、快捷搜索与手动补签。</p>
         </a>
         <a class="card" href="/admin">
           <div class="badge admin">ADMIN</div>
-          <h2>事工管理后台</h2>
-          <p>会友管理、照片库管理、场次与历史签到查询、统计看板。</p>
+          <h2 data-i18n="admin">事工管理后台</h2>
+          <p data-i18n="adminDescription">会友管理、照片库管理、场次与历史签到查询、统计看板。</p>
         </a>
         <a class="card" href="/debug" id="debugCard" aria-label="系统调试工作台（技术同工专用）">
           <div class="badge debug">OPS</div>
-          <h2>系统调试工作台</h2>
-          <p>查看 Channel A / B、控制流媒体、热更新识别超参数。仅技术同工可进入。</p>
+          <h2 data-i18n="debug">系统调试工作台</h2>
+          <p data-i18n="debugDescription">查看 Channel A / B、控制流媒体、热更新识别超参数。仅技术同工可进入。</p>
           <div class="warn">TECH ONLY · 需要本机口令验证</div>
         </a>
       </div>
@@ -196,10 +193,8 @@
         <a href="/system/status">系统状态</a>
         <a href="/docs">API 文档</a>
       </div>
-      <div class="footer">
-        如果你在 Nginx 前面部署，请保持根路径反代到 FastAPI；API 与 WebSocket 也继续由后端处理。调试台启用了技术同工认证。
-      </div>
     </section>
   </main>
+  <script src="/static/localization.js"></script>
 </body>
 </html>

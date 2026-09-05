@@ -152,7 +152,9 @@ class RecognitionEngine:
         self._debug_enabled = True
         self._debug_overlay_enabled = True
         self._subject_name_resolver: Callable[[str], str | None] | None = None
+        self._subject_active_resolver: Callable[[str], bool] | None = None
         self._subject_name_cache: dict[str, tuple[str | None, datetime]] = {}
+        self._subject_active_cache: dict[str, tuple[bool, datetime]] = {}
         self._subject_name_cache_ttl_sec = 120.0
         self._tracks: dict[int, TrackState] = {}
         self._next_track_id = 1
@@ -256,6 +258,47 @@ class RecognitionEngine:
             self._subject_name_resolver = resolver
             self._subject_name_cache.clear()
 
+    def set_subject_active_resolver(self, resolver: Callable[[str], bool] | None) -> None:
+        with self._lock:
+            self._subject_active_resolver = resolver
+            self._subject_active_cache.clear()
+
+    def _filter_inactive_subjects(self, subjects: Any) -> list[dict[str, Any]]:
+        if not isinstance(subjects, list):
+            return []
+
+        with self._lock:
+            resolver = self._subject_active_resolver
+        if resolver is None:
+            return [subject for subject in subjects if isinstance(subject, dict)]
+
+        now = now_local()
+        active_subjects: list[dict[str, Any]] = []
+        for subject in subjects:
+            if not isinstance(subject, dict):
+                continue
+            subject_id = str(subject.get("subject", "")).strip()
+            if not subject_id:
+                continue
+
+            with self._lock:
+                cached = self._subject_active_cache.get(subject_id)
+            if cached is not None and (now - cached[1]).total_seconds() <= self._subject_name_cache_ttl_sec:
+                is_active = cached[0]
+            else:
+                try:
+                    is_active = bool(resolver(subject_id))
+                except Exception:
+                    is_active = False
+                with self._lock:
+                    self._subject_active_cache[subject_id] = (is_active, now)
+
+            if is_active:
+                active_subjects.append(subject)
+            else:
+                logger.info("recognition candidate filtered: inactive subject=%s", subject_id)
+        return active_subjects
+
     def _run(self) -> None:
         try:
             while not self._stop_event.is_set():
@@ -354,7 +397,7 @@ class RecognitionEngine:
         debug_annotations: list[dict[str, Any]] = []
 
         for detection_index, (item, box, track_id) in enumerate(zip(detections, boxes, track_ids)):
-            subjects = item.get("subjects", [])
+            subjects = self._filter_inactive_subjects(item.get("subjects", []))
             best, second = self._pick_best_two(subjects)
 
             best_subject = str(best.get("subject", "")).strip() if best else ""

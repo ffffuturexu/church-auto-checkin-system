@@ -95,6 +95,44 @@ def _apply_sqlite_migrations() -> None:
         if "phone" in member_column_names:
             conn.execute(text("ALTER TABLE members DROP COLUMN phone"))
 
+        attendance_columns = conn.execute(text("PRAGMA table_info(attendance_records)")).fetchall()
+        attendance_column_names = {str(row[1]) for row in attendance_columns}
+        if "source" not in attendance_column_names:
+            conn.execute(
+                text(
+                    "ALTER TABLE attendance_records "
+                    "ADD COLUMN source VARCHAR(32) NOT NULL DEFAULT 'manual_search'"
+                )
+            )
+
+        # Rebuild source from durable facts so this migration is idempotent.
+        conn.execute(
+            text(
+                """
+                UPDATE attendance_records
+                SET method = 'manual_backfill', source = 'backfill'
+                WHERE date(check_in_time) < '2026-05-01'
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE attendance_records
+                SET source = CASE
+                    WHEN method = 'auto_face' THEN 'recognition'
+                    WHEN EXISTS (
+                        SELECT 1 FROM unknown_face_cases ufc
+                        WHERE ufc.attendance_record_id = attendance_records.id
+                    ) THEN 'pending_queue'
+                    WHEN method = 'manual_backfill' THEN 'backfill'
+                    ELSE 'manual_search'
+                END
+                WHERE date(check_in_time) >= '2026-05-01'
+                """
+            )
+        )
+
         conn.execute(
             text(
                 "CREATE INDEX IF NOT EXISTS ix_attendance_records_member_checkin_time "

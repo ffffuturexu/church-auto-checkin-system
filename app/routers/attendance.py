@@ -25,6 +25,7 @@ from app.models.models import (
     AttendanceEvent,
     AttendanceRecord,
     CheckInMethod,
+    CheckInSource,
     Member,
     UnknownCaseStatus,
     UnknownFaceCase,
@@ -120,6 +121,7 @@ def _to_out(record: AttendanceRecord, member_name: str) -> AttendanceRecordOut:
         member_name=member_name,
         check_in_time=display_str,
         method=record.method.value,
+        source=record.source.value,
     )
 
 
@@ -228,6 +230,7 @@ async def manual_checkin(
         member_id=member.id,
         check_in_time=now,
         method=CheckInMethod.MANUAL_RECEPTION,
+        source=CheckInSource.MANUAL_SEARCH,
     )
     db.add(record)
     db.commit()
@@ -239,6 +242,7 @@ async def manual_checkin(
     payload = {
         "event_type": "check_in",
         "method": "manual_reception",
+        "source": CheckInSource.MANUAL_SEARCH.value,
         "timestamp": now_local().isoformat(timespec="seconds"),
         "subject_id": str(member.id),
         "member_id": str(member.id),
@@ -298,6 +302,7 @@ def attendance_history_export_csv(
         "member_name_chn",
         "check_in_time",
         "method",
+        "source",
     ])
     for row in rows:
         record, member_name, member_name_chn = row
@@ -310,6 +315,7 @@ def attendance_history_export_csv(
                 member_name_chn or "",
                 _to_display_checkin_time(record.check_in_time).strftime("%Y-%m-%d %H:%M:%S"),
                 record.method.value,
+                record.source.value,
             ]
         )
 
@@ -358,6 +364,7 @@ def delete_attendance_history_record(
     payload = {
         "event_type": "check_in_ignored",
         "method": record.method.value,
+        "source": record.source.value,
         "timestamp": now_local().isoformat(timespec="seconds"),
         "subject_id": str(record.member_id),
         "member_id": str(record.member_id),
@@ -366,7 +373,7 @@ def delete_attendance_history_record(
         "event_id": str(record.event_id),
         "attendance_record_id": str(record.id),
         "persist_status": "cancelled",
-        "detail": "manual_reception_cancelled",
+        "detail": f"{record.source.value}_cancelled",
     }
     record_feed_event(db, payload, source="manual_reception")
     db.commit()
@@ -405,6 +412,30 @@ def attendance_dashboard(
             select(func.count())
             .select_from(AttendanceRecord)
             .where(AttendanceRecord.method == CheckInMethod.MANUAL_RECEPTION)
+        )
+        or 0
+    )
+    manual_search_checkins = int(
+        db.scalar(
+            select(func.count())
+            .select_from(AttendanceRecord)
+            .where(AttendanceRecord.source == CheckInSource.MANUAL_SEARCH)
+        )
+        or 0
+    )
+    pending_queue_checkins = int(
+        db.scalar(
+            select(func.count())
+            .select_from(AttendanceRecord)
+            .where(AttendanceRecord.source == CheckInSource.PENDING_QUEUE)
+        )
+        or 0
+    )
+    backfill_checkins = int(
+        db.scalar(
+            select(func.count())
+            .select_from(AttendanceRecord)
+            .where(AttendanceRecord.source == CheckInSource.BACKFILL)
         )
         or 0
     )
@@ -489,6 +520,9 @@ def attendance_dashboard(
             total_checkins=total_checkins,
             auto_checkins=auto_checkins,
             manual_checkins=manual_checkins,
+            manual_search_checkins=manual_search_checkins,
+            pending_queue_checkins=pending_queue_checkins,
+            backfill_checkins=backfill_checkins,
             pending_unknown_cases=pending_unknown_cases,
             avg_this_year_zh=avg_this_year_zh,
             avg_this_year_it=avg_this_year_it,

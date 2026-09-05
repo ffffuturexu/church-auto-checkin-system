@@ -4,6 +4,7 @@ from pathlib import Path
 import uuid
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api import CompreFaceClient
 from app.core.config import settings
@@ -51,6 +52,17 @@ async def lifespan(app: FastAPI):
             return member.name_chn or member.name
 
     app.state.runtime.recognition.set_subject_name_resolver(_resolve_subject_name)
+
+    def _resolve_subject_active(subject_id: str) -> bool:
+        try:
+            subject_uuid = uuid.UUID(subject_id)
+        except ValueError:
+            return False
+        with SessionLocal() as db:
+            member = db.get(Member, subject_uuid)
+            return member is not None and bool(member.status)
+
+    app.state.runtime.recognition.set_subject_active_resolver(_resolve_subject_active)
     app.state.ws_manager = WebSocketManager()
     app.state.face_storage_dir = str(storage_root)
     app.state.face_library_service = FaceLibraryService(CompreFaceClient(), str(storage_root))
@@ -71,6 +83,8 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
+    static_dir = Path(__file__).resolve().parent / "static"
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
     app.include_router(health_router)
     app.include_router(index_router)

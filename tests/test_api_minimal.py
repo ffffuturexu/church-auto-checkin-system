@@ -202,6 +202,7 @@ def test_reception_queue_ignore_and_resolve(api_context):
     history = client.get(f"/attendance/history?event_id={event_id}&member_id={member_id}&limit=10")
     assert history.status_code == 200
     assert history.json()["total"] == 1
+    assert history.json()["items"][0]["source"] == "pending_queue"
 
     _create_unknown_case(session_factory, reason="to_clear_1")
     _create_unknown_case(session_factory, reason="to_clear_2")
@@ -272,6 +273,8 @@ def test_manual_checkin_duplicate_returns_existing_record(api_context):
     assert first.status_code == 200
     first_payload = first.json()
     assert first_payload["status"] == "ok"
+    assert first_payload["record"]["method"] == "manual_reception"
+    assert first_payload["record"]["source"] == "manual_search"
 
     second = client.post(
         "/attendance/manual-checkin",

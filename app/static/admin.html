@@ -811,15 +811,15 @@
     <div class="card">
       <div class="hero-top">
         <div class="hero-title-wrap">
-          <h1>事工管理后台</h1>
+          <h1 data-i18n="admin">事工管理后台</h1>
           <div class="mini">会友与照片管理 + 场次签到与统计（Tab 分页）</div>
         </div>
-        <a class="home-link" href="/">🏠 返回首页</a>
+        <a class="home-link" href="/" data-i18n="home">🏠 返回首页</a>
       </div>
       <div class="tabs">
         <button class="tab-btn active" data-tab="memberTab">会友 / 照片管理</button>
         <button class="tab-btn" data-tab="opsTab">场次 / 签到 / 报表 / 统计</button>
-        <button class="tab-btn" data-tab="careTab">关怀中心（施工中）</button>
+        <button class="tab-btn" data-tab="careTab">关怀中心</button>
       </div>
     </div>
 
@@ -827,11 +827,16 @@
       <div class="card">
         <h2>新增会友</h2>
         <div class="toolbar">
-          <input id="name" placeholder="姓名" />
+          <input id="name" placeholder="姓名（仅拼音/外文名）" pattern="[A-Za-z]+(?:[ .'-][A-Za-z]+)*" title="仅限拉丁字母，可包含空格、点、连字符或撇号" autocomplete="off" />
           <input id="nameChn" placeholder="中文名(可空)" />
+          <select id="gender">
+            <option value="">性别（可空）</option>
+            <option value="男">男</option>
+            <option value="女">女</option>
+          </select>
           <input id="birthday" type="date" />
           <div class="custom-select-container create-group-select">
-            <input id="group" placeholder="分组(可空)" autocomplete="off" />
+            <input id="group" value="新人" placeholder="分组" autocomplete="off" />
             <span class="custom-select-arrow">▼</span>
             <div id="createGroupList" class="custom-select-list"></div>
           </div>
@@ -1002,7 +1007,6 @@
 
     <div id="careTab" class="tab-panel">
       <div class="care-grid">
-        <!-- Removed: 关怀中心（施工中） header as requested -->
 
         <div class="card">
           <div class="trend-head">
@@ -1314,6 +1318,7 @@
     const eventMonthFilterEl = document.getElementById('eventMonthFilter');
     const eventLanguageFilterEl = document.getElementById('eventLanguageFilter');
     const eventLimitEl = document.getElementById('eventLimit');
+    const createGroupOptions = ['新人', '路过', '不稳定', '神学生', '其他教会'];
 
     const photoRowsEl = document.getElementById('photoRows');
     const photoUploadInputEl = document.getElementById('photoUploadInput');
@@ -1613,13 +1618,17 @@
           customList.appendChild(item);
         }
 
-        if (createGroupListEl) {
+      }
+
+      if (createGroupListEl) {
+        createGroupListEl.innerHTML = '';
+        for (const groupName of createGroupOptions) {
           const item = document.createElement('div');
           item.className = 'custom-select-item';
-          item.textContent = g;
+          item.textContent = groupName;
           item.onclick = () => {
             if (createGroupInputEl) {
-              createGroupInputEl.value = g;
+              createGroupInputEl.value = groupName;
             }
             createGroupListEl.style.display = 'none';
           };
@@ -2545,10 +2554,19 @@
     }
 
     document.getElementById('createBtn').addEventListener('click', async () => {
+      const nameInput = document.getElementById('name');
+      const name = nameInput.value.trim();
+      const latinNamePattern = /^[A-Za-z]+(?:[ .'-][A-Za-z]+)*$/;
+      if (!latinNamePattern.test(name)) {
+        alert('姓名仅限拼音/外文名，并且只能输入拉丁字母及常用分隔符（空格、点、连字符、撇号）');
+        nameInput.focus();
+        return;
+      }
       const payload = {
-        name: document.getElementById('name').value.trim(),
+        name,
         name_chn: document.getElementById('nameChn').value.trim() || null,
-        group: document.getElementById('group').value.trim() || null,
+        gender: document.getElementById('gender').value || null,
+        group: document.getElementById('group').value.trim() || '新人',
         birthday: document.getElementById('birthday').value || null,
         note: document.getElementById('note').value.trim() || null,
         status: true
@@ -2567,11 +2585,38 @@
         alert(`创建失败: ${err.detail || res.status}`);
         return;
       }
+      const createdMember = await res.json();
+      let checkInMessage = '已创建';
+      try {
+        const serviceRes = await fetch('/attendance/current-service');
+        const service = await serviceRes.json();
+        if (!serviceRes.ok) {
+          throw new Error(service.detail || serviceRes.status);
+        }
+        if (!service.event_id) {
+          checkInMessage = '已创建，但当前不是主日场次，未自动签到';
+        } else {
+          const checkInRes = await fetch('/attendance/manual-checkin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ member_id: createdMember.id, event_id: service.event_id })
+          });
+          const checkInData = await checkInRes.json();
+          if (!checkInRes.ok) {
+            throw new Error(checkInData.detail || checkInRes.status);
+          }
+          checkInMessage = checkInData.status === 'duplicate' ? '已创建，当前场次已签到' : '已创建并完成当前场次签到';
+        }
+      } catch (error) {
+        checkInMessage = `已创建，但自动签到失败: ${error.message || error}`;
+      }
       document.getElementById('name').value = '';
       document.getElementById('nameChn').value = '';
-      document.getElementById('group').value = '';
+      document.getElementById('gender').value = '';
+      document.getElementById('group').value = '新人';
       document.getElementById('birthday').value = '';
       document.getElementById('note').value = '';
+      alert(checkInMessage);
       await listMembers();
       await loadDashboard();
     });
@@ -3362,5 +3407,6 @@
       }
     });
   </script>
+  <script src="/static/localization.js"></script>
 </body>
 </html>

@@ -21,6 +21,7 @@ class AttendanceRecordOut(BaseModel):
     member_name: str
     check_in_time: str
     method: str
+    source: str
 
 
 class ManualCheckInResponse(BaseModel):
@@ -44,6 +45,9 @@ class AttendanceDashboardSummary(BaseModel):
     total_checkins: int
     auto_checkins: int
     manual_checkins: int
+    manual_search_checkins: int = 0
+    pending_queue_checkins: int = 0
+    backfill_checkins: int = 0
     pending_unknown_cases: int
     avg_this_year_zh: float
     avg_this_year_it: float

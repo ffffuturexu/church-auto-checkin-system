@@ -15,6 +15,7 @@ from app.models.models import (
     AttendanceEvent,
     AttendanceRecord,
     CheckInMethod,
+    CheckInSource,
     Member,
     RecognitionLog,
     RecognitionStatus,
@@ -338,6 +339,7 @@ class EventDispatcher:
                 member_id=member.id,
                 check_in_time=timestamp,
                 method=CheckInMethod.AUTO_FACE,
+                source=CheckInSource.RECOGNITION,
             )
             db.add(record)
             db.flush()
@@ -374,6 +376,7 @@ class EventDispatcher:
                 "decision": "success",
                 "queue_kind": None,
                 "method": payload.get("method") or "auto_face",
+                "source": CheckInSource.RECOGNITION.value,
                 "subject_id": subject_id,
                 "subject_name": member.name,
                 "similarity": self._safe_float(payload.get("similarity")),

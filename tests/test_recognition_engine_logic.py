@@ -157,6 +157,40 @@ def test_failed_threshold_in_review_band_emits_unknown():
     assert pending_events[0]["data"]["best_similarity"] == 0.72
 
 
+def test_inactive_top_candidate_is_filtered_before_checkin_or_pending():
+    class DummyClient:
+        def recognize_image(self, _image_bytes):
+            return {"result": []}
+
+    engine = RecognitionEngine(
+        api_client=DummyClient(),
+        params=RecognitionHyperParams(
+            absolute_threshold=0.80,
+            pending_min_similarity=0.70,
+            pending_min_frames=1,
+            stranger_max_similarity=0.40,
+            stranger_min_frames=1,
+            unknown_min_face_size=24,
+        ),
+    )
+    engine.set_subject_active_resolver(lambda subject_id: subject_id != "inactive-member")
+    frame = np.full((140, 200, 3), 100, dtype=np.uint8)
+    result = {
+        "result": [
+            {
+                "box": {"x_min": 20, "y_min": 20, "width": 90, "height": 90},
+                "subjects": [{"subject": "inactive-member", "similarity": 0.95}],
+            }
+        ]
+    }
+
+    engine._handle_recognition_result(frame, result)
+    events = _drain_events(engine)
+
+    assert not any(event["event_type"] == "recognition.success" for event in events)
+    assert not any(event["event_type"] == "recognition.pending" for event in events)
+
+
 def test_unknown_event_ignores_small_face_box():
     class DummyClient:
         def recognize_image(self, _image_bytes):
