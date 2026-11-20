@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rugiada 排班负责人演示</title>
+  <style>
+    :root {
+      --canvas: #f5f6f2;
+      --paper: #ffffff;
+      --ink: #1e2b31;
+      --muted: #66747a;
+      --line: #d9dfda;
+      --green: #1f6b52;
+      --green-soft: #e3f1e9;
+      --blue: #2c5d78;
+      --blue-soft: #e7f0f5;
+      --amber: #9b6514;
+      --amber-soft: #fff1d8;
+      --red: #a64040;
+      --red-soft: #fbe7e5;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: "Source Han Sans SC", "PingFang SC", sans-serif; }
+    button, select { font: inherit; }
+    button { border: 1px solid transparent; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-weight: 700; }
+    button:focus-visible, select:focus-visible { outline: 3px solid #9fc6b4; outline-offset: 2px; }
+    .shell { max-width: 1420px; margin: 0 auto; padding: 22px 20px 36px; }
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+    .eyebrow { margin: 0 0 6px; color: var(--green); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+    h1 { margin: 0; font-size: 28px; line-height: 1.25; }
+    .subtitle { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+    .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .demo-tag { color: var(--amber); background: var(--amber-soft); border: 1px solid #e8cc98; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 800; }
+    .home { color: var(--blue); background: transparent; border-color: #b6cbd7; text-decoration: none; border-radius: 6px; padding: 8px 10px; font-size: 13px; font-weight: 700; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
+    .metric { background: var(--paper); border: 1px solid var(--line); border-radius: 7px; padding: 13px; }
+    .metric-label { color: var(--muted); font-size: 12px; }
+    .metric-value { display: block; margin-top: 5px; font-size: 25px; font-weight: 800; }
+    .metric-note { color: var(--muted); font-size: 12px; }
+    .content { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+    .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 7px; }
+    .panel-head { padding: 15px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    h2 { margin: 0; font-size: 17px; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    select { color: var(--ink); background: #fff; border: 1px solid #bbc7bf; border-radius: 5px; padding: 7px 9px; font-size: 13px; }
+    .schedule-list { padding: 8px; display: grid; gap: 7px; }
+    .event { display: grid; grid-template-columns: 130px minmax(130px, 1fr) minmax(300px, 1.45fr) auto; gap: 14px; align-items: center; padding: 12px; border: 1px solid transparent; border-radius: 6px; }
+    .event:hover { background: #fafcf9; border-color: #d7e2d9; }
+    .event-time { font-size: 13px; font-weight: 800; line-height: 1.55; }
+    .event-time span { color: var(--muted); font-weight: 500; }
+    .event-title strong, .event-title span { display: block; }
+    .event-title strong { font-size: 14px; }
+    .event-title span { color: var(--muted); font-size: 12px; margin-top: 3px; }
+    .slots { display: flex; flex-wrap: wrap; gap: 6px; }
+    .slot { background: #f2f5f3; border: 1px solid #dfe6e0; border-radius: 4px; padding: 5px 7px; color: #34433b; font-size: 12px; white-space: nowrap; }
+    .slot.missing { color: var(--red); background: var(--red-soft); border-color: #efc3bf; }
+    .slot.warning { color: var(--amber); background: var(--amber-soft); border-color: #ead09e; }
+    .event-action { color: var(--blue); background: #fff; border-color: #b8ccd8; font-size: 12px; white-space: nowrap; }
+    .event-action:hover { background: var(--blue-soft); }
+    .aside { position: sticky; top: 14px; }
+    .request-list { padding: 8px; display: grid; gap: 7px; }
+    .request { width: 100%; text-align: left; color: inherit; background: #fff; border: 1px solid #dfe4df; border-radius: 6px; padding: 12px; }
+    .request:hover, .request.selected { border-color: #73a48c; background: #f7fbf8; }
+    .request-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .request-title { font-size: 13px; font-weight: 800; }
+    .request-meta { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .pill { display: inline-block; border-radius: 999px; padding: 3px 7px; font-size: 11px; font-weight: 800; }
+    .pill.pending { color: var(--amber); background: var(--amber-soft); }
+    .pill.conflict { color: var(--red); background: var(--red-soft); }
+    .pill.ready { color: var(--green); background: var(--green-soft); }
+    .detail { margin-top: 16px; }
+    .detail-body { padding: 16px; }
+    .empty { color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin: 2px 0 16px; }
+    .detail-key { color: var(--muted); font-size: 11px; }
+    .detail-value { margin-top: 3px; font-size: 13px; font-weight: 700; line-height: 1.45; }
+    .review-note { padding: 10px; color: #684c1e; background: #fff8e9; border-left: 3px solid #d9a644; font-size: 12px; line-height: 1.55; }
+    .detail-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+    .approve { color: #fff; background: var(--green); }
+    .approve:hover { background: #185941; }
+    .return { color: var(--red); background: #fff; border-color: #dfa9a4; }
+    .return:hover { background: var(--red-soft); }
+    .schedule-note { padding: 12px 16px; color: var(--muted); border-top: 1px solid var(--line); font-size: 12px; line-height: 1.55; }
+    .toast { position: fixed; right: 18px; bottom: 18px; z-index: 10; max-width: 360px; padding: 12px 14px; color: #fff; background: #263d34; border-radius: 6px; box-shadow: 0 10px 24px rgba(20, 40, 31, .2); font-size: 13px; transform: translateY(130%); transition: transform .2s ease; }
+    .toast.show { transform: translateY(0); }
+    @media (max-width: 1050px) { .content { grid-template-columns: 1fr; } .aside { position: static; } }
+    @media (max-width: 760px) { .shell { padding: 16px 12px 28px; } .topbar { display: block; } .top-actions { margin-top: 14px; justify-content: flex-start; } .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .panel-head { display: block; } .filters { margin-top: 11px; } .event { grid-template-columns: 1fr; gap: 8px; } .event-action { justify-self: start; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">RUGIADA · SCHEDULE REVIEW</p>
+        <h1>服事排班审阅台</h1>
+        <p class="subtitle">负责人演示页面：查看本周安排、审核调整请求并处理排班缺口。</p>
+      </div>
+      <div class="top-actions">
+        <span class="demo-tag">DEMO · 不保存任何资料</span>
+        <a class="home" href="/">返回签到系统首页</a>
+      </div>
+    </header>
+
+    <section class="summary" aria-label="排班概览">
+      <div class="metric"><span class="metric-label">未来 7 天场次</span><strong class="metric-value">6</strong><span class="metric-note">含 1 个临时加场</span></div>
+      <div class="metric"><span class="metric-label">待审核请求</span><strong class="metric-value" id="pendingCount">3</strong><span class="metric-note">需要负责人处理</span></div>
+      <div class="metric"><span class="metric-label">岗位缺口</span><strong class="metric-value">2</strong><span class="metric-note">本周日需要补位</span></div>
+      <div class="metric"><span class="metric-label">需注意冲突</span><strong class="metric-value">1</strong><span class="metric-note">跨部门时间重叠</span></div>
+    </section>
+
+    <section class="content">
+      <section class="panel" aria-labelledby="schedule-heading">
+        <div class="panel-head">
+          <h2 id="schedule-heading">本周排班</h2>
+          <div class="filters">
+            <select id="departmentFilter" aria-label="筛选部门"><option value="all">全部部门</option><option value="接待">接待</option><option value="敬拜">敬拜</option><option value="儿童">儿童</option><option value="技术">技术</option></select>
+            <select id="statusFilter" aria-label="筛选状态"><option value="all">全部状态</option><option value="attention">只看待处理</option><option value="ready">仅已齐备</option></select>
+          </div>
+        </div>
+        <div class="schedule-list" id="scheduleList"></div>
+        <div class="schedule-note">此页面使用演示数据。点击“查看安排”可浏览对应场次的岗位与当前状态。</div>
+      </section>
+
+      <aside class="aside">
+        <section class="panel" aria-labelledby="request-heading">
+          <div class="panel-head"><h2 id="request-heading">待审核请求</h2></div>
+          <div class="request-list" id="requestList"></div>
+        </section>
+        <section class="panel detail" aria-labelledby="detail-heading">
+          <div class="panel-head"><h2 id="detail-heading">审核详情</h2></div>
+          <div class="detail-body" id="detailBody"><p class="empty">请选择一项请求，查看安排、候选人和系统检查结果。</p></div>
+        </section>
+      </aside>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const events = [
+      { id: 1, day: "周六 9 月 27 日", time: "18:30 - 20:30", title: "青年聚会", location: "副堂", department: "敬拜", slots: ["主领 · Luca", "吉他 · 陈明", "投影 · 王欣"], attention: false },
+      { id: 2, day: "周日 9 月 28 日", time: "09:30 - 12:00", title: "中文主日崇拜", location: "主堂", department: "接待", slots: ["接待 · 李华", "新朋友接待 · 缺 1 人", "秩序 · Sofia"], attention: true },
+      { id: 3, day: "周日 9 月 28 日", time: "09:30 - 12:00", title: "中文主日崇拜", location: "儿童教室", department: "儿童", slots: ["幼儿班 · Maria", "儿童班 · 张莉", "助教 · 待审核"], attention: true },
+      { id: 4, day: "周日 9 月 28 日", time: "10:00 - 12:00", title: "意大利文主日崇拜", location: "副堂", department: "技术", slots: ["音响 · Paolo", "投影 · 冲突待确认"], attention: true },
+      { id: 5, day: "周三 10 月 1 日", time: "19:30 - 21:00", title: "祷告会", location: "主堂", department: "敬拜", slots: ["带领 · Anna", "钢琴 · Marco"], attention: false },
+      { id: 6, day: "周五 10 月 3 日", time: "19:00 - 21:00", title: "新朋友晚餐", location: "副堂", department: "接待", slots: ["接待 · 赵燕", "茶点 · Davide"], attention: false }
+    ];
+    const requests = [
+      { id: 1, type: "换班申请", status: "pending", requester: "陈明", event: "9 月 27 日 · 青年聚会", role: "吉他", candidate: "王伟", check: "候选人合资格，无时间冲突", note: "陈明当晚需参加家庭事务，已联系王伟愿意代班。" },
+      { id: 2, type: "临时补位", status: "pending", requester: "接待组", event: "9 月 28 日 · 中文主日", role: "新朋友接待", candidate: "刘芳", check: "候选人尚未确认；资格符合，无时间冲突", note: "当前岗位缺口 1 人。刘芳点击了“我可以服事”，等待负责人确认。" },
+      { id: 3, type: "冲突提醒", status: "conflict", requester: "系统检查", event: "9 月 28 日 · 意大利文主日", role: "投影", candidate: "Paolo", check: "与音响岗位时间完全重叠", note: "Paolo 同时被安排为音响和投影。请调整其中一个岗位后再发布。" }
+    ];
+    let selectedId = null;
+    let toastTimer;
+
+    const scheduleList = document.getElementById("scheduleList");
+    const requestList = document.getElementById("requestList");
+    const detailBody = document.getElementById("detailBody");
+    const pendingCount = document.getElementById("pendingCount");
+    const departmentFilter = document.getElementById("departmentFilter");
+    const statusFilter = document.getElementById("statusFilter");
+
+    function renderSchedule() {
+      const department = departmentFilter.value;
+      const status = statusFilter.value;
+      const filtered = events.filter((event) => (department === "all" || event.department === department) && (status === "all" || (status === "attention" ? event.attention : !event.attention)));
+      scheduleList.innerHTML = filtered.map((event) => `
+        <article class="event">
+          <div class="event-time">${event.day}<br><span>${event.time}</span></div>
+          <div class="event-title"><strong>${event.title}</strong><span>${event.location} · ${event.department}</span></div>
+          <div class="slots">${event.slots.map((slot) => `<span class="slot ${slot.includes("缺") ? "missing" : slot.includes("待审核") || slot.includes("冲突") ? "warning" : ""}">${slot}</span>`).join("")}</div>
+          <button class="event-action" data-event-id="${event.id}">查看安排</button>
+        </article>`).join("") || '<p class="empty" style="padding:16px">没有符合筛选条件的场次。</p>';
+    }
+
+    function renderRequests() {
+      requestList.innerHTML = requests.map((request) => `
+        <button class="request ${selectedId === request.id ? "selected" : ""}" data-request-id="${request.id}">
+          <div class="request-top"><span class="request-title">${request.type}</span><span class="pill ${request.status}">${request.status === "conflict" ? "需调整" : "待审核"}</span></div>
+          <p class="request-meta">${request.requester} · ${request.event}<br>${request.role}</p>
+        </button>`).join("");
+      pendingCount.textContent = requests.filter((request) => request.status === "pending").length;
+    }
+
+    function renderDetail() {
+      const request = requests.find((item) => item.id === selectedId);
+      if (!request) {
+        detailBody.innerHTML = '<p class="empty">请选择一项请求，查看安排、候选人和系统检查结果。</p>';
+        return;
+      }
+      const canApprove = request.status === "pending";
+      detailBody.innerHTML = `
+        <div class="detail-grid">
+          <div><div class="detail-key">请求类型</div><div class="detail-value">${request.type}</div></div>
+          <div><div class="detail-key">发起人</div><div class="detail-value">${request.requester}</div></div>
+          <div><div class="detail-key">对应场次</div><div class="detail-value">${request.event}</div></div>
+          <div><div class="detail-key">岗位</div><div class="detail-value">${request.role}</div></div>
+          <div><div class="detail-key">候选人</div><div class="detail-value">${request.candidate}</div></div>
+          <div><div class="detail-key">系统检查</div><div class="detail-value">${request.check}</div></div>
+        </div>
+        <div class="review-note">${request.note}</div>
+        <div class="detail-actions">
+          <button class="approve" id="approveButton" ${canApprove ? "" : "disabled"}>${canApprove ? "批准此安排" : "需要先调整排班"}</button>
+          <button class="return" id="returnButton">${canApprove ? "退回并说明" : "标记已处理"}</button>
+        </div>`;
+      document.getElementById("approveButton").addEventListener("click", () => completeRequest("已批准。演示中没有写入数据库或发送通知。"));
+      document.getElementById("returnButton").addEventListener("click", () => completeRequest(canApprove ? "已退回给发起人。演示中没有保存说明。" : "已标记为已处理。请在正式系统中完成岗位调整。"));
+    }
+
+    function completeRequest(message) {
+      const request = requests.find((item) => item.id === selectedId);
+      if (!request) return;
+      const index = requests.findIndex((item) => item.id === selectedId);
+      requests.splice(index, 1);
+      selectedId = null;
+      renderRequests();
+      renderDetail();
+      showToast(message);
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => toast.classList.remove("show"), 3600);
+    }
+
+    departmentFilter.addEventListener("change", renderSchedule);
+    statusFilter.addEventListener("change", renderSchedule);
+    scheduleList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-event-id]");
+      if (!button) return;
+      const scheduleEvent = events.find((item) => item.id === Number(button.dataset.eventId));
+      showToast(`${scheduleEvent.title} · ${scheduleEvent.department} 的演示排班已展开在列表中。`);
+    });
+    requestList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-request-id]");
+      if (!button) return;
+      selectedId = Number(button.dataset.requestId);
+      renderRequests();
+      renderDetail();
+    });
+
+    renderSchedule();
+    renderRequests();
+  </script>
+</body>
+</html>

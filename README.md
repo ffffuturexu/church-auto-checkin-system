@@ -191,6 +191,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
 ### Latest Release
 
+- **v0.6.2 (2026-11-20)**: Add a schedule-review demo for ministry coordinators, including weekly schedule filtering, staffing-gap visibility, request review actions, and a linked entry point from the home page; refine debug workspace guidance and localization coverage.
 - **v0.6.1 (2026-09-05)**: Add attendance source classification and SQLite migration, filter inactive recognition candidates, improve new-member registration with automatic Sunday check-in, and add Chinese/English UI localization.
 - **v0.5.5 (2026-08-23)**: Sort signed-in photo-picker results by selected-event check-in time descending and add regression coverage.
 

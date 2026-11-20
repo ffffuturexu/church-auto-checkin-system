@@ -22,6 +22,7 @@ from app.routers.members import router as members_router
 from app.routers.reception import router as reception_router
 from app.routers.reception_feed import router as reception_feed_router
 from app.routers.reception_queue import router as reception_queue_router
+from app.routers.schedule_demo import router as schedule_demo_router
 from app.routers.system import router as system_router
 from app.routers.websocket import router as websocket_router
 from app.core.websocket_manager import WebSocketManager
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(reception_router)
     app.include_router(reception_feed_router)
     app.include_router(reception_queue_router)
+    app.include_router(schedule_demo_router)
     app.include_router(system_router)
     app.include_router(websocket_router)
     return app
