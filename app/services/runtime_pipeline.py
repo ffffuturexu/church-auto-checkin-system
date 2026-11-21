@@ -99,6 +99,9 @@ class RuntimePipeline:
     def read_event_nowait(self) -> dict[str, Any] | None:
         return self.recognition.read_event_nowait()
 
+    def read_debug_frame_nowait(self) -> dict[str, Any] | None:
+        return self.recognition.read_debug_frame_nowait()
+
     def state(self) -> RuntimeState:
         camera_last_frame_age_sec = self._camera_last_frame_age_sec()
         return RuntimeState(

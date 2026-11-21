@@ -116,6 +116,12 @@ class RecognitionEngine:
 
         self.frame_queue: queue.Queue[Any] = queue.Queue(maxsize=max(1, input_queue_size))
         self.event_queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=max(1, event_queue_size))
+        self._event_lock = threading.Lock()
+        self._latest_debug_frame: dict[str, Any] | None = None
+        self._event_drops: dict[str, int] = {}
+        self._debug_frames_replaced = 0
+        self._event_queue_high_water = 0
+        self._event_queue_pressure = False
 
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -203,10 +209,17 @@ class RecognitionEngine:
             pass
 
     def read_event_nowait(self) -> dict[str, Any] | None:
-        try:
-            return self.event_queue.get_nowait()
-        except queue.Empty:
-            return None
+        with self._event_lock:
+            try:
+                return self.event_queue.get_nowait()
+            except queue.Empty:
+                return None
+
+    def read_debug_frame_nowait(self) -> dict[str, Any] | None:
+        with self._event_lock:
+            frame = self._latest_debug_frame
+            self._latest_debug_frame = None
+            return frame
 
     def update_hyperparams(self, **kwargs: Any) -> RecognitionHyperParams:
         with self._lock:
@@ -224,6 +237,11 @@ class RecognitionEngine:
             return asdict(self.params)
 
     def get_runtime_stats(self) -> dict[str, Any]:
+        with self._event_lock:
+            event_drops = dict(self._event_drops)
+            debug_frames_replaced = self._debug_frames_replaced
+            debug_frame_pending = self._latest_debug_frame is not None
+            event_queue_high_water = self._event_queue_high_water
         with self._lock:
             return {
                 "pending_requests": len(self._pending_requests),
@@ -233,6 +251,10 @@ class RecognitionEngine:
                 "last_result_at": self._format_timestamp(self._last_result_at),
                 "debug_video_enabled": self._debug_enabled,
                 "debug_overlay_enabled": self._debug_overlay_enabled,
+                "event_drops_by_type": event_drops,
+                "debug_frames_replaced": debug_frames_replaced,
+                "debug_frame_pending": debug_frame_pending,
+                "event_queue_high_water": event_queue_high_water,
             }
 
     def set_debug_enabled(self, enabled: bool) -> None:
@@ -1607,15 +1629,33 @@ class RecognitionEngine:
             "event_type": event_type,
             **payload,
         }
-        if self.event_queue.full():
+        with self._event_lock:
+            if event_type == "debug_frame":
+                if self._latest_debug_frame is not None:
+                    self._debug_frames_replaced += 1
+                self._latest_debug_frame = event
+                return
+
             try:
-                self.event_queue.get_nowait()
-            except queue.Empty:
-                pass
-        try:
-            self.event_queue.put_nowait(event)
-        except queue.Full:
-            pass
+                self.event_queue.put_nowait(event)
+            except queue.Full:
+                try:
+                    dropped = self.event_queue.get_nowait()
+                except queue.Empty:
+                    dropped = None
+                if dropped is not None:
+                    dropped_type = str(dropped.get("event_type", "unknown"))
+                    count = self._event_drops.get(dropped_type, 0) + 1
+                    self._event_drops[dropped_type] = count
+                    if count == 1 or count & (count - 1) == 0:
+                        logger.warning("event queue full: dropped oldest type=%s count=%d", dropped_type, count)
+                self.event_queue.put_nowait(event)
+            size = self.event_queue.qsize()
+            self._event_queue_high_water = max(self._event_queue_high_water, size)
+            pressured = size * 5 >= self.event_queue.maxsize * 4
+            if pressured and not self._event_queue_pressure:
+                logger.warning("event queue at or above 80%%: size=%d max=%d", size, self.event_queue.maxsize)
+            self._event_queue_pressure = pressured
 
     @staticmethod
     def _format_timestamp(value: datetime | None) -> str | None:

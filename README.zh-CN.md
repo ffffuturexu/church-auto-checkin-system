@@ -46,6 +46,7 @@ English: [README.md](./README.md)
 - 非主日自动忽略，主日下午 3 点后切换意语场次
 - 识别链路并发处理，降低高峰时段阻塞
 - 在签到成功或待复核判定前自动过滤停用或不存在的会友候选，避免误签到
+- 消费者隔离单事件异常并自动重启；数据库写入在线程中串行执行，WebSocket 广播与调试帧独立处理
 
 ### 2. 人脸库管理
 - 会友照片本地存储与版本管理
@@ -136,14 +137,15 @@ English: [README.md](./README.md)
 ### 关键数据流
 
 ```
-摄像头输入 → RuntimePipeline → RecognitionEngine → 事件队列
-                                    ↓
-                            EventDispatcher
-                            ↙           ↘
-                    WebSocket Channel A  Channel B
-                    (事件推送)        (调试视频)
-                    ↓                 ↓
-                 落库/更新          实时显示
+摄像头输入 → RuntimePipeline → RecognitionEngine
+                                ↙          ↘
+                     业务事件队列         最新调试帧槽
+                           ↓                  ↓
+                    EventDispatcher      Channel B 广播
+                           ↓
+                      串行数据库写入
+                           ↓
+                    有界广播队列 → Channel A / 接待队列
 ```
 
 ---
@@ -247,6 +249,7 @@ English: [README.md](./README.md)
 
 | 日期 | 版本号 | 主要更新内容 |
 |------|------|------|
+| 2026-11 | v0.7.1 | 事件消费者异常隔离与自动重启、数据库与广播解耦、调试帧独立通道，以及队列和发送指标与告警。 |
 | 2026-11 | v0.6.2 | 新增排班负责人演示页，支持本周排班筛选、岗位缺口查看、调整请求审核及首页入口；同步完善调试台说明与中英文界面文案。 |
 | 2026-09 | v0.6.1 | 签到来源模型与 SQLite 自动迁移、停用会友识别过滤、管理后台新增会友自动签到、中文/英文界面切换及相关回归测试。 |
 | 2026-08 | v0.5.5 | 接待页 photo picker 的“已签到”结果按所选场次签到时间倒序显示，并补充排序回归测试。 |
@@ -395,6 +398,18 @@ church-auto-checkin-system/
 ---
 
 ## 维护和部署
+
+### 事件处理监控
+
+通过 `/health` 或 `/system/self-check` 检查事件管道：
+
+- `runtime.event_queue_size` / `event_queue_max` 是业务队列深度与容量；`runtime.recognition_stats` 包含 `event_queue_high_water`、`event_drops_by_type` 和 `debug_frames_replaced`。调试帧使用独立最新帧槽，替换旧帧不代表业务事件丢失。
+- `event_dispatcher` 包含处理及失败计数、重启次数、广播队列深度及高水位、按类型丢弃数，以及最近和最大处理/广播耗时（秒）。在自检接口中位于 `checks.event_dispatcher.state`。
+- WebSocket 状态中的 `send_failures_by_channel` 统计发送失败或超时；自检接口中位于 `checks.websocket.state`。
+
+队列达到 80%、事件丢弃、WebSocket 发送失败和消费者异常重启时记录警告或错误日志；需要持久告警时应接入外部日志或指标监控。计数和高水位属于进程内数据，重启后清零。
+
+业务队列满时丢弃最旧事件，广播队列满时丢弃新通知；两者均不持久化。业务事件处理失败会记录和计数，但不会自动重试，应检查日志并核对记录。广播丢失不会回滚已提交的数据库写入，可刷新接待队列或动态记录恢复状态。正常关闭时先停止生产并排空业务事件，广播最多等待五秒，剩余通知会丢弃并记录。
 
 ### Systemd 服务管理
 ```bash

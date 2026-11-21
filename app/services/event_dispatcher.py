@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 
@@ -28,6 +30,11 @@ from app.services.reception_feed_service import record_feed_event
 
 logger = logging.getLogger(__name__)
 
+PLACEHOLDER_PNG_BASE64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAA"
+    "AASUVORK5CYII="
+)
+
 
 class EventDispatcher:
     """Consume recognition events, persist to DB, and broadcast by websocket channel."""
@@ -43,34 +50,195 @@ class EventDispatcher:
         self.poll_interval_sec = poll_interval_sec
 
         self._task: asyncio.Task | None = None
+        self._supervisor_task: asyncio.Task | None = None
+        self._broadcast_task: asyncio.Task | None = None
+        self._debug_task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
+        self._broadcast_queue: asyncio.Queue[tuple[str, dict, dict | None]] = asyncio.Queue(maxsize=256)
+        self._handled = 0
+        self._failed_by_type: dict[str, int] = {}
+        self._restarts = 0
+        self._broadcast_drops_by_type: dict[str, int] = {}
+        self._broadcast_failures = 0
+        self._broadcast_queue_high_water = 0
+        self._broadcast_queue_pressure = False
+        self._last_processing_sec = 0.0
+        self._max_processing_sec = 0.0
+        self._last_broadcast_sec = 0.0
+        self._max_broadcast_sec = 0.0
 
     async def start(self) -> None:
-        if self._task and not self._task.done():
+        if self._supervisor_task and not self._supervisor_task.done():
             return
         self._stop_event.clear()
         self._task = asyncio.create_task(self._run(), name="event-dispatcher")
+        self._supervisor_task = asyncio.create_task(self._supervise(), name="event-dispatcher-supervisor")
+        self._broadcast_task = asyncio.create_task(self._broadcast_loop(), name="event-broadcast")
+        self._debug_task = asyncio.create_task(self._debug_loop(), name="event-debug-broadcast")
 
     async def stop(self) -> None:
         self._stop_event.set()
-        if self._task is None:
-            return
-        self._task.cancel()
-        try:
-            await self._task
-        except asyncio.CancelledError:
-            pass
+        if self._supervisor_task is not None:
+            await self._supervisor_task
+        if self._broadcast_task is not None:
+            try:
+                await asyncio.wait_for(self._broadcast_queue.join(), timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("broadcast shutdown timed out: pending=%d", self._broadcast_queue.qsize())
+            self._broadcast_task.cancel()
+            await asyncio.gather(self._broadcast_task, return_exceptions=True)
+            while not self._broadcast_queue.empty():
+                event_type, _, _ = self._broadcast_queue.get_nowait()
+                self._record_broadcast_drop(event_type)
+                self._broadcast_queue.task_done()
+        if self._debug_task is not None:
+            self._debug_task.cancel()
+            await asyncio.gather(self._debug_task, return_exceptions=True)
 
     def is_running(self) -> bool:
-        return self._task is not None and not self._task.done()
+        return (
+            self._task is not None and not self._task.done()
+            and self._supervisor_task is not None and not self._supervisor_task.done()
+            and self._broadcast_task is not None and not self._broadcast_task.done()
+            and self._debug_task is not None and not self._debug_task.done()
+        )
+
+    def stats(self) -> dict[str, Any]:
+        return {
+            "running": self.is_running(),
+            "events_handled": self._handled,
+            "event_failures_by_type": dict(self._failed_by_type),
+            "dispatcher_restarts": self._restarts,
+            "broadcast_queue_size": self._broadcast_queue.qsize(),
+            "broadcast_queue_max": self._broadcast_queue.maxsize,
+            "broadcast_queue_high_water": self._broadcast_queue_high_water,
+            "broadcast_drops_by_type": dict(self._broadcast_drops_by_type),
+            "broadcast_failures": self._broadcast_failures,
+            "last_processing_sec": self._last_processing_sec,
+            "max_processing_sec": self._max_processing_sec,
+            "last_broadcast_sec": self._last_broadcast_sec,
+            "max_broadcast_sec": self._max_broadcast_sec,
+        }
+
+    async def _supervise(self) -> None:
+        delay = 0.1
+        while self._task is not None:
+            handled_before = self._handled
+            try:
+                await self._task
+                if self._stop_event.is_set():
+                    return
+                logger.error("event dispatcher exited unexpectedly; restarting")
+            except asyncio.CancelledError:
+                if self._stop_event.is_set():
+                    return
+                logger.error("event dispatcher was cancelled unexpectedly; restarting")
+            except Exception:
+                logger.exception("event dispatcher crashed; restarting")
+                if self._stop_event.is_set():
+                    return
+            self._restarts += 1
+            if self._handled > handled_before:
+                delay = 0.1
+            try:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=delay)
+                return
+            except asyncio.TimeoutError:
+                pass
+            delay = min(delay * 2, 5.0)
+            self._task = asyncio.create_task(self._run(), name="event-dispatcher")
 
     async def _run(self) -> None:
-        while not self._stop_event.is_set():
+        while True:
             event = self.runtime.read_event_nowait()
             if event is None:
+                if self._stop_event.is_set():
+                    return
                 await asyncio.sleep(self.poll_interval_sec)
                 continue
-            await self._handle_event(event)
+            started = time.monotonic()
+            handling = asyncio.create_task(self._handle_event(event))
+            cancelled = False
+            try:
+                try:
+                    await asyncio.shield(handling)
+                except asyncio.CancelledError:
+                    cancelled = True
+                    await handling
+            except Exception:
+                event_type = str(event.get("event_type", "unknown"))
+                self._failed_by_type[event_type] = self._failed_by_type.get(event_type, 0) + 1
+                logger.exception("event handling failed: type=%s id=%s", event_type, event.get("event_id"))
+            finally:
+                elapsed = time.monotonic() - started
+                self._last_processing_sec = elapsed
+                self._max_processing_sec = max(self._max_processing_sec, elapsed)
+                self._handled += 1
+            if cancelled:
+                raise asyncio.CancelledError
+            await asyncio.sleep(0)
+
+    def _record_broadcast_drop(self, event_type: str) -> None:
+        count = self._broadcast_drops_by_type.get(event_type, 0) + 1
+        self._broadcast_drops_by_type[event_type] = count
+        if count == 1 or count & (count - 1) == 0:
+            logger.warning("broadcast queue dropped event: type=%s count=%d", event_type, count)
+
+    def _enqueue_broadcast(self, payload: dict, full_payload: dict | None = None) -> None:
+        event_type = str(payload.get("event_type", "unknown"))
+        try:
+            self._broadcast_queue.put_nowait((event_type, payload, full_payload))
+        except asyncio.QueueFull:
+            self._record_broadcast_drop(event_type)
+            return
+        size = self._broadcast_queue.qsize()
+        self._broadcast_queue_high_water = max(self._broadcast_queue_high_water, size)
+        pressured = size * 5 >= self._broadcast_queue.maxsize * 4
+        if pressured and not self._broadcast_queue_pressure:
+            logger.warning("broadcast queue at or above 80%%: size=%d max=%d", size, self._broadcast_queue.maxsize)
+        self._broadcast_queue_pressure = pressured
+
+    async def _broadcast_loop(self) -> None:
+        while True:
+            event_type, payload, full_payload = await self._broadcast_queue.get()
+            started = time.monotonic()
+            try:
+                for channel, message in (("a", payload), ("queue", full_payload)):
+                    if message is None:
+                        continue
+                    try:
+                        if channel == "a":
+                            await self._broadcast_channel_a(message)
+                        else:
+                            await self.ws_manager.broadcast_channel_queue(message)
+                    except Exception:
+                        self._broadcast_failures += 1
+                        logger.exception("broadcast failed: type=%s channel=%s", event_type, channel)
+            except asyncio.CancelledError:
+                self._record_broadcast_drop(event_type)
+                raise
+            finally:
+                elapsed = time.monotonic() - started
+                self._last_broadcast_sec = elapsed
+                self._max_broadcast_sec = max(self._max_broadcast_sec, elapsed)
+                self._broadcast_queue.task_done()
+
+    async def _debug_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                frame = self.runtime.read_debug_frame_nowait()
+                if frame is None:
+                    await asyncio.sleep(self.poll_interval_sec)
+                    continue
+                started = time.monotonic()
+                await self.ws_manager.broadcast_channel_b(frame)
+                elapsed = time.monotonic() - started
+                self._last_broadcast_sec = elapsed
+                self._max_broadcast_sec = max(self._max_broadcast_sec, elapsed)
+            except Exception:
+                self._broadcast_failures += 1
+                logger.exception("debug frame broadcast failed")
+                await asyncio.sleep(self.poll_interval_sec)
 
     async def _broadcast_channel_a(self, payload: dict) -> None:
         """Send a copy of payload to Channel A after stripping large image fields."""
@@ -136,14 +304,13 @@ class EventDispatcher:
 
         if event_type in {"check_in", "recognition.success"}:
             normalized = self._normalize_success_event(event)
-            persisted_payload = self._persist_checkin_event(normalized)
+            persisted_payload = await asyncio.to_thread(self._persist_checkin_event, normalized)
             if persisted_payload is not None:
                 if isinstance(persisted_payload, tuple):
                     light_payload, full_payload = persisted_payload
-                    await self._broadcast_channel_a(light_payload)
-                    await self.ws_manager.broadcast_channel_queue(full_payload)
+                    self._enqueue_broadcast(light_payload, full_payload)
                 else:
-                    await self._broadcast_channel_a(persisted_payload)
+                    self._enqueue_broadcast(persisted_payload)
             return
 
         if event_type == "recognition.pending":
@@ -170,16 +337,15 @@ class EventDispatcher:
                 )
             except Exception:
                 logger.exception("failed extracting image from recognition.pending")
-            persisted_payload = self._persist_pending_event(event)
+            persisted_payload = await asyncio.to_thread(self._persist_pending_event, event)
             if persisted_payload is not None:
                 light_payload, full_payload = persisted_payload
-                await self._broadcast_channel_a(light_payload)
-                await self.ws_manager.broadcast_channel_queue(full_payload)
+                self._enqueue_broadcast(light_payload, full_payload)
             return
 
         if event_type == "recognition_log":
-            self._persist_recognition_log_event(event)
-            await self._broadcast_channel_a(event)
+            await asyncio.to_thread(self._persist_recognition_log_event, event)
+            self._enqueue_broadcast(event)
             return
 
         if event_type == "debug_frame":
@@ -187,15 +353,14 @@ class EventDispatcher:
             return
 
         if event_type in {"unknown_face", "recognition.unknown"}:
-            persisted_payload = self._persist_unknown_event(event)
+            persisted_payload = await asyncio.to_thread(self._persist_unknown_event, event)
             if persisted_payload is not None:
                 light_payload, full_payload = persisted_payload
-                await self._broadcast_channel_a(light_payload)
-                await self.ws_manager.broadcast_channel_queue(full_payload)
+                self._enqueue_broadcast(light_payload, full_payload)
             return
 
         # Other runtime events go to channel A for ops visibility.
-        await self._broadcast_channel_a(event)
+        self._enqueue_broadcast(event)
 
     @staticmethod
     def _normalize_success_event(event: dict) -> dict:
@@ -429,7 +594,8 @@ class EventDispatcher:
         timestamp: datetime,
         subject_id: str,
     ) -> tuple[dict, dict]:
-        image_base64 = self._extract_image_base64_for_event(event)
+        original_image = self._extract_image_base64_for_event(event)
+        image_base64 = original_image or PLACEHOLDER_PNG_BASE64
         best_subject_id = subject_id or "unknown"
         best_subject_name = self._resolve_member_name_by_subject(db, best_subject_id)
         best_subject_name_chn = self._resolve_member_name_chn_by_subject(db, best_subject_id)
@@ -491,6 +657,7 @@ class EventDispatcher:
                 "second_similarity": None,
                 "reason": "orphaned_profile",
                 "face_image_base64": image_base64,
+                "image_available": bool(original_image),
                 "box": event.get("box"),
             },
         }
@@ -547,10 +714,6 @@ class EventDispatcher:
 
         # If there is no image, persist a small placeholder so the front-end shows a card.
         # Use a tiny 1x1 PNG placeholder (transparent) as base64.
-        PLACEHOLDER_PNG_BASE64 = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAA"
-            "AASUVORK5CYII="
-        )
         if not original_image_present:
             logger.info(
                 "persist_queue_event: no image for decision=%s subject=%s timestamp=%s, using placeholder",

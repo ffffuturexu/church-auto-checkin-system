@@ -18,9 +18,35 @@ def _drain_events(engine: RecognitionEngine):
     while True:
         event = engine.read_event_nowait()
         if event is None:
+            frame = engine.read_debug_frame_nowait()
+            if frame is not None:
+                events.append(frame)
             break
         events.append(event)
     return events
+
+
+def test_debug_frames_do_not_evict_business_events():
+    engine = RecognitionEngine(api_client=object(), event_queue_size=2)
+    engine._emit_event("recognition.success", event_id="business")
+    engine._emit_event("debug_frame", sequence=1)
+    engine._emit_event("debug_frame", sequence=2)
+
+    assert engine.read_event_nowait()["event_id"] == "business"
+    assert engine.read_event_nowait() is None
+    assert engine.read_debug_frame_nowait()["sequence"] == 2
+    assert engine.read_debug_frame_nowait() is None
+    assert engine.get_runtime_stats()["debug_frames_replaced"] == 1
+
+
+def test_business_queue_overflow_reports_dropped_event_type(caplog):
+    engine = RecognitionEngine(api_client=object(), event_queue_size=1)
+    engine._emit_event("recognition.pending", event_id="old")
+    engine._emit_event("recognition.success", event_id="new")
+
+    assert engine.read_event_nowait()["event_id"] == "new"
+    assert engine.get_runtime_stats()["event_drops_by_type"] == {"recognition.pending": 1}
+    assert "dropped oldest type=recognition.pending" in caplog.text
 
 
 def test_extract_box_supports_xyxy_format():

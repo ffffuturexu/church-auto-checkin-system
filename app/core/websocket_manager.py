@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 
 from fastapi import WebSocket
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -11,6 +14,7 @@ class WebSocketStats:
     channel_a_connections: int
     channel_b_connections: int
     channel_queue_connections: int
+    send_failures_by_channel: dict[str, int]
 
 
 class WebSocketManager:
@@ -27,6 +31,7 @@ class WebSocketManager:
         self._channel_queue: set[WebSocket] = set()
         self._lock = asyncio.Lock()
         self._send_timeout_sec = max(0.05, float(send_timeout_sec))
+        self._send_failures_by_channel: dict[str, int] = {}
 
     async def connect_channel_a(self, websocket: WebSocket) -> None:
         await websocket.accept()
@@ -71,6 +76,7 @@ class WebSocketManager:
                 channel_a_connections=len(self._channel_a),
                 channel_b_connections=len(self._channel_b),
                 channel_queue_connections=len(self._channel_queue),
+                send_failures_by_channel=dict(self._send_failures_by_channel),
             )
 
     async def _broadcast(self, payload: dict, channel: str) -> None:
@@ -101,6 +107,9 @@ class WebSocketManager:
             return
 
         async with self._lock:
+            count = self._send_failures_by_channel.get(channel, 0) + len(dead)
+            self._send_failures_by_channel[channel] = count
+            logger.warning("websocket send failures: channel=%s failed=%d total=%d", channel, len(dead), count)
             if channel == "a":
                 target = self._channel_a
             elif channel == "b":

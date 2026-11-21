@@ -19,6 +19,7 @@ async def health_check(request: Request) -> dict:
         payload["websocket"] = (await ws_manager.get_stats()).__dict__
     if dispatcher is not None:
         payload["event_dispatcher_running"] = dispatcher.is_running()
+        payload["event_dispatcher"] = dispatcher.stats()
     if cleanup_service is not None:
         payload["cleanup"] = cleanup_service.state().__dict__
     return payload

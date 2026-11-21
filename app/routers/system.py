@@ -90,6 +90,7 @@ async def self_check(request: Request) -> dict[str, Any]:
         },
         "event_dispatcher": {
             "ok": bool(dispatcher and dispatcher.is_running()),
+            "state": dispatcher.stats() if dispatcher is not None else None,
         },
         "cleanup": {
             "ok": cleanup_service is not None,

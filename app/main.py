@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -78,8 +79,8 @@ async def lifespan(app: FastAPI):
     finally:
         await app.state.feed_cleanup_service.stop()
         await app.state.cleanup_service.stop()
+        await asyncio.to_thread(app.state.runtime.stop_stream)
         await app.state.event_dispatcher.stop()
-        app.state.runtime.stop_stream()
 
 
 def create_app() -> FastAPI:
