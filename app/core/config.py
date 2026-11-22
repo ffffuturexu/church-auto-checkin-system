@@ -7,7 +7,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Settings:
     app_name: str = os.getenv("APP_NAME", "Church Auto Check-in API")
-    app_version: str = os.getenv("APP_VERSION", "0.7.1")
+    app_version: str = os.getenv("APP_VERSION", "0.7.2")
     sqlite_path: str = os.getenv("SQLITE_PATH", "./data/checkin.db")
     database_url: str = os.getenv("DATABASE_URL", f"sqlite:///./data/checkin.db")
     compre_face_base_url: str = os.getenv("COMPRE_FACE_BASE_URL", "http://localhost:8000")

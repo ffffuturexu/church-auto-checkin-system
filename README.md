@@ -80,6 +80,7 @@ Core capabilities:
 - Debug video and overlay toggles
 - Chinese/English language switching across the web workbenches
 - Process-level metrics (CPU, memory, GPU, load)
+- Rotating camera diagnostics for frame status, RTSP/TCP connections, and selected FFmpeg errors
 
 ## Architecture
 
@@ -192,6 +193,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
 ### Latest Release
 
+- **v0.7.2 (2026-11-22)**: Add rotating camera diagnostics for frame and recognition status, TCP connection metrics, and selected OpenCV/FFmpeg stream errors.
 - **v0.7.1 (2026-11-21)**: Improve dispatcher reliability with per-event exception handling and automatic restart; separate database writes, bounded WebSocket broadcasts, and latest-only debug frames; expose queue, drop, timing, restart, and send-failure metrics.
 - **v0.6.2 (2026-11-20)**: Add a schedule-review demo for ministry coordinators, including weekly schedule filtering, staffing-gap visibility, request review actions, and a linked entry point from the home page; refine debug workspace guidance and localization coverage.
 - **v0.6.1 (2026-09-05)**: Add attendance source classification and SQLite migration, filter inactive recognition candidates, improve new-member registration with automatic Sunday check-in, and add Chinese/English UI localization.
@@ -263,6 +265,7 @@ Recognition events also carry the attendance source, while inactive or missing m
 - Common maintenance procedures: [docs/MAINTENANCE.md](./docs/MAINTENANCE.md)
 - `/health` and `/system/self-check` expose event and broadcast queue depth, high-water marks, drops, timings, dispatcher restarts, and WebSocket send failures. Queue pressure at 80%, drops, failures, and restarts are logged; persistent alerting requires external monitoring.
 - Queues are in memory: a full business queue drops its oldest event, while a full broadcast queue drops the new notification. Failed business events are logged but not retried automatically; a lost notification does not undo a committed database write. Counters reset on process restart.
+- Camera diagnostics write to Git-ignored `logs/camera.log` every 10 seconds, with 5 MiB rotation and five backups. They include frame/recognition state, process metrics, and the application's RTSP TCP socket metrics. Selected OpenCV/FFmpeg errors are collected from the process's systemd journal; `ss`, journal access, and write permissions are required for the corresponding data. RTSP addresses and credentials are excluded. TCP configuration does not prove the negotiated transport; these diagnostics do not capture all network or camera-side failures. Restart the service to activate changes, and start the stream again if necessary.
 
 ## Testing
 

@@ -3,6 +3,7 @@ archive/
 data/
 records/
 scripts/
+/logs/
 
 # Configuration and credentials
 config.ini

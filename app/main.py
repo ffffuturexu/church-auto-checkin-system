@@ -30,6 +30,7 @@ from app.core.websocket_manager import WebSocketManager
 from app.services.cleanup_service import RecognitionLogCleanupService, ReceptionFeedCleanupService
 from app.services.event_dispatcher import EventDispatcher
 from app.services.face_library_service import FaceLibraryService
+from app.services.camera_diagnostics import CameraDiagnostics
 from app.services.runtime_pipeline import RuntimePipeline
 
 
@@ -74,9 +75,12 @@ async def lifespan(app: FastAPI):
     await app.state.event_dispatcher.start()
     await app.state.cleanup_service.start()
     await app.state.feed_cleanup_service.start()
+    diagnostics = CameraDiagnostics(app.state.runtime)
+    await diagnostics.start()
     try:
         yield
     finally:
+        await diagnostics.stop()
         await app.state.feed_cleanup_service.stop()
         await app.state.cleanup_service.stop()
         await asyncio.to_thread(app.state.runtime.stop_stream)
