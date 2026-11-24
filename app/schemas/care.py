@@ -100,10 +100,12 @@ class CareUpcomingBirthdayItem(BaseModel):
     name: str
     name_chn: str | None
     group: str | None
-    birthday: date
+    birthday: date | None
+    birthday_month: int | None = None
+    birthday_day: int | None = None
     next_birthday: date
     days_until_birthday: int
-    turning_age: int
+    turning_age: int | None
 
 
 class CareUpcomingBirthdayResponse(BaseModel):

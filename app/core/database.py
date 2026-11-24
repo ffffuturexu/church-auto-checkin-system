@@ -82,6 +82,14 @@ def _apply_sqlite_migrations() -> None:
         member_column_names = {str(row[1]) for row in member_columns}
         if "birthday" not in member_column_names:
             conn.execute(text("ALTER TABLE members ADD COLUMN birthday DATE"))
+        for column, sql_type in (
+            ("birthday_month", "INTEGER"),
+            ("birthday_day", "INTEGER"),
+            ("age_at_record", "INTEGER"),
+            ("age_recorded_on", "DATE"),
+        ):
+            if column not in member_column_names:
+                conn.execute(text(f"ALTER TABLE members ADD COLUMN {column} {sql_type}"))
         if "note" not in member_column_names:
             conn.execute(text("ALTER TABLE members ADD COLUMN note VARCHAR(500)"))
         if "name_chn" not in member_column_names:

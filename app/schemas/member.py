@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, StrictInt
 
 
 class MemberOut(BaseModel):
@@ -15,6 +15,10 @@ class MemberOut(BaseModel):
     gender: str | None
     group: str | None
     birthday: date | None
+    birthday_month: int | None = None
+    birthday_day: int | None = None
+    age_at_record: int | None = None
+    age_recorded_on: date | None = None
     note: str | None
     status: bool
     attendance_status: str | None = None
@@ -28,11 +32,15 @@ class MemberSearchResponse(BaseModel):
 
 
 class MemberCreateRequest(BaseModel):
+    id: UUID | None = None
     name: str
     name_chn: str | None = None
     gender: str | None = None
     group: str | None = None
     birthday: date | None = None
+    birthday_month: StrictInt | None = Field(default=None, ge=1, le=12)
+    birthday_day: StrictInt | None = Field(default=None, ge=1, le=31)
+    age_at_record: StrictInt | None = Field(default=None, ge=0, le=130)
     note: str | None = None
     status: bool = True
 
@@ -43,6 +51,9 @@ class MemberUpdateRequest(BaseModel):
     gender: str | None = None
     group: str | None = None
     birthday: date | None = None
+    birthday_month: StrictInt | None = Field(default=None, ge=1, le=12)
+    birthday_day: StrictInt | None = Field(default=None, ge=1, le=31)
+    age_at_record: StrictInt | None = Field(default=None, ge=0, le=130)
     note: str | None = None
     status: bool | None = None
 

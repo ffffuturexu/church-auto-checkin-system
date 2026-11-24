@@ -629,6 +629,76 @@
       min-width: 0;
       width: 100%;
     }
+    .member-form-grid {
+      display: grid;
+      gap: 12px;
+      max-width: 100%;
+    }
+    .member-form-row {
+      display: grid;
+      gap: 12px;
+      align-items: start;
+    }
+    .member-basic-row {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    }
+    .member-birthday-age-row {
+      grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+    }
+    .member-photo-note-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .member-form-grid input,
+    .member-form-grid select {
+      height: 38px;
+    }
+    .member-form-grid input[type="file"] {
+      padding: 5px 10px;
+    }
+    .member-form-grid .member-field-label {
+      display: flex;
+      min-height: 2.5em;
+      align-items: flex-end;
+    }
+    .birthday-inputs .member-field-label {
+      min-height: 0;
+      align-items: flex-start;
+    }
+    .birthday-inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .birthday-inputs label { min-width: 0; }
+    .member-form-grid .create-group-select {
+      display: block;
+      width: 100%;
+      min-width: 0;
+    }
+    .member-photo-toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+    }
+    .member-row-help {
+      grid-column: 1 / -1;
+      margin: -4px 0 0;
+    }
+    .create-photo-preview { max-width: 180px; max-height: 180px; object-fit: contain; border-radius: 8px; }
+    .create-confirm {
+      width: min(620px, calc(100% - 32px));
+      max-height: 90vh;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .create-confirm::backdrop { background: rgba(8, 21, 44, 0.48); }
+    .confirm-details { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; }
+    .confirm-details dt { color: var(--sub); }
+    .confirm-details dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+    .form-error { color: var(--danger); white-space: pre-wrap; }
     .photo-thumb {
       width: 56px;
       height: 56px;
@@ -804,6 +874,16 @@
       .care-profile-top { grid-template-columns: 1fr; }
       .care-filters-grid .care-search { grid-column: span 3; }
     }
+    @media (min-width: 601px) and (max-width: 899px) {
+      .member-basic-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (min-width: 900px) {
+      .member-basic-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    @media (max-width: 600px) {
+      .member-birthday-age-row,
+      .member-photo-note-row { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -826,31 +906,73 @@
     <div id="memberTab" class="tab-panel active">
       <div class="card">
         <h2>新增会友</h2>
-        <div class="toolbar">
-          <input id="name" placeholder="姓名（仅拼音/外文名）" pattern="[A-Za-z]+(?:[ .'-][A-Za-z]+)*" title="仅限拉丁字母，可包含空格、点、连字符或撇号" autocomplete="off" />
-          <input id="nameChn" placeholder="中文名(可空)" />
-          <select id="gender">
-            <option value="">性别（可空）</option>
-            <option value="男">男</option>
-            <option value="女">女</option>
-          </select>
-          <input id="birthday" type="date" />
-          <div class="custom-select-container create-group-select">
-            <input id="group" value="新人" placeholder="分组" autocomplete="off" />
-            <span class="custom-select-arrow">▼</span>
-            <div id="createGroupList" class="custom-select-list"></div>
+        <form id="createMemberForm" novalidate>
+          <div class="member-form-grid">
+            <div class="member-form-row member-basic-row">
+              <label class="field">
+                <span class="member-field-label">姓名（拼音/外文名，必填）</span>
+                <input id="name" autocomplete="off" maxlength="120" />
+              </label>
+              <label class="field">
+                <span class="member-field-label">中文名（选填）</span>
+                <input id="nameChn" maxlength="120" />
+              </label>
+              <label class="field">
+                <span class="member-field-label">性别（选填）</span>
+                <select id="gender"><option value="">未填写</option><option value="男">男</option><option value="女">女</option></select>
+              </label>
+              <label class="field">
+                <span class="member-field-label">分组</span>
+                <span class="custom-select-container create-group-select">
+                  <input id="group" value="新人" placeholder="分组" autocomplete="off" maxlength="120" />
+                  <span class="custom-select-arrow">▼</span>
+                  <span id="createGroupList" class="custom-select-list"></span>
+                </span>
+              </label>
+            </div>
+            <div class="member-form-row member-birthday-age-row">
+              <div class="field">
+                <span class="member-field-label">生日（选填；月、日需同时填写）</span>
+                <div class="birthday-inputs">
+                  <label class="field"><span class="member-field-label">年</span><input id="birthYear" type="number" min="1" max="9999" placeholder="未知可留空" /></label>
+                  <label class="field"><span class="member-field-label">月</span><input id="birthMonth" type="number" min="1" max="12" placeholder="月" /></label>
+                  <label class="field"><span class="member-field-label">日</span><input id="birthDay" type="number" min="1" max="31" placeholder="日" /></label>
+                </div>
+              </div>
+              <label class="field">
+                <span class="member-field-label">登记时年龄</span>
+                <span>（选填，完整生日不需填写）</span>
+                <input id="ageAtRecord" type="number" min="0" max="130" step="1" />
+              </label>
+              <p class="mini member-row-help">年龄仅记录填写时的数值，不自动推算出生年份或当前年龄。</p>
+            </div>
+            <div class="member-form-row member-photo-note-row">
+              <div class="field">
+                <label class="member-field-label" for="createPhoto">照片（选填）</label>
+                <div class="member-photo-toolbar">
+                  <input id="createPhoto" type="file" accept="image/*" />
+                  <button id="removeCreatePhoto" type="button" class="alt hidden">移除照片</button>
+                </div>
+                <span class="mini">用于人脸识别，请先取得本人同意，选择清晰的单人正脸照片（最大 10 MB）。</span>
+                <img id="createPhotoPreview" class="create-photo-preview hidden" alt="所选照片预览" />
+              </div>
+              <label class="field">
+                <span class="member-field-label">备注（选填）</span>
+                <input id="note" maxlength="500" />
+              </label>
+            </div>
+            <div class="member-form-actions">
+              <div id="createFormError" class="form-error" role="alert"></div>
+              <button id="createBtn" class="ok" type="submit">核对信息</button>
+            </div>
           </div>
-          <input id="note" placeholder="备注(可空)" />
-          <button id="createBtn" class="ok">新增</button>
-          <button id="reloadBtn">刷新列表</button>
-          <button id="syncAllBtn" class="alt">同步全部照片到 CompreFace</button>
-        </div>
-        <div class="mini">说明：停用为逻辑停用，不会删除历史签到记录。</div>
+        </form>
       </div>
 
       <div class="card">
         <h2>会友列表（点击行打开详情）</h2>
         <div class="toolbar">
+          <button id="reloadBtn" type="button">刷新列表</button>
           <input id="memberSearchInput" placeholder="搜索 姓名/中文名/拼音全拼/首字母/分组/备注" />
           <select id="memberStatusFilter">
             <option value="active" selected>仅 active</option>
@@ -1241,13 +1363,16 @@
             <option value="女">女</option>
           </select>
         </label>
-        <label class="field">
-          生日
-          <input id="modalBirthday" type="date" />
-        </label>
-        <label class="field">
-          年龄（自动计算）
-          <input id="modalAge" disabled />
+        <div class="field">生日（年可留空；月、日需同时填写）
+          <div class="birthday-inputs">
+            <label class="field">年<input id="modalBirthYear" type="number" min="1" max="9999" /></label>
+            <label class="field">月<input id="modalBirthMonth" type="number" min="1" max="12" /></label>
+            <label class="field">日<input id="modalBirthDay" type="number" min="1" max="31" /></label>
+          </div>
+        </div>
+        <label class="field">登记时年龄（完整生日不需填写）
+          <input id="modalAge" type="number" min="0" max="130" step="1" />
+          <span id="modalAgeInfo" class="mini"></span>
         </label>
         <label class="field">
           分组
@@ -1300,6 +1425,21 @@
     </div>
   </div>
 
+  <dialog id="createConfirmDialog" class="create-confirm" aria-labelledby="createConfirmTitle">
+    <h2 id="createConfirmTitle">核对新增会友信息</h2>
+    <dl id="createConfirmDetails" class="confirm-details"></dl>
+    <img id="confirmPhotoPreview" class="create-photo-preview hidden" alt="待上传照片预览" />
+    <p class="mini">创建后会尝试为当前主日场次签到；非主日不自动签到。</p>
+    <div id="createResult" class="form-error" role="status" aria-live="polite"></div>
+    <div class="toolbar">
+      <button id="createBackBtn" type="button" class="alt">返回修改</button>
+      <button id="createConfirmBtn" type="button" class="ok">确认新增</button>
+      <button id="createRetryPhotoBtn" type="button" class="alt hidden">重试照片上传</button>
+      <button id="createDetailsBtn" type="button" class="alt hidden">查看会友详情</button>
+      <button id="createFinishBtn" type="button" class="hidden">完成</button>
+    </div>
+  </dialog>
+
   <script>
     const rowsEl = document.getElementById('memberRows');
     const memberSearchInputEl = document.getElementById('memberSearchInput');
@@ -1331,8 +1471,11 @@
     const modalNameChnEl = document.getElementById('modalNameChn');
     const modalGenderEl = document.getElementById('modalGender');
     const modalGroupEl = document.getElementById('modalGroup');
-    const modalBirthdayEl = document.getElementById('modalBirthday');
+    const modalBirthYearEl = document.getElementById('modalBirthYear');
+    const modalBirthMonthEl = document.getElementById('modalBirthMonth');
+    const modalBirthDayEl = document.getElementById('modalBirthDay');
     const modalAgeEl = document.getElementById('modalAge');
+    const modalAgeInfoEl = document.getElementById('modalAgeInfo');
     const modalNoteEl = document.getElementById('modalNote');
     const modalStatusEl = document.getElementById('modalStatus');
 
@@ -1468,7 +1611,67 @@
     }
 
     function getDisplayAge(member) {
-      return computeAgeFromBirthday(member.birthday);
+      return computeAgeFromBirthday(member.birthday) ?? member.age_at_record ?? null;
+    }
+
+    function formatMemberBirthday(member) {
+      if (member.birthday) return member.birthday;
+      if (member.birthday_month != null && member.birthday_day != null) {
+        return `${member.birthday_month}月${member.birthday_day}日（年份未知）`;
+      }
+      return '-';
+    }
+
+    function formatMemberAge(member) {
+      if (member.birthday) {
+        const age = computeAgeFromBirthday(member.birthday);
+        return age == null ? '-' : `${age} 岁`;
+      }
+      return member.age_at_record == null ? '-' : `登记时 ${member.age_at_record} 岁（${member.age_recorded_on || '日期未知'}）`;
+    }
+
+    function readBirthdayFields(yearEl, monthEl, dayEl, ageEl) {
+      const readInteger = (el, label, min, max) => {
+        if (el.validity.badInput) throw new Error(`${label}必须是整数`);
+        if (!el.value) return null;
+        const value = Number(el.value);
+        if (!Number.isInteger(value) || value < min || value > max) {
+          throw new Error(`${label}必须是 ${min} 至 ${max} 的整数`);
+        }
+        return value;
+      };
+      const year = readInteger(yearEl, '出生年份', 1, 9999);
+      const month = readInteger(monthEl, '出生月份', 1, 12);
+      const day = readInteger(dayEl, '出生日期', 1, 31);
+      const age = readInteger(ageEl, '登记时年龄', 0, 130);
+      if ((month === null) !== (day === null) || (year !== null && month === null)) {
+        throw new Error('请同时填写生日的月和日；出生年份不能单独填写');
+      }
+      if (month !== null) {
+        const leap = year === null || (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0));
+        const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        if (day > days[month - 1]) throw new Error('生日日期无效');
+      }
+      if (year !== null && age !== null) throw new Error('完整生日与登记时年龄不能同时填写，请先清除登记时年龄');
+      const pad = (value, length = 2) => String(value).padStart(length, '0');
+      const birthday = year === null ? null : `${pad(year, 4)}-${pad(month)}-${pad(day)}`;
+      const now = new Date();
+      const today = `${pad(now.getFullYear(), 4)}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      if (birthday && birthday > today) throw new Error('出生日期不能晚于今天');
+      return {
+        birthday,
+        birthday_month: birthday ? null : month,
+        birthday_day: birthday ? null : day,
+        age_at_record: age,
+      };
+    }
+
+    function fillBirthdayFields(member, yearEl, monthEl, dayEl, ageEl) {
+      const parts = member.birthday ? member.birthday.split('-') : [];
+      yearEl.value = parts[0] ? Number(parts[0]) : '';
+      monthEl.value = parts[1] ? Number(parts[1]) : (member.birthday_month ?? '');
+      dayEl.value = parts[2] ? Number(parts[2]) : (member.birthday_day ?? '');
+      ageEl.value = member.age_at_record ?? '';
     }
 
     function describeMemberFilters() {
@@ -1730,8 +1933,10 @@
       modalNameChnEl.disabled = !enabled;
       modalGenderEl.disabled = !enabled;
       modalGroupEl.disabled = !enabled;
-      modalBirthdayEl.disabled = !enabled;
-      modalAgeEl.disabled = true;
+      modalBirthYearEl.disabled = !enabled;
+      modalBirthMonthEl.disabled = !enabled;
+      modalBirthDayEl.disabled = !enabled;
+      modalAgeEl.disabled = !enabled;
       modalNoteEl.disabled = !enabled;
 
       // 切换自定义下拉列表的可点击状态
@@ -1781,8 +1986,10 @@
       modalNameChnEl.value = member.name_chn || '';
       modalGenderEl.value = member.gender || '';
       modalGroupEl.value = member.group || '';
-      modalBirthdayEl.value = member.birthday || '';
-      modalAgeEl.value = getDisplayAge(member) ?? '';
+      fillBirthdayFields(member, modalBirthYearEl, modalBirthMonthEl, modalBirthDayEl, modalAgeEl);
+      modalAgeInfoEl.textContent = member.birthday
+        ? `根据完整生日计算：${formatMemberAge(member)}`
+        : (member.age_at_record == null ? '年龄不会自动更新。' : `登记日期：${member.age_recorded_on || '未知'}；年龄不会自动更新。`);
       modalNoteEl.value = member.note || '';
       modalStatusEl.innerHTML = member.status
         ? '<span class="status-pill active">active</span>'
@@ -1818,7 +2025,7 @@
       for (const m of rows) {
         const tr = document.createElement('tr');
         tr.className = 'member-row';
-        const displayAge = getDisplayAge(m);
+        const displayAge = formatMemberAge(m);
         
         let genderSpan = '-';
         if (m.gender === '男') genderSpan = '<span style="color:#2b6cb0">男 ♂</span>';
@@ -1828,8 +2035,8 @@
           <td>${m.name || ''}</td>
           <td>${m.name_chn || '-'}</td>
           <td>${genderSpan}</td>
-          <td>${m.birthday || '-'}</td>
-          <td>${displayAge == null ? '-' : displayAge}</td>
+          <td>${formatMemberBirthday(m)}</td>
+          <td>${displayAge}</td>
           <td></td>
           <td>${m.group || '-'}</td>
           <td class="allow-wrap">${m.note || '-'}</td>
@@ -1971,16 +2178,32 @@
       if (!currentMember) {
         return;
       }
+      let birthdayFields;
+      try {
+        birthdayFields = readBirthdayFields(modalBirthYearEl, modalBirthMonthEl, modalBirthDayEl, modalAgeEl);
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
       const payload = {
         name: modalNameEl.value.trim(),
         name_chn: modalNameChnEl.value.trim() || null,
         gender: modalGenderEl.value || null,
         group: modalGroupEl.value.trim() || null,
-        birthday: modalBirthdayEl.value || null,
+        ...birthdayFields,
         note: modalNoteEl.value.trim() || null
       };
+      if (payload.age_at_record === (currentMember.age_at_record ?? null)) {
+        delete payload.age_at_record;
+      }
       if (!payload.name) {
         alert('姓名不能为空');
+        return;
+      }
+      try {
+        await checkMemberApiCompatibility();
+      } catch (error) {
+        alert(`未保存：${error.message || error}`);
         return;
       }
       const r = await fetch(`/members/${currentMember.id}`, {
@@ -2063,19 +2286,6 @@
       }
 
       throw new Error((lastError && lastError.detail) || 'Not Found');
-    }
-
-    async function syncAllMembersPhotos() {
-      try {
-        const data = await runSyncRequest('?active_only=true');
-        const s = data.summary || {};
-        alert(`同步完成\nprocessed=${s.processed || 0}\nsynced=${s.synced || 0}\nfailed=${s.failed || 0}\nmissing_files=${s.missing_files || 0}`);
-        if (currentMember) {
-          await loadMemberPhotos(String(Date.now()));
-        }
-      } catch (error) {
-        alert(`同步失败: ${error}`);
-      }
     }
 
     async function syncCurrentMemberPhotos() {
@@ -2553,76 +2763,369 @@
       }
     }
 
-    document.getElementById('createBtn').addEventListener('click', async () => {
+    const createForm = document.getElementById('createMemberForm');
+    const createFormError = document.getElementById('createFormError');
+    const createPhotoInput = document.getElementById('createPhoto');
+    const createPhotoPreview = document.getElementById('createPhotoPreview');
+    const removeCreatePhotoBtn = document.getElementById('removeCreatePhoto');
+    const createDialog = document.getElementById('createConfirmDialog');
+    const createResult = document.getElementById('createResult');
+    const createBackBtn = document.getElementById('createBackBtn');
+    const createConfirmBtn = document.getElementById('createConfirmBtn');
+    const createRetryPhotoBtn = document.getElementById('createRetryPhotoBtn');
+    const createDetailsBtn = document.getElementById('createDetailsBtn');
+    const createFinishBtn = document.getElementById('createFinishBtn');
+    let photoPreviewUrl = '';
+    let photoReady = true;
+    let createDirty = false;
+    let createState = null;
+    let createBusy = false;
+
+    function clearCreatePhoto() {
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+      photoPreviewUrl = '';
+      photoReady = true;
+      createPhotoInput.value = '';
+      createPhotoPreview.removeAttribute('src');
+      createPhotoPreview.classList.add('hidden');
+      removeCreatePhotoBtn.classList.add('hidden');
+    }
+
+    createPhotoInput.addEventListener('change', () => {
+      const file = createPhotoInput.files[0];
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+      photoPreviewUrl = '';
+      createPhotoPreview.classList.add('hidden');
+      removeCreatePhotoBtn.classList.toggle('hidden', !file);
+      createFormError.textContent = '';
+      if (!file) {
+        photoReady = true;
+        return;
+      }
+      if (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) {
+        photoReady = false;
+        createFormError.textContent = '请选择不超过 10 MB 的图片文件，或移除照片。';
+        return;
+      }
+      photoReady = false;
+      const url = URL.createObjectURL(file);
+      photoPreviewUrl = url;
+      const image = new Image();
+      image.onload = () => {
+        if (photoPreviewUrl !== url) return;
+        photoReady = true;
+        createPhotoPreview.src = url;
+        createPhotoPreview.classList.remove('hidden');
+      };
+      image.onerror = () => {
+        if (photoPreviewUrl !== url) return;
+        createFormError.textContent = '无法读取图片，请更换或移除照片。';
+      };
+      image.src = url;
+    });
+    removeCreatePhotoBtn.addEventListener('click', () => {
+      clearCreatePhoto();
+      createFormError.textContent = '';
+      createDirty = true;
+    });
+    createForm.addEventListener('input', () => { createDirty = true; });
+    createForm.addEventListener('change', () => { createDirty = true; });
+    window.addEventListener('beforeunload', (event) => {
+      if (createDirty || createBusy) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    });
+
+    function newMemberId() {
+      if (!window.crypto || !window.crypto.getRandomValues) throw new Error('浏览器无法安全生成新增标识，请使用受支持的浏览器');
+      const bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      bytes[6] = (bytes[6] & 15) | 64;
+      bytes[8] = (bytes[8] & 63) | 128;
+      const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+
+    function addConfirmationLine(label, value) {
+      const details = document.getElementById('createConfirmDetails');
+      const term = document.createElement('dt');
+      const description = document.createElement('dd');
+      term.textContent = label;
+      description.textContent = value;
+      details.append(term, description);
+    }
+
+    createForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      createFormError.textContent = '';
       const nameInput = document.getElementById('name');
       const name = nameInput.value.trim();
-      const latinNamePattern = /^[A-Za-z]+(?:[ .'-][A-Za-z]+)*$/;
-      if (!latinNamePattern.test(name)) {
-        alert('姓名仅限拼音/外文名，并且只能输入拉丁字母及常用分隔符（空格、点、连字符、撇号）');
+      if (!/^[A-Za-z]+(?:[ .'-][A-Za-z]+)*$/.test(name)) {
+        createFormError.textContent = '姓名必填，仅限拉丁字母及空格、点、连字符或撇号。';
         nameInput.focus();
         return;
       }
-      const payload = {
-        name,
-        name_chn: document.getElementById('nameChn').value.trim() || null,
-        gender: document.getElementById('gender').value || null,
-        group: document.getElementById('group').value.trim() || '新人',
-        birthday: document.getElementById('birthday').value || null,
-        note: document.getElementById('note').value.trim() || null,
-        status: true
-      };
-      if (!payload.name) {
-        alert('姓名不能为空');
+      if (!photoReady) {
+        createFormError.textContent = '图片尚未就绪或无法读取，请稍候、更换或移除照片。';
         return;
       }
-      const res = await fetch('/members', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`创建失败: ${err.detail || res.status}`);
+      try {
+        const fields = readBirthdayFields(
+          document.getElementById('birthYear'), document.getElementById('birthMonth'),
+          document.getElementById('birthDay'), document.getElementById('ageAtRecord')
+        );
+        const payload = {
+          id: newMemberId(), name,
+          name_chn: document.getElementById('nameChn').value.trim() || null,
+          gender: document.getElementById('gender').value || null,
+          group: document.getElementById('group').value.trim() || '新人',
+          ...fields,
+          note: document.getElementById('note').value.trim() || null,
+          status: true,
+        };
+        createState = { payload, photo: createPhotoInput.files[0] || null, member: null, photoMessage: '', checkInMessage: '', photoRetry: false, attempted: false };
+        document.getElementById('createConfirmDetails').replaceChildren();
+        addConfirmationLine('姓名', payload.name);
+        addConfirmationLine('中文名', payload.name_chn || '未填写');
+        addConfirmationLine('性别', payload.gender || '未填写');
+        addConfirmationLine('分组', payload.group);
+        addConfirmationLine('生日', formatMemberBirthday(payload));
+        addConfirmationLine('年龄', payload.birthday ? `${computeAgeFromBirthday(payload.birthday) ?? '未知'} 岁（按生日计算）` : (payload.age_at_record == null ? '未填写' : `登记时 ${payload.age_at_record} 岁`));
+        addConfirmationLine('备注', payload.note || '未填写');
+        addConfirmationLine('照片', createState.photo ? createState.photo.name : '未上传');
+        const duplicates = allMembers.filter((m) => m.name.toLowerCase() === name.toLowerCase());
+        if (duplicates.length) addConfirmationLine('提醒', `列表中有 ${duplicates.length} 位同名会友，请确认不是重复登记。`);
+        const confirmPhoto = document.getElementById('confirmPhotoPreview');
+        confirmPhoto.classList.toggle('hidden', !createState.photo);
+        if (createState.photo) confirmPhoto.src = photoPreviewUrl;
+        else confirmPhoto.removeAttribute('src');
+        createResult.textContent = '';
+        createBackBtn.classList.remove('hidden');
+        createConfirmBtn.classList.remove('hidden');
+        createConfirmBtn.textContent = '确认新增';
+        createRetryPhotoBtn.classList.add('hidden');
+        createDetailsBtn.classList.add('hidden');
+        createFinishBtn.classList.add('hidden');
+        createDialog.showModal();
+        createBackBtn.focus();
+      } catch (error) {
+        createFormError.textContent = error.message || String(error);
+      }
+    });
+
+    createBackBtn.addEventListener('click', () => {
+      if (!createBusy && !createState.attempted) createDialog.close();
+    });
+    createDialog.addEventListener('cancel', (event) => {
+      if (createBusy || (createState && createState.attempted)) event.preventDefault();
+    });
+
+    async function responseError(response) {
+      const text = await response.text();
+      try {
+        const detail = JSON.parse(text).detail;
+        return typeof detail === 'string' ? detail : JSON.stringify(detail || response.status);
+      } catch {
+        return text || `${response.status}`;
+      }
+    }
+
+    function setCreateBusy(busy) {
+      createBusy = busy;
+      createConfirmBtn.disabled = busy;
+      createBackBtn.disabled = busy;
+      createRetryPhotoBtn.disabled = busy;
+      createDetailsBtn.disabled = busy;
+      createFinishBtn.disabled = busy;
+    }
+
+    function showCreateResult() {
+      createResult.textContent = [
+        `会友：${createState.member ? '已创建' : '创建状态待确认'}`,
+        createState.photoMessage,
+        createState.checkInMessage,
+      ].filter(Boolean).join('\n');
+    }
+
+    async function uploadCreatePhoto() {
+      if (!createState.photo) {
+        createState.photoMessage = '照片：未上传（可稍后在会友详情中补传）';
         return;
       }
-      const createdMember = await res.json();
-      let checkInMessage = '已创建';
+      const data = new FormData();
+      data.append('file', createState.photo);
+      try {
+        const response = await fetch(`/face-library/members/${createState.member.id}/photos`, { method: 'POST', body: data });
+        if (!response.ok) {
+          createState.photoMessage = `照片上传失败：${await responseError(response)}。可重试或稍后在详情中补传。`;
+          createState.photoRetry = true;
+          return;
+        }
+        createState.photoMessage = '照片：上传成功';
+        createState.photoRetry = false;
+      } catch (error) {
+        createState.photoMessage = `照片上传结果不确定：${error.message || error}。请先到会友详情核实，勿重复上传。`;
+        createState.photoRetry = false;
+      }
+    }
+
+    async function checkInCreatedMember() {
       try {
         const serviceRes = await fetch('/attendance/current-service');
+        if (!serviceRes.ok) throw new Error(await responseError(serviceRes));
         const service = await serviceRes.json();
-        if (!serviceRes.ok) {
-          throw new Error(service.detail || serviceRes.status);
-        }
         if (!service.event_id) {
-          checkInMessage = '已创建，但当前不是主日场次，未自动签到';
-        } else {
-          const checkInRes = await fetch('/attendance/manual-checkin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ member_id: createdMember.id, event_id: service.event_id })
-          });
-          const checkInData = await checkInRes.json();
-          if (!checkInRes.ok) {
-            throw new Error(checkInData.detail || checkInRes.status);
+          createState.checkInMessage = '签到：当前不是主日场次，未自动签到';
+          return;
+        }
+        const response = await fetch('/attendance/manual-checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ member_id: createState.member.id, event_id: service.event_id }),
+        });
+        if (!response.ok) throw new Error(await responseError(response));
+        const data = await response.json();
+        createState.checkInMessage = data.status === 'duplicate' ? '签到：当前场次已签到' : '签到：已完成';
+      } catch (error) {
+        createState.checkInMessage = `签到未完成或结果不确定：${error.message || error}。请查看签到记录后处理。`;
+      }
+    }
+
+    async function checkMemberApiCompatibility() {
+      const response = await fetch('/openapi.json');
+      if (!response.ok) throw new Error(`无法检查会友接口：${await responseError(response)}`);
+      const schema = await response.json();
+      const properties = schema.components?.schemas?.MemberCreateRequest?.properties;
+      if (!properties || !['id', 'birthday_month', 'birthday_day', 'age_at_record'].every((key) => key in properties)) {
+        throw new Error('后台尚未更新，请重启后台服务后再新增，以免丢失生日或年龄信息。');
+      }
+    }
+
+    createConfirmBtn.addEventListener('click', async () => {
+      if (createBusy || !createState) return;
+      setCreateBusy(true);
+      if (!createState.attempted) {
+        try {
+          createResult.textContent = '正在检查后台接口……';
+          await checkMemberApiCompatibility();
+        } catch (error) {
+          createResult.textContent = `未提交：${error.message || error}`;
+          setCreateBusy(false);
+          return;
+        }
+      }
+      createState.attempted = true;
+      createBackBtn.classList.add('hidden');
+      createResult.textContent = '正在创建会友……';
+      try {
+        const response = await fetch('/members', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(createState.payload),
+        });
+        if (!response.ok) {
+          const error = await responseError(response);
+          if (response.status === 409) {
+            const existing = await fetch(`/members/${createState.payload.id}`);
+            if (!existing.ok) throw new Error(await responseError(existing));
+            createState.member = await existing.json();
+            createResult.textContent = '新增标识已对应一位资料不同的会友。请先查看详情核实，未上传照片或签到，请勿重复登记。';
+            createConfirmBtn.classList.add('hidden');
+            createDetailsBtn.classList.remove('hidden');
+            createFinishBtn.classList.remove('hidden');
+          } else if (response.status >= 400 && response.status < 500) {
+            createState.attempted = false;
+            createBackBtn.classList.remove('hidden');
+            createResult.textContent = `创建失败：${error}。请返回修改。`;
+          } else {
+            createResult.textContent = `创建结果未确认：${error}。请使用“重试确认”，不要重新登记。`;
+            createConfirmBtn.textContent = '重试确认';
           }
-          checkInMessage = checkInData.status === 'duplicate' ? '已创建，当前场次已签到' : '已创建并完成当前场次签到';
+          return;
+        }
+        createState.member = await response.json();
+        createConfirmBtn.classList.add('hidden');
+        createResult.textContent = '会友已创建，正在处理照片和签到……';
+        await uploadCreatePhoto();
+        await checkInCreatedMember();
+        showCreateResult();
+        createRetryPhotoBtn.classList.toggle('hidden', !createState.photoRetry);
+        createDetailsBtn.classList.remove('hidden');
+        createFinishBtn.classList.remove('hidden');
+        try {
+          await listMembers();
+          await loadDashboard();
+        } catch (error) {
+          createResult.textContent += `\n列表刷新失败：${error.message || error}，请手动刷新。`;
         }
       } catch (error) {
-        checkInMessage = `已创建，但自动签到失败: ${error.message || error}`;
+        createResult.textContent = `创建结果未确认：${error.message || error}。请使用“重试确认”，不要重新登记。`;
+        createConfirmBtn.textContent = '重试确认';
+      } finally {
+        setCreateBusy(false);
       }
-      document.getElementById('name').value = '';
-      document.getElementById('nameChn').value = '';
-      document.getElementById('gender').value = '';
-      document.getElementById('group').value = '新人';
-      document.getElementById('birthday').value = '';
-      document.getElementById('note').value = '';
-      alert(checkInMessage);
-      await listMembers();
-      await loadDashboard();
+    });
+
+    createRetryPhotoBtn.addEventListener('click', async () => {
+      if (createBusy || !createState || !createState.photoRetry) return;
+      setCreateBusy(true);
+      createState.photoMessage = '照片：正在重试上传……';
+      showCreateResult();
+      try {
+        const response = await fetch(`/face-library/members/${createState.member.id}/photos?active_only=true`);
+        if (!response.ok) throw new Error(await responseError(response));
+        const photos = await response.json();
+        if (photos.total > 0) {
+          createState.photoMessage = '照片：会友已有照片，请在详情中核实，未重复上传。';
+          createState.photoRetry = false;
+        } else {
+          await uploadCreatePhoto();
+        }
+      } catch (error) {
+        createState.photoMessage = `无法核实照片状态：${error.message || error}。未重试上传，请稍后核实。`;
+      }
+      createRetryPhotoBtn.classList.toggle('hidden', !createState.photoRetry);
+      showCreateResult();
+      try {
+        await listMembers();
+      } catch (error) {
+        createResult.textContent += `\n列表刷新失败：${error.message || error}。`;
+      }
+      setCreateBusy(false);
+    });
+
+    createDetailsBtn.addEventListener('click', async () => {
+      if (createBusy || !createState || !createState.member) return;
+      setCreateBusy(true);
+      try {
+        const response = await fetch(`/members/${createState.member.id}`);
+        if (!response.ok) throw new Error(await responseError(response));
+        const member = await response.json();
+        createDialog.close();
+        createForm.reset();
+        clearCreatePhoto();
+        createDirty = false;
+        createState = null;
+        openMemberModal(member);
+      } catch (error) {
+        createResult.textContent += `\n无法打开详情：${error.message || error}`;
+      } finally {
+        setCreateBusy(false);
+      }
+    });
+
+    createFinishBtn.addEventListener('click', () => {
+      if (createBusy || !createState || !createState.member) return;
+      createDialog.close();
+      createForm.reset();
+      clearCreatePhoto();
+      createDirty = false;
+      createState = null;
+      document.getElementById('name').focus();
     });
 
     document.getElementById('reloadBtn').addEventListener('click', listMembers);
-    document.getElementById('syncAllBtn').addEventListener('click', syncAllMembersPhotos);
     if (createGroupInputEl && createGroupListEl) {
       createGroupInputEl.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -3090,10 +3593,10 @@
         tr.innerHTML = `
           <td>${row.name}${row.name_chn ? ` / ${row.name_chn}` : ''}</td>
           <td>${row.group || '-'}</td>
-          <td>${row.birthday}</td>
+          <td>${formatMemberBirthday(row)}</td>
           <td>${row.next_birthday}</td>
           <td><span class="${daysClass}">${row.days_until_birthday}</span></td>
-          <td>${row.turning_age}</td>
+          <td>${row.turning_age ?? '未知'}</td>
         `;
         careBirthdayRowsEl.appendChild(tr);
       }

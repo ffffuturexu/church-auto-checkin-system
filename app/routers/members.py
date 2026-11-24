@@ -6,10 +6,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.time_utils import now_local_naive
+from app.core.time_utils import now_local_naive, today_local
 from app.models.models import Member
 from app.models.models import AttendanceRecord
 from app.schemas.member import (
@@ -52,12 +53,42 @@ def _to_member_out(member: Member) -> MemberOut:
         gender=member.gender,
         group=member.group,
         birthday=member.birthday,
+        birthday_month=member.birthday_month,
+        birthday_day=member.birthday_day,
+        age_at_record=member.age_at_record,
+        age_recorded_on=member.age_recorded_on,
         note=member.note,
         status=member.status,
         attendance_status=None,
         attendance_record_id=None,
         attendance_event_id=None,
     )
+
+
+def _validate_birthday_fields(birthday: date | None, month: int | None, day: int | None, age: int | None) -> None:
+    if birthday is not None and birthday > today_local():
+        raise HTTPException(status_code=422, detail="birthday cannot be in the future")
+    if (month is None) != (day is None):
+        raise HTTPException(status_code=422, detail="birthday_month and birthday_day must be provided together")
+    if month is not None and day is not None:
+        try:
+            date(2000, month, day)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="invalid birthday month and day")
+    if birthday is not None and (month is not None or age is not None):
+        raise HTTPException(status_code=422, detail="birthday cannot coexist with partial birthday or recorded age")
+
+
+def _matching_create(existing: Member, candidate: Member) -> bool:
+    fields = ("name", "name_chn", "gender", "group", "birthday", "birthday_month",
+              "birthday_day", "age_at_record", "note", "status")
+    return all(getattr(existing, field) == getattr(candidate, field) for field in fields)
+
+
+def _existing_create_result(existing: Member, candidate: Member) -> MemberOut:
+    if not _matching_create(existing, candidate):
+        raise HTTPException(status_code=409, detail="member id already exists with different content")
+    return _to_member_out(existing)
 
 
 def _normalize_search_text(value: str | None) -> str:
@@ -142,20 +173,38 @@ def _matches_member_keyword(member: Member, keyword: str) -> bool:
 
 @router.post("", response_model=MemberOut)
 def create_member(payload: MemberCreateRequest, db: Session = Depends(get_db)) -> MemberOut:
+    _validate_birthday_fields(payload.birthday, payload.birthday_month, payload.birthday_day, payload.age_at_record)
     row = Member(
+        id=payload.id,
         name=payload.name.strip(),
         name_chn=(payload.name_chn.strip() if payload.name_chn else None),
         gender=(payload.gender.strip().lower() if payload.gender else None),
         group=(payload.group.strip() if payload.group else None),
         birthday=payload.birthday,
+        birthday_month=payload.birthday_month,
+        birthday_day=payload.birthday_day,
+        age_at_record=payload.age_at_record,
+        age_recorded_on=today_local() if payload.age_at_record is not None else None,
         note=(payload.note.strip() if payload.note else None),
         status=payload.status,
     )
     if not row.name:
         raise HTTPException(status_code=400, detail="name is required")
 
+    if payload.id is not None:
+        existing = db.get(Member, payload.id)
+        if existing is not None:
+            return _existing_create_result(existing, row)
     db.add(row)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        if payload.id is not None:
+            existing = db.get(Member, payload.id)
+            if existing is not None:
+                return _existing_create_result(existing, row)
+        raise
     db.refresh(row)
     return _to_member_out(row)
 
@@ -388,6 +437,17 @@ def update_member(member_id: UUID, payload: MemberUpdateRequest, db: Session = D
         raise HTTPException(status_code=404, detail="member not found")
 
     provided_fields = set(getattr(payload, "model_fields_set", set()))
+    birthday_fields = ("birthday", "birthday_month", "birthday_day", "age_at_record")
+    merged = {
+        field: getattr(payload, field) if field in provided_fields else getattr(member, field)
+        for field in birthday_fields
+    }
+    _validate_birthday_fields(**{
+        "birthday": merged["birthday"],
+        "month": merged["birthday_month"],
+        "day": merged["birthday_day"],
+        "age": merged["age_at_record"],
+    })
 
     if "name" in provided_fields:
         member.name = (payload.name or "").strip()
@@ -401,6 +461,16 @@ def update_member(member_id: UUID, payload: MemberUpdateRequest, db: Session = D
         member.group = payload.group.strip() if payload.group else None
     if "birthday" in provided_fields:
         member.birthday = payload.birthday
+    if "birthday_month" in provided_fields:
+        member.birthday_month = payload.birthday_month
+    if "birthday_day" in provided_fields:
+        member.birthday_day = payload.birthday_day
+    if "age_at_record" in provided_fields:
+        if payload.age_at_record is None:
+            member.age_recorded_on = None
+        elif payload.age_at_record != member.age_at_record or member.age_recorded_on is None:
+            member.age_recorded_on = today_local()
+        member.age_at_record = payload.age_at_record
     if "note" in provided_fields:
         member.note = payload.note.strip() if payload.note else None
     if "status" in provided_fields:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import json
+import sqlite3
 from typing import Iterable
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -11,8 +12,11 @@ import pytest
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-from app.core.database import SessionLocal, get_db
+from app.core import database
+from app.core.database import get_db
 from app.models.models import AttendanceEvent, AttendanceRecord, CheckInMethod, Member
 from app.routers.attendance import router as attendance_router
 from app.routers.care import router as care_router
@@ -95,7 +99,18 @@ def _create_event_and_checkin(session_factory, member_id: str, event_date: date,
 
 
 @pytest.fixture()
-def real_api_context(tmp_path: Path):
+def real_api_context(tmp_path: Path, monkeypatch):
+    source_path = database.engine.url.database
+    if not source_path or not Path(source_path).is_file():
+        pytest.skip("integration database is unavailable")
+    db_path = tmp_path / "integration.sqlite3"
+    with sqlite3.connect(f"file:{source_path}?mode=ro", uri=True) as source, sqlite3.connect(db_path) as target:
+        source.backup(target)
+    test_engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    monkeypatch.setattr(database, "engine", test_engine)
+    monkeypatch.setattr(database, "DATABASE_URL", f"sqlite:///{db_path}")
+    database.init_db()
+    session_local = sessionmaker(bind=test_engine)
     app = FastAPI(title="real-db-test-app")
     app.include_router(members_router)
     app.include_router(events_router)
@@ -109,7 +124,7 @@ def real_api_context(tmp_path: Path):
     app.state.ws_manager = DummyWsManager()
 
     def override_get_db():
-        db = SessionLocal()
+        db = session_local()
         try:
             yield db
         finally:
@@ -120,10 +135,11 @@ def real_api_context(tmp_path: Path):
     with TestClient(app) as client:
         yield {
             "client": client,
-            "session_factory": SessionLocal,
+            "session_factory": session_local,
             "fake_client": fake_client,
             "ws_manager": app.state.ws_manager,
         }
+    test_engine.dispose()
 
 
 def _fetch_json(client, path: str, params: dict[str, object] | None = None) -> dict:

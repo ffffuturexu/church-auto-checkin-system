@@ -73,6 +73,10 @@ class Member(Base):
     gender: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
     group: Mapped[str | None] = mapped_column(String(120), nullable=True)
     birthday: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    birthday_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    birthday_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    age_at_record: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    age_recorded_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 

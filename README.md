@@ -65,7 +65,8 @@ Core capabilities:
 - Attendance event creation, update, archive
 - Attendance history filtering and CSV export
 - Weekly care brief generation/send management
-- New-member form supports gender, controlled groups, Latin-name validation, and automatic check-in for the current Sunday service
+- New-member registration supports optional photo upload and confirmation before submission, with separate photo and Sunday check-in results and responsive tablet layouts
+- Birthdays may contain a full date or just month and day; recorded age is stored separately without estimating a birth year or updating the age automatically
 
 ### 5. Care Center
 - Risk-based member list with multi-condition filters
@@ -193,6 +194,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
 ### Latest Release
 
+- **v0.7.3 (2026-11-24)**: Support partial birthdays and recorded ages, improve new-member confirmation, optional photos and safe retries, and refine responsive admin layouts.
 - **v0.7.2 (2026-11-22)**: Add rotating camera diagnostics for frame and recognition status, TCP connection metrics, and selected OpenCV/FFmpeg stream errors.
 - **v0.7.1 (2026-11-21)**: Improve dispatcher reliability with per-event exception handling and automatic restart; separate database writes, bounded WebSocket broadcasts, and latest-only debug frames; expose queue, drop, timing, restart, and send-failure metrics.
 - **v0.6.2 (2026-11-20)**: Add a schedule-review demo for ministry coordinators, including weekly schedule filtering, staffing-gap visibility, request review actions, and a linked entry point from the home page; refine debug workspace guidance and localization coverage.

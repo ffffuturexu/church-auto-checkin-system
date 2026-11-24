@@ -888,7 +888,9 @@ def list_upcoming_birthdays(
     limit: int = Query(default=300, ge=1, le=2000),
     db: Session = Depends(get_db),
 ) -> CareUpcomingBirthdayResponse:
-    stmt = select(Member).where(Member.birthday.is_not(None))
+    stmt = select(Member).where(
+        (Member.birthday.is_not(None)) | ((Member.birthday_month.is_not(None)) & (Member.birthday_day.is_not(None)))
+    )
 
     if status_filter == "active":
         stmt = stmt.where(Member.status.is_(True))
@@ -908,15 +910,13 @@ def list_upcoming_birthdays(
 
     for member in members:
         birthday = member.birthday
-        if birthday is None:
-            continue
-
-        next_birthday = _next_birthday_date(birthday, today)
+        reference_birthday = birthday or date(2000, member.birthday_month, member.birthday_day)
+        next_birthday = _next_birthday_date(reference_birthday, today)
         days_until = (next_birthday - today).days
         if days_until < 0 or days_until > days:
             continue
 
-        turning_age = next_birthday.year - birthday.year
+        turning_age = next_birthday.year - birthday.year if birthday else None
         out.append(
             CareUpcomingBirthdayItem(
                 member_id=member.id,
@@ -924,6 +924,8 @@ def list_upcoming_birthdays(
                 name_chn=member.name_chn,
                 group=member.group,
                 birthday=birthday,
+                birthday_month=member.birthday_month,
+                birthday_day=member.birthday_day,
                 next_birthday=next_birthday,
                 days_until_birthday=days_until,
                 turning_age=turning_age,
