@@ -215,6 +215,26 @@
       box-shadow: 0 4px 12px rgba(70, 46, 18, 0.1);
     }
 
+    .member-card.related-search-member {
+      background: #eaf3fb;
+    }
+
+    .member-card.related-search-member:hover {
+      background: #dcecf8;
+    }
+
+    .search-match-sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     .member-photo {
       width: 100%;
       aspect-ratio: 1;
@@ -514,6 +534,22 @@
     .photo-picker-panel .toolbar {
       width: 100%;
     }
+    .relationship-group {
+      grid-column: 1 / -1;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px;
+      background: #fffaf2;
+    }
+    .relationship-group-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 8px;
+    }
+    .segmented button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
 
     .right-column.expanded-live .live-feed-card,
     .right-column.expanded-queue .unknown-queue-card {
@@ -592,8 +628,16 @@
             </div>
           </div>
           <div id="voiceStatus" class="tiny">语音输入待命</div>
+          <div id="memberSearchStatus" class="tiny" role="status" aria-live="polite"></div>
           <div id="photoPickerPanel" class="photo-picker-panel" hidden>
             <div class="toolbar">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span class="feed-mode-label">视图：</span>
+                <div id="photoViewMode" class="segmented" role="tablist" aria-label="照片查找视图">
+                  <button type="button" class="active" data-view="individual" role="tab" aria-selected="true">个人</button>
+                  <button type="button" data-view="relationship" role="tab" aria-selected="false">关系组</button>
+                </div>
+              </div>
               <div id="photoGenderFilter" class="segmented" role="tablist">
                 <button type="button" class="active" data-gender="" role="tab" aria-selected="true">全部</button>
                 <button type="button" data-gender="男" role="tab" aria-selected="false">男</button>
@@ -675,6 +719,8 @@
     const photoGenderFilter = document.getElementById('photoGenderFilter');
     const photoAttendanceFilter = document.getElementById('photoAttendanceFilter');
     const photoGroupFilter = document.getElementById('photoGroupFilter');
+    const photoViewMode = document.getElementById('photoViewMode');
+    const memberSearchStatus = document.getElementById('memberSearchStatus');
     const liveFeedModeSwitch = document.getElementById('liveFeedModeSwitch');
     const rightColumn = document.querySelector('.right-column');
     const liveFeedCard = document.querySelector('.live-feed-card');
@@ -694,10 +740,19 @@
     let photoPickerAttendance = '';
     let photoPickerNewcomerOnly = false;
     let photoPickerLoading = false;
+    let photoPickerReloadPending = false;
     const photoPickerLimit = 20;
     let photoPickerActive = false;
     let photoPickerHasMore = true;
     let photoPickerRenderedCount = 0;
+    let photoPickerView = 'individual';
+    let relationshipRequestId = 0;
+    let relationshipRefreshTimer = null;
+    let relationshipActionPending = false;
+    let relationshipRenderedKey = '';
+    let relationshipRenderedEventId = '';
+    let searchRequestId = 0;
+    let searchTimer = null;
     let liveFeedMode = 'checkin';
     let startupStatusRetryTimer = null;
     let startupStatusRetryCount = 0;
@@ -1060,7 +1115,7 @@
     }
 
     function schedulePhotoPickerLoadMore() {
-      if (!photoPickerActive || photoPickerLoading || !photoPickerHasMore) {
+      if (!photoPickerActive || document.getElementById('memberQuery').value.trim() || photoPickerView !== 'individual' || photoPickerLoading || !photoPickerHasMore) {
         return;
       }
       const nearBottom = memberCardsContainer.scrollTop + memberCardsContainer.clientHeight >= memberCardsContainer.scrollHeight - 60;
@@ -1070,7 +1125,7 @@
     }
 
     function schedulePhotoPickerAutofill() {
-      if (!photoPickerActive || photoPickerLoading || !photoPickerHasMore) {
+      if (!photoPickerActive || document.getElementById('memberQuery').value.trim() || photoPickerView !== 'individual' || photoPickerLoading || !photoPickerHasMore) {
         return;
       }
       // If current cards do not create a scroll bar, continue loading automatically.
@@ -1079,7 +1134,7 @@
         return;
       }
       setTimeout(() => {
-        if (!photoPickerActive || photoPickerLoading || !photoPickerHasMore) {
+        if (!photoPickerActive || document.getElementById('memberQuery').value.trim() || photoPickerView !== 'individual' || photoPickerLoading || !photoPickerHasMore) {
           return;
         }
         loadPhotoPicker(false);
@@ -1465,6 +1520,9 @@
       for (const item of items) {
         const card = document.createElement('div');
         card.className = 'member-card';
+        if (item.direct_match === false) {
+          card.classList.add('related-search-member');
+        }
 
         const photoDiv = document.createElement('div');
         photoDiv.className = 'member-photo';
@@ -1473,6 +1531,7 @@
           img.alt = item.name;
           img.loading = 'lazy';
           img.decoding = 'async';
+          img.addEventListener('error', () => setMemberPhotoFallback(img));
           img.dataset.memberId = item.id;
           photoDiv.appendChild(img);
           if ('IntersectionObserver' in window) {
@@ -1515,10 +1574,24 @@
         refreshCardButton();
         checkinBtn.onclick = async (evt) => {
           evt.stopPropagation();
+          const relationshipAction = photoPickerActive && photoPickerView === 'relationship';
+          if (relationshipAction) {
+            if (relationshipActionPending) return;
+            relationshipActionPending = true;
+            relationshipRequestId += 1;
+            for (const button of memberCardsContainer.querySelectorAll('.relationship-group .member-card button')) {
+              button.disabled = true;
+            }
+          }
           try {
             const eventId = getActiveSearchEventId() || null;
             if (!eventId) {
               alert('请先选择场次或等待当前场次加载完成');
+              return;
+            }
+            if (item.attendance_event_id !== eventId) {
+              liveSearch();
+              alert(window.Localization ? window.Localization.translate('场次已变化，请等待状态刷新') : '场次已变化，请等待状态刷新');
               return;
             }
 
@@ -1542,7 +1615,7 @@
               item.attendance_event_id = eventId;
               refreshStatusBadge();
               refreshCardButton();
-              alert('已取消签到');
+              alert(window.Localization ? window.Localization.translate('已取消签到') : '已取消签到');
               return;
             }
 
@@ -1569,13 +1642,28 @@
             });
             await refreshStatus();
             await refreshCurrentService();
+            if (relationshipAction) alert(window.Localization ? window.Localization.translate('签到成功') : '签到成功');
           } catch (err) {
             alert(`签到失败: ${err}`);
+          } finally {
+            if (relationshipAction) {
+              relationshipActionPending = false;
+              for (const button of memberCardsContainer.querySelectorAll('.relationship-group .member-card button')) {
+                button.disabled = false;
+              }
+              scheduleRelationshipRefresh();
+            }
           }
         };
 
         card.appendChild(photoDiv);
         card.appendChild(infoDiv);
+        if (typeof item.direct_match === 'boolean') {
+          const matchLabel = document.createElement('div');
+          matchLabel.className = 'search-match-sr-only';
+          matchLabel.textContent = item.direct_match ? '直接匹配' : '同组成员';
+          card.appendChild(matchLabel);
+        }
         card.appendChild(groupDiv);
         card.appendChild(statusDiv);
         card.appendChild(checkinBtn);
@@ -1590,36 +1678,70 @@
       }
     }
 
-    // Debounce helper for live search
-    function debounce(fn, wait) {
-      let t = null;
-      return function(...args) {
-        clearTimeout(t);
-        t = setTimeout(() => fn.apply(this, args), wait);
-      };
+    function setPhotoSearchMode(searching) {
+      if (!photoPickerActive) return;
+      if (searching && photoPickerView !== 'individual') {
+        photoPickerView = 'individual';
+        relationshipRequestId += 1;
+        clearTimeout(relationshipRefreshTimer);
+        for (const button of photoViewMode.querySelectorAll('button')) {
+          const active = button.dataset.view === 'individual';
+          button.classList.toggle('active', active);
+          button.setAttribute('aria-selected', String(active));
+        }
+      }
+      for (const filter of [photoGenderFilter, photoAttendanceFilter, photoGroupFilter]) {
+        for (const button of filter.querySelectorAll('button')) {
+          button.disabled = searching || photoPickerView === 'relationship';
+        }
+      }
+      if (searching) setPhotoPickerStatus('搜索模式：个人筛选暂停');
     }
 
-    const liveSearch = debounce(async () => {
+    function liveSearch() {
+      const requestId = ++searchRequestId;
+      clearTimeout(searchTimer);
       const q = document.getElementById('memberQuery').value.trim();
-      if (photoPickerActive) {
-        closePhotoPicker();
-      }
+      setPhotoSearchMode(Boolean(q));
       if (!q) {
+        memberSearchStatus.textContent = '';
         memberCardsContainer.innerHTML = '';
+        if (photoPickerActive) {
+          photoPickerHasMore = true;
+          loadPhotoPicker(true);
+        }
         return;
       }
+      memberCardsContainer.innerHTML = '';
+      memberSearchStatus.textContent = '正在搜索…';
+      const eventId = getActiveSearchEventId();
+      searchTimer = setTimeout(() => runMemberSearch(q, eventId, requestId), 250);
+    }
+
+    async function runMemberSearch(q, eventId, requestId) {
       try {
-        const eventId = getActiveSearchEventId();
-        const url = eventId
-          ? `/members/search?q=${encodeURIComponent(q)}&limit=30&event_id=${encodeURIComponent(eventId)}`
-          : `/members/search?q=${encodeURIComponent(q)}&limit=30`;
-        const res = await fetch(url);
+        const params = new URLSearchParams({ q });
+        if (eventId) params.set('event_id', eventId);
+        const res = await fetch(`/members/search-with-relations?${params}`);
         const data = await res.json();
-        renderMembers(data.items || []);
+        if (!res.ok) throw new Error(data.detail || res.statusText);
+        if (!Array.isArray(data.groups)) throw new Error('搜索响应格式错误');
+        if (requestId !== searchRequestId || q !== document.getElementById('memberQuery').value.trim() ||
+            eventId !== getActiveSearchEventId()) return;
+        const items = [];
+        for (const group of data.groups) {
+          if (!Array.isArray(group.members)) throw new Error('搜索响应格式错误');
+          items.push(...group.members.map(entry => ({ ...entry.member, direct_match: entry.direct_match })));
+        }
+        renderMembers(items);
+        memberSearchStatus.textContent = data.truncated ? '直接匹配结果超过 30 人，请细化搜索。' : '搜索结果包含同组成员。';
       } catch (err) {
-        console.error('search error', err);
+        if (requestId !== searchRequestId || q !== document.getElementById('memberQuery').value.trim() ||
+            eventId !== getActiveSearchEventId()) return;
+        memberCardsContainer.innerHTML = '';
+        memberSearchStatus.textContent = `搜索失败: ${err}`;
       }
-    }, 250);
+    }
 
     async function transliterateToPinyin(inputText) {
       const text = String(inputText || '').trim();
@@ -1669,7 +1791,9 @@
           const txt = (evt.results[0][0].transcript || '').trim();
           if (txt) {
             (async () => {
+              const requestId = searchRequestId;
               const normalized = await transliterateToPinyin(txt);
+              if (requestId !== searchRequestId) return;
               document.getElementById('memberQuery').value = normalized;
               setVoiceStatus('语音输入待命');
               liveSearch();
@@ -1726,28 +1850,6 @@
       setVoiceStatus('当前浏览器不支持语音输入');
     }
 
-    async function searchMembers() {
-      const q = document.getElementById('memberQuery').value.trim();
-      if (photoPickerActive) {
-        closePhotoPicker();
-      }
-      if (!q) {
-        memberCardsContainer.innerHTML = '';
-        return;
-      }
-      try {
-        const eventId = getActiveSearchEventId();
-        const url = eventId
-          ? `/members/search?q=${encodeURIComponent(q)}&limit=30&event_id=${encodeURIComponent(eventId)}`
-          : `/members/search?q=${encodeURIComponent(q)}&limit=30`;
-        const res = await fetch(url);
-        const data = await res.json();
-        renderMembers(data.items || []);
-      } catch (err) {
-        console.error('search error', err);
-      }
-    }
-
     function openPhotoPicker() {
       if (!photoPickerPanel) {
         return;
@@ -1758,8 +1860,12 @@
       photoPickerHasMore = true;
       photoPickerLoading = false;
       photoPickerRenderedCount = 0;
+      searchRequestId += 1;
+      clearTimeout(searchTimer);
+      memberSearchStatus.textContent = '';
       memberCardsContainer.innerHTML = '';
       document.getElementById('memberQuery').value = '';
+      setPhotoSearchMode(false);
       setPhotoPickerStatus('加载中...');
       loadPhotoPicker(true);
       // adjust unknown queue scroll height to match left column
@@ -1771,6 +1877,10 @@
         return;
       }
       photoPickerActive = false;
+      relationshipRequestId += 1;
+      relationshipRenderedKey = '';
+      relationshipRenderedEventId = '';
+      clearTimeout(relationshipRefreshTimer);
       photoPickerPanel.hidden = true;
       setPhotoPickerStatus('准备就绪');
       memberCardsContainer.innerHTML = '';
@@ -1782,6 +1892,7 @@
     function togglePhotoPicker() {
       if (photoPickerActive) {
         closePhotoPicker();
+        if (document.getElementById('memberQuery').value.trim()) liveSearch();
         return;
       }
       openPhotoPicker();
@@ -1820,7 +1931,13 @@
     }
 
     async function loadPhotoPicker(reset = false) {
+      if (document.getElementById('memberQuery').value.trim()) return;
+      if (photoPickerView === 'relationship') {
+        await loadRelationshipGroups();
+        return;
+      }
       if (photoPickerLoading) {
+        if (reset) photoPickerReloadPending = true;
         return;
       }
       const eventId = getActiveSearchEventId();
@@ -1846,6 +1963,9 @@
 
         while (true) {
           const items = await fetchPhotoPickerBatch(eventId, photoPickerOffset);
+          if (!photoPickerActive || document.getElementById('memberQuery').value.trim() || photoPickerView !== 'individual' || getActiveSearchEventId() !== eventId) {
+            return;
+          }
           lastBatchCount = items.length;
           photoPickerOffset += lastBatchCount;
           filteredItems = filteredItems.concat(applyNewcomerFilter(items));
@@ -1895,7 +2015,86 @@
         photoPickerLoading = false;
         // after members render, ensure unknown queue height matches
         setTimeout(adjustUnknownQueueHeight, 60);
+        if (photoPickerReloadPending && photoPickerActive && photoPickerView === 'individual' && !document.getElementById('memberQuery').value.trim()) {
+          photoPickerReloadPending = false;
+          loadPhotoPicker(true);
+          return;
+        }
         schedulePhotoPickerAutofill();
+      }
+    }
+
+    function scheduleRelationshipRefresh() {
+      if (!photoPickerActive || photoPickerView !== 'relationship' || relationshipActionPending) return;
+      clearTimeout(relationshipRefreshTimer);
+      relationshipRefreshTimer = setTimeout(loadRelationshipGroups, 150);
+    }
+
+    async function loadRelationshipGroups() {
+      if (!photoPickerActive || photoPickerView !== 'relationship' || relationshipActionPending) return;
+      const requestId = ++relationshipRequestId;
+      const eventId = getActiveSearchEventId();
+      if (eventId !== relationshipRenderedEventId) {
+        relationshipRenderedKey = '';
+        relationshipRenderedEventId = eventId;
+        memberCardsContainer.innerHTML = '';
+        setPhotoPickerStatus('加载中...');
+      }
+      if (!eventId) {
+        memberCardsContainer.innerHTML = '';
+        setPhotoPickerStatus('请先选择场次或等待当前场次加载完成');
+        return;
+      }
+      try {
+        const groups = [];
+        const limit = 200;
+        let offset = 0;
+        while (true) {
+          const params = new URLSearchParams({ event_id: eventId, limit: String(limit), offset: String(offset) });
+          const res = await fetch(`/members/relationship-groups/photo-picker?${params}`);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || res.statusText);
+          if (!Array.isArray(data.items)) throw new Error('关系组数据格式错误');
+          groups.push(...data.items);
+          if (data.items.length < limit) break;
+          offset += data.items.length;
+        }
+        if (requestId !== relationshipRequestId || !photoPickerActive ||
+            photoPickerView !== 'relationship' || getActiveSearchEventId() !== eventId || relationshipActionPending) return;
+        const key = JSON.stringify([eventId, groups]);
+        setPhotoPickerStatus(`显示 ${groups.length} 个关系组；未签到不代表未到场`);
+        if (key === relationshipRenderedKey) return;
+        relationshipRenderedKey = key;
+        const previousScroll = memberCardsContainer.scrollTop;
+        memberCardsContainer.innerHTML = '';
+        if (!groups.length) {
+          memberCardsContainer.textContent = '暂无同时有已签到和未签到成员的关系组';
+        }
+        for (const group of groups) {
+          const section = document.createElement('section');
+          section.className = 'relationship-group';
+          const heading = document.createElement('div');
+          heading.className = 'feed-mode-label';
+          const checked = group.members.filter(item => item.attendance_status === 'checked_in').length;
+          heading.textContent = `关系组 · 已签到 ${checked} / 未签到 ${group.members.length - checked}`;
+          const cards = document.createElement('div');
+          cards.className = 'relationship-group-cards';
+          section.appendChild(heading);
+          section.appendChild(cards);
+          memberCardsContainer.appendChild(section);
+          renderMembers(group.members, { container: cards });
+        }
+        memberCardsContainer.scrollTop = previousScroll;
+        setTimeout(adjustUnknownQueueHeight, 60);
+      } catch (err) {
+        if (requestId === relationshipRequestId && photoPickerActive && photoPickerView === 'relationship') {
+          setPhotoPickerStatus(`关系组加载失败: ${err}`);
+        }
+      } finally {
+        if (requestId === relationshipRequestId && photoPickerActive && photoPickerView === 'relationship') {
+          clearTimeout(relationshipRefreshTimer);
+          relationshipRefreshTimer = setTimeout(loadRelationshipGroups, 5000);
+        }
       }
     }
 
@@ -2085,7 +2284,7 @@
         if (document.getElementById('memberQuery').value.trim()) {
           await liveSearch();
         }
-        if (photoPickerActive && prevEventId !== currentServiceEventId) {
+        if (photoPickerActive && !document.getElementById('memberQuery').value.trim() && prevEventId !== currentServiceEventId) {
           await loadPhotoPicker(true);
         }
       } catch (err) {
@@ -2099,6 +2298,7 @@
         clearStartupStatusRetry();
         startupStatusRetryCount = 0;
         await refreshStatus();
+        scheduleRelationshipRefresh();
       };
       ws.onmessage = (evt) => {
         let payload;
@@ -2111,6 +2311,7 @@
         const normalized = normalizeBusinessEvent(payload);
 
         if (normalized.businessType === 'success' || normalized.businessType === 'ignored') {
+          scheduleRelationshipRefresh();
           addLiveItem(payload);
           return;
         }
@@ -2194,7 +2395,7 @@
       if (document.getElementById('memberQuery').value.trim()) {
         liveSearch();
       }
-      if (photoPickerActive) {
+      if (photoPickerActive && !document.getElementById('memberQuery').value.trim()) {
         loadPhotoPicker(true);
       }
     });
@@ -2265,13 +2466,38 @@
     // Clear search button
     document.getElementById('clearSearchBtn').addEventListener('click', () => {
       document.getElementById('memberQuery').value = '';
-      closePhotoPicker();
-      memberCardsContainer.innerHTML = '';
+      liveSearch();
     });
 
     if (photoPickerBtn) {
       photoPickerBtn.addEventListener('click', togglePhotoPicker);
     }
+    photoViewMode.addEventListener('click', (evt) => {
+      const view = evt.target.dataset.view;
+      if (!view || view === photoPickerView) return;
+      searchRequestId += 1;
+      clearTimeout(searchTimer);
+      document.getElementById('memberQuery').value = '';
+      memberSearchStatus.textContent = '';
+      photoPickerView = view;
+      relationshipRequestId += 1;
+      relationshipRenderedKey = '';
+      relationshipRenderedEventId = '';
+      clearTimeout(relationshipRefreshTimer);
+      for (const button of photoViewMode.querySelectorAll('button')) {
+        const active = button.dataset.view === view;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', String(active));
+      }
+      for (const filter of [photoGenderFilter, photoAttendanceFilter, photoGroupFilter]) {
+        for (const button of filter.querySelectorAll('button')) {
+          button.disabled = view === 'relationship';
+        }
+      }
+      photoPickerHasMore = true;
+      memberCardsContainer.innerHTML = '';
+      loadPhotoPicker(true);
+    });
     if (photoGenderFilter) {
       photoGenderFilter.addEventListener('click', (evt) => {
         const btn = evt.target;

@@ -104,6 +104,12 @@
     }
     tr:last-child td { border-bottom: 0; }
     .mini { font-size: 12px; color: var(--sub); }
+    .relationship-member-label { min-width: 0; overflow-wrap: anywhere; }
+    .relationship-avatar {
+      width: 42px; height: 42px; flex: 0 0 42px; border-radius: 50%;
+      object-fit: cover; background: #ece5d7; display: inline-flex;
+      align-items: center; justify-content: center;
+    }
     .hero-top {
       display: flex;
       align-items: flex-start;
@@ -1402,6 +1408,24 @@
       </div>
 
       <div class="card" style="box-shadow:none; margin:0;">
+        <h3>关系组</h3>
+        <p class="mini">关系组独立于事工/关怀分组。添加或移除先在此处暂存，点击保存后才生效；本人离组请使用下方按钮。</p>
+        <div id="relationshipStatus" class="mini" role="status" aria-live="polite"></div>
+        <div id="relationshipError" class="form-error" role="alert"></div>
+        <div id="relationshipMembers"></div>
+        <div class="toolbar" style="margin-top:8px;">
+          <label for="relationshipSearch">搜索会友</label>
+          <input id="relationshipSearch" placeholder="输入姓名等信息" autocomplete="off" />
+          <button id="relationshipReloadBtn" type="button" class="alt">重新加载关系组</button>
+        </div>
+        <div id="relationshipSearchResults" aria-live="polite"></div>
+        <div class="toolbar" style="margin-top:8px;">
+          <button id="relationshipSaveBtn" type="button" class="ok">保存关系组</button>
+          <button id="relationshipLeaveBtn" type="button" class="warn">本人离组</button>
+        </div>
+      </div>
+
+      <div class="card" style="box-shadow:none; margin:0;">
         <h3>照片管理</h3>
         <div class="toolbar">
           <input id="photoUploadInput" type="file" accept="image/*" />
@@ -1513,6 +1537,16 @@
     let memberSearchDebounceTimer = null;
     let modalGroupDocClickHandler = null;
     let createGroupDocClickHandler = null;
+    let relationshipState = null;
+    let relationshipSearchTimer = null;
+    const relationshipStatusEl = document.getElementById('relationshipStatus');
+    const relationshipErrorEl = document.getElementById('relationshipError');
+    const relationshipMembersEl = document.getElementById('relationshipMembers');
+    const relationshipSearchEl = document.getElementById('relationshipSearch');
+    const relationshipSearchResultsEl = document.getElementById('relationshipSearchResults');
+    const relationshipReloadBtn = document.getElementById('relationshipReloadBtn');
+    const relationshipSaveBtn = document.getElementById('relationshipSaveBtn');
+    const relationshipLeaveBtn = document.getElementById('relationshipLeaveBtn');
 
     function refreshEventYearOptions(items) {
       const previous = eventYearFilterEl.value || '';
@@ -1999,16 +2033,271 @@
       setMemberEditState(false);
     }
 
+    function relationshipMemberLabel(member) {
+      const details = [
+        member.name_chn && member.name_chn !== member.name ? `中文名：${member.name_chn}` : '',
+        member.gender ? `性别：${member.gender}` : '',
+        member.birthday ? `生日：${member.birthday}` : '',
+        member.group ? `分组：${member.group}` : '',
+        member.status === false ? '已停用' : '',
+        `ID：${member.id}`
+      ].filter(Boolean);
+      return `${member.name || '未命名'}（${details.join('；')}）`;
+    }
+
+    function relationshipMessage(text) {
+      return window.Localization ? window.Localization.translate(text) : text;
+    }
+
+    function relationshipDirty(state) {
+      if (state.members.size !== state.original.size) return true;
+      return [...state.members.keys()].some((id) => !state.original.has(id));
+    }
+
+    function renderRelationship() {
+      const state = relationshipState;
+      if (!state) return;
+      relationshipMembersEl.replaceChildren();
+      relationshipSearchResultsEl.replaceChildren();
+      relationshipSearchEl.disabled = !state.loaded || state.busy;
+      relationshipReloadBtn.disabled = state.busy;
+      relationshipSaveBtn.disabled = !state.loaded || state.busy || !relationshipDirty(state);
+      relationshipLeaveBtn.disabled = !state.loaded || state.busy || !state.groupId;
+
+      if (state.loaded) {
+        relationshipStatusEl.textContent = `${state.notice || ''}${state.groupId ? '当前已加入关系组' : '当前未加入关系组'}${relationshipDirty(state) ? '；有未保存的更改' : ''}`;
+        for (const [id, member] of state.members) {
+          const row = document.createElement('div');
+          row.className = 'toolbar';
+          const placeholder = document.createElement('span');
+          placeholder.className = 'relationship-avatar';
+          placeholder.setAttribute('aria-hidden', 'true');
+          placeholder.textContent = '📷';
+          row.appendChild(placeholder);
+          if (member.has_photo) {
+            const image = document.createElement('img');
+            image.className = 'relationship-avatar';
+            image.alt = '';
+            image.loading = 'lazy';
+            image.addEventListener('error', () => image.replaceWith(placeholder));
+            image.src = `/face-library/members/${encodeURIComponent(id)}/thumbnail`;
+            placeholder.replaceWith(image);
+          }
+          const label = document.createElement('span');
+          label.className = 'relationship-member-label';
+          const name = member.name || '未命名';
+          const chineseName = member.name_chn && member.name_chn !== name ? `（${member.name_chn}）` : '';
+          label.textContent = `${name}${chineseName}${id === state.memberId ? '（本人）' : ''}`;
+          row.appendChild(label);
+          if (id !== state.memberId) {
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'small alt';
+            remove.textContent = '移除';
+            remove.disabled = state.busy;
+            remove.addEventListener('click', () => {
+              state.members.delete(id);
+              renderRelationship();
+            });
+            row.appendChild(remove);
+          }
+          relationshipMembersEl.appendChild(row);
+        }
+      } else {
+        relationshipStatusEl.textContent = state.busy ? '正在加载关系组…' : '关系组尚未加载，请重新加载。';
+      }
+
+      if (state.searchMessage) {
+        const message = document.createElement('div');
+        message.className = 'mini';
+        message.textContent = state.searchMessage;
+        relationshipSearchResultsEl.appendChild(message);
+      }
+      for (const member of state.results) {
+        const id = String(member.id);
+        const row = document.createElement('div');
+        row.className = 'toolbar';
+        const label = document.createElement('span');
+        label.className = 'relationship-member-label';
+        label.textContent = relationshipMemberLabel(member);
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'small alt';
+        add.textContent = state.members.has(id) ? '已选择' : '添加';
+        add.disabled = !state.loaded || state.busy || state.members.has(id);
+        add.addEventListener('click', () => {
+          state.members.set(id, member);
+          renderRelationship();
+        });
+        row.append(label, add);
+        relationshipSearchResultsEl.appendChild(row);
+      }
+    }
+
+    async function loadRelationship(state, successMessage = '') {
+      clearTimeout(relationshipSearchTimer);
+      state.busy = true;
+      state.loaded = false;
+      state.searchSeq++;
+      state.results = [];
+      state.searchMessage = '';
+      relationshipSearchEl.value = '';
+      relationshipErrorEl.textContent = '';
+      state.notice = '';
+      renderRelationship();
+      try {
+        const response = await fetch(`/members/${encodeURIComponent(state.memberId)}/relationship-group`);
+        if (!response.ok) throw new Error(await responseError(response));
+        const data = await response.json();
+        if (relationshipState !== state) return;
+        if (!Array.isArray(data.members)) throw new Error('关系组响应格式错误');
+        state.groupId = data.id;
+        state.members = new Map(data.members.map((member) => [String(member.id), member]));
+        if (!state.members.has(state.memberId)) state.members.set(state.memberId, currentMember);
+        state.original = new Map(state.members);
+        state.loaded = true;
+        state.notice = successMessage ? `${successMessage} ` : '';
+      } catch (error) {
+        if (relationshipState === state) {
+          relationshipErrorEl.textContent = `${successMessage ? `${successMessage} ` : ''}加载关系组失败：${error.message || error}`;
+        }
+      } finally {
+        if (relationshipState === state) {
+          state.busy = false;
+          renderRelationship();
+        }
+      }
+    }
+
+    async function searchRelationshipMembers(state, keyword, seq) {
+      try {
+        const params = new URLSearchParams({ q: keyword, active_only: 'false', limit: '200' });
+        const response = await fetch(`/members/search?${params}`);
+        if (!response.ok) throw new Error(await responseError(response));
+        const data = await response.json();
+        if (relationshipState !== state || seq !== state.searchSeq) return;
+        if (!Array.isArray(data.items)) throw new Error('搜索响应格式错误');
+        state.results = data.items;
+        state.searchMessage = data.items.length
+          ? `找到 ${data.items.length} 位会友${data.items.length === 200 ? '（最多显示 200 位，请细化搜索）' : ''}。`
+          : '没有找到会友。';
+      } catch (error) {
+        if (relationshipState !== state || seq !== state.searchSeq) return;
+        state.results = [];
+        state.searchMessage = `搜索失败：${error.message || error}`;
+      }
+      renderRelationship();
+    }
+
+    async function saveRelationship() {
+      const state = relationshipState;
+      if (!state || !state.loaded || state.busy || !relationshipDirty(state)) return;
+      const removed = [...state.original.keys()].filter((id) => !state.members.has(id));
+      if (removed.length && !confirm(relationshipMessage(`保存将从该关系组移除 ${removed.length} 位成员；本人仍在组内。确认保存？`))) return;
+      const memberIds = [...state.members.keys()];
+      state.busy = true;
+      relationshipErrorEl.textContent = '';
+      renderRelationship();
+      try {
+        const put = (allowTransfer, confirmedTransfers = []) => fetch(`/members/${encodeURIComponent(state.memberId)}/relationship-group`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            member_ids: memberIds, allow_transfer: allowTransfer,
+            expected_group_id: state.groupId, expected_member_ids: [...state.original.keys()],
+            confirmed_transfers: confirmedTransfers
+          })
+        });
+        let response = await put(false);
+        if (relationshipState !== state) return;
+        if (response.status === 409) {
+          const data = await response.json();
+          const conflict = data.detail;
+          if (relationshipState !== state) return;
+          if (!conflict || conflict.code !== 'transfer_required' || !Array.isArray(conflict.transfers)) {
+            relationshipErrorEl.textContent = `保存失败：${typeof conflict === 'string' ? conflict : '关系组已发生变化，请刷新后重试'}`;
+            return;
+          }
+          if (!confirm(relationshipMessage(`${conflict.message}\n\n所选成员将从其原关系组转移到当前关系组，不会合并原组。确认转移并保存？`))) {
+            relationshipErrorEl.textContent = `未保存：${conflict.message}`;
+            return;
+          }
+          response = await put(true, conflict.transfers);
+          if (relationshipState !== state) return;
+          if (response.status === 409) {
+            const retry = await response.json();
+            relationshipErrorEl.textContent = `保存失败：${typeof retry.detail === 'string' ? retry.detail : '关系组已发生变化，请刷新后重试'}`;
+            return;
+          }
+        }
+        if (!response.ok) {
+          const detail = await responseError(response);
+          if (relationshipState === state) relationshipErrorEl.textContent = `保存失败：${detail}`;
+          return;
+        }
+        if (relationshipState !== state) return;
+        await loadRelationship(state, '关系组已保存。');
+      } catch (error) {
+        if (relationshipState === state) {
+          state.loaded = false;
+          relationshipErrorEl.textContent = `保存失败或结果不确定：${error.message || error}。请重新加载核实后再操作。`;
+        }
+      } finally {
+        if (relationshipState === state) {
+          state.busy = false;
+          renderRelationship();
+        }
+      }
+    }
+
+    async function leaveRelationship() {
+      const state = relationshipState;
+      if (!state || !state.loaded || state.busy || !state.groupId) return;
+      const draftWarning = relationshipDirty(state) ? '\n未保存的关系组更改将丢弃。' : '';
+      if (!confirm(relationshipMessage(`确认让当前会友离开关系组？此操作不会删除会友。${draftWarning}`))) return;
+      state.busy = true;
+      relationshipErrorEl.textContent = '';
+      renderRelationship();
+      try {
+        const response = await fetch(`/members/${encodeURIComponent(state.memberId)}/relationship-group`, { method: 'DELETE' });
+        if (!response.ok) {
+          const detail = await responseError(response);
+          if (relationshipState === state) relationshipErrorEl.textContent = `离组失败：${detail}`;
+          return;
+        }
+        if (relationshipState !== state) return;
+        await loadRelationship(state, '当前会友已离组。');
+      } catch (error) {
+        if (relationshipState === state) {
+          state.loaded = false;
+          relationshipErrorEl.textContent = `离组失败或结果不确定：${error.message || error}。请重新加载核实后再操作。`;
+        }
+      } finally {
+        if (relationshipState === state) {
+          state.busy = false;
+          renderRelationship();
+        }
+      }
+    }
+
     function openMemberModal(member) {
       currentMember = member;
       fillMemberModal(member);
       memberModalOverlayEl.classList.add('show');
+      clearTimeout(relationshipSearchTimer);
+      relationshipState = {
+        memberId: String(member.id), groupId: null, members: new Map(), original: new Map(),
+        loaded: false, busy: false, searchSeq: 0, results: [], searchMessage: '', notice: ''
+      };
+      loadRelationship(relationshipState);
       loadMemberPhotos();
     }
 
     function closeMemberModal() {
       memberModalOverlayEl.classList.remove('show');
       currentMember = null;
+      relationshipState = null;
+      clearTimeout(relationshipSearchTimer);
       pendingReplacePhotoId = null;
       setMemberEditState(false);
       photoUploadInputEl.value = '';
@@ -3199,6 +3488,29 @@
     memberDeactivateBtn.addEventListener('click', deactivateCurrentMember);
     memberRestoreBtn.addEventListener('click', restoreCurrentMember);
     document.getElementById('memberSyncBtn').addEventListener('click', syncCurrentMemberPhotos);
+
+    relationshipSearchEl.addEventListener('input', () => {
+      const state = relationshipState;
+      if (!state || !state.loaded || state.busy) return;
+      clearTimeout(relationshipSearchTimer);
+      const seq = ++state.searchSeq;
+      const keyword = relationshipSearchEl.value.trim();
+      state.results = [];
+      state.searchMessage = keyword ? '正在搜索…' : '';
+      renderRelationship();
+      if (keyword) {
+        relationshipSearchTimer = setTimeout(() => searchRelationshipMembers(state, keyword, seq), 220);
+      }
+    });
+    relationshipReloadBtn.addEventListener('click', () => {
+      const state = relationshipState;
+      if (!state || state.busy) return;
+      if (state.loaded && relationshipDirty(state) && !confirm(relationshipMessage('重新加载将丢弃未保存的关系组更改，继续？'))) return;
+      clearTimeout(relationshipSearchTimer);
+      loadRelationship(state);
+    });
+    relationshipSaveBtn.addEventListener('click', saveRelationship);
+    relationshipLeaveBtn.addEventListener('click', leaveRelationship);
 
     document.getElementById('photoUploadBtn').addEventListener('click', uploadNewPhoto);
     document.getElementById('photoReloadBtn').addEventListener('click', loadMemberPhotos);

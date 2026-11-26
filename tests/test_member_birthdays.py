@@ -155,3 +155,22 @@ def test_sqlite_migration_preserves_existing_data(monkeypatch):
         assert tuple(row) == ("Existing", "2000-02-29", None, None, None, None)
         assert "age" not in {row[1] for row in conn.execute(text("PRAGMA table_info(members)"))}
     engine.dispose()
+
+
+def test_init_db_adds_relationship_tables_to_existing_database(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE relationship_memberships"))
+        conn.execute(text("DROP TABLE relationship_groups"))
+        conn.execute(text("INSERT INTO members (id, name, status, has_photo) "
+                          "VALUES ('00000000-0000-0000-0000-000000000001', 'Existing', 1, 0)"))
+    monkeypatch.setattr(database, "engine", engine)
+    monkeypatch.setattr(database, "DATABASE_URL", "sqlite:///:memory:")
+    database.init_db()
+    database.init_db()
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT name FROM members")).scalar_one() == "Existing"
+        assert conn.execute(text("SELECT COUNT(*) FROM relationship_groups")).scalar_one() == 0
+        assert conn.execute(text("SELECT COUNT(*) FROM relationship_memberships")).scalar_one() == 0
+    engine.dispose()

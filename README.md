@@ -194,6 +194,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
 ### Latest Release
 
+- **v0.7.4 (2026-11-26)**: Add relationship-group management and a reception photo view; expand searches with active group members and distinguish related-member cards by background color.
 - **v0.7.3 (2026-11-24)**: Support partial birthdays and recorded ages, improve new-member confirmation, optional photos and safe retries, and refine responsive admin layouts.
 - **v0.7.2 (2026-11-22)**: Add rotating camera diagnostics for frame and recognition status, TCP connection metrics, and selected OpenCV/FFmpeg stream errors.
 - **v0.7.1 (2026-11-21)**: Improve dispatcher reliability with per-event exception handling and automatic restart; separate database writes, bounded WebSocket broadcasts, and latest-only debug frames; expose queue, drop, timing, restart, and send-failure metrics.

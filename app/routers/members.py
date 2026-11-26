@@ -5,20 +5,25 @@ from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.time_utils import now_local_naive, today_local
-from app.models.models import Member
-from app.models.models import AttendanceRecord
+from app.models.models import AttendanceEvent, AttendanceRecord, Member, RelationshipGroup, RelationshipMembership
 from app.schemas.member import (
+    ExpandedSearchGroup,
+    ExpandedSearchMember,
+    ExpandedSearchResponse,
     MemberCreateRequest,
     MemberListResponse,
     MemberOut,
     MemberSearchResponse,
     MemberUpdateRequest,
+    RelationshipGroupList,
+    RelationshipGroupOut,
+    RelationshipGroupUpdate,
 )
 
 try:
@@ -289,10 +294,15 @@ def search_members(
     if active_only:
         stmt = stmt.where(Member.status.is_(True))
 
-    fetch_limit = min(limit * 20, 1000) if keyword and not use_sql_like else limit * 4
-    rows = db.execute(stmt.order_by(Member.name.asc()).limit(fetch_limit)).scalars().all()
-    rows = db.execute(stmt.order_by(Member.name.asc()).limit(fetch_limit)).scalars().all()
-    members = [member for member in rows if _matches_member_keyword(member, keyword)][:limit]
+    rows = db.scalars(
+        stmt.order_by(Member.name.asc(), Member.id.asc()).execution_options(yield_per=100)
+    )
+    members = []
+    for member in rows:
+        if _matches_member_keyword(member, keyword):
+            members.append(member)
+            if len(members) == limit:
+                break
 
     attendance_map: dict[UUID, AttendanceRecord] = {}
     if event_id is not None and members:
@@ -319,6 +329,71 @@ def search_members(
                 out.attendance_event_id = event_id
         items.append(out)
     return MemberSearchResponse(total=len(items), items=items)
+
+
+@router.get("/search-with-relations", response_model=ExpandedSearchResponse)
+def search_members_with_relations(
+    q: str = Query(min_length=1, max_length=120),
+    event_id: UUID | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> ExpandedSearchResponse:
+    if not q.strip():
+        raise HTTPException(status_code=422, detail="搜索内容不能为空")
+    if event_id is not None and db.get(AttendanceEvent, event_id) is None:
+        raise HTTPException(status_code=404, detail="event not found")
+
+    matches = search_members(q=q, active_only=True, event_id=event_id, limit=31, db=db).items
+    truncated = len(matches) > 30
+    matches = matches[:30]
+    match_ids = {member.id for member in matches}
+    memberships = db.scalars(
+        select(RelationshipMembership).where(RelationshipMembership.member_id.in_(match_ids))
+    ).all() if match_ids else []
+    member_groups = {row.member_id: row.group_id for row in memberships}
+    group_ids = set(member_groups.values())
+    rows = db.execute(
+        select(RelationshipMembership.group_id, Member)
+        .join(Member, Member.id == RelationshipMembership.member_id)
+        .where(RelationshipMembership.group_id.in_(group_ids), Member.status.is_(True))
+        .order_by(Member.name, Member.id)
+    ).all() if group_ids else []
+    records = db.scalars(
+        select(AttendanceRecord)
+        .join(RelationshipMembership, RelationshipMembership.member_id == AttendanceRecord.member_id)
+        .where(
+            AttendanceRecord.event_id == event_id, RelationshipMembership.group_id.in_(group_ids)
+        )
+    ).all() if event_id is not None and group_ids else []
+    attendance = {record.member_id: record for record in records}
+
+    groups: list[ExpandedSearchGroup] = []
+    grouped: dict[UUID, ExpandedSearchGroup] = {}
+    for member in matches:
+        group_id = member_groups.get(member.id)
+        if group_id is None:
+            groups.append(ExpandedSearchGroup(
+                group_id=None, members=[ExpandedSearchMember(member=member, direct_match=True)]
+            ))
+        else:
+            if group_id not in grouped:
+                grouped[group_id] = ExpandedSearchGroup(group_id=group_id, members=[])
+                groups.append(grouped[group_id])
+            grouped[group_id].members.append(ExpandedSearchMember(member=member, direct_match=True))
+    for group_id, member in rows:
+        if member.id in match_ids:
+            continue
+        out = _to_member_out(member)
+        if event_id is not None:
+            record = attendance.get(member.id)
+            out.attendance_status = "checked_in" if record else "not_checked_in"
+            out.attendance_record_id = record.id if record else None
+            out.attendance_event_id = event_id
+        grouped[group_id].members.append(
+            ExpandedSearchMember(member=out, direct_match=_matches_member_keyword(member, q))
+        )
+    for group in grouped.values():
+        group.members.sort(key=lambda entry: not entry.direct_match)
+    return ExpandedSearchResponse(groups=groups, truncated=truncated)
 
 
 @router.get("/photo-picker", response_model=MemberSearchResponse)
@@ -407,6 +482,155 @@ def photo_picker_members(
         items.append(out)
 
     return MemberSearchResponse(total=len(items), items=items)
+
+
+@router.get("/relationship-groups/photo-picker", response_model=RelationshipGroupList)
+def relationship_group_photo_picker(
+    event_id: UUID,
+    limit: int = Query(default=20, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> RelationshipGroupList:
+    if db.get(AttendanceEvent, event_id) is None:
+        raise HTTPException(status_code=404, detail="event not found")
+
+    checked = (
+        select(AttendanceRecord.id)
+        .where(AttendanceRecord.member_id == Member.id, AttendanceRecord.event_id == event_id)
+        .exists()
+    )
+    group_ids = db.scalars(
+        select(RelationshipMembership.group_id)
+        .join(Member, Member.id == RelationshipMembership.member_id)
+        .where(Member.status.is_(True))
+        .group_by(RelationshipMembership.group_id)
+        .having(func.sum(case((checked, 1), else_=0)) > 0)
+        .having(func.sum(case((checked, 0), else_=1)) > 0)
+        .order_by(RelationshipMembership.group_id)
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    if not group_ids:
+        return RelationshipGroupList(items=[])
+
+    rows = db.execute(
+        select(RelationshipMembership.group_id, Member)
+        .join(Member, Member.id == RelationshipMembership.member_id)
+        .where(RelationshipMembership.group_id.in_(group_ids), Member.status.is_(True))
+        .order_by(Member.name, Member.id)
+    ).all()
+    member_ids = [member.id for _, member in rows]
+    records = db.scalars(
+        select(AttendanceRecord).where(
+            AttendanceRecord.event_id == event_id, AttendanceRecord.member_id.in_(member_ids),
+        )
+    ).all()
+    attendance = {record.member_id: record for record in records}
+    groups = {group_id: RelationshipGroupOut(id=group_id, members=[]) for group_id in group_ids}
+    for group_id, member in rows:
+        out = _to_member_out(member)
+        record = attendance.get(member.id)
+        out.attendance_status = "checked_in" if record else "not_checked_in"
+        out.attendance_record_id = record.id if record else None
+        out.attendance_event_id = event_id
+        groups[group_id].members.append(out)
+    return RelationshipGroupList(items=list(groups.values()))
+
+
+def _relationship_group_out(member_id: UUID, db: Session) -> RelationshipGroupOut:
+    if db.get(Member, member_id) is None:
+        raise HTTPException(status_code=404, detail="member not found")
+    membership = db.get(RelationshipMembership, member_id)
+    if membership is None:
+        return RelationshipGroupOut(id=None, members=[])
+    members = db.scalars(
+        select(Member)
+        .join(RelationshipMembership, RelationshipMembership.member_id == Member.id)
+        .where(RelationshipMembership.group_id == membership.group_id)
+        .order_by(Member.name, Member.id)
+    ).all()
+    return RelationshipGroupOut(id=membership.group_id, members=[_to_member_out(member) for member in members])
+
+
+@router.get("/{member_id}/relationship-group", response_model=RelationshipGroupOut)
+def get_relationship_group(member_id: UUID, db: Session = Depends(get_db)) -> RelationshipGroupOut:
+    return _relationship_group_out(member_id, db)
+
+
+@router.put("/{member_id}/relationship-group", response_model=RelationshipGroupOut)
+def update_relationship_group(
+    member_id: UUID, payload: RelationshipGroupUpdate, db: Session = Depends(get_db),
+) -> RelationshipGroupOut:
+    requested = set(payload.member_ids)
+    if member_id not in requested or len(requested) != len(payload.member_ids):
+        raise HTTPException(status_code=422, detail="成员列表必须包含本人且不能重复")
+    members = db.scalars(select(Member).where(Member.id.in_(requested))).all()
+    if len(members) != len(requested):
+        raise HTTPException(status_code=404, detail="会友不存在，请刷新后重试")
+
+    anchor = db.get(RelationshipMembership, member_id)
+    group_id = anchor.group_id if anchor else None
+    current = db.scalars(
+        select(RelationshipMembership).where(RelationshipMembership.group_id == group_id)
+    ).all() if group_id is not None else []
+    current_ids = {membership.member_id for membership in current} if anchor else {member_id}
+    if payload.expected_member_ids is not None and (
+        payload.expected_group_id != group_id or set(payload.expected_member_ids) != current_ids
+    ):
+        raise HTTPException(status_code=409, detail="关系组已发生变化，请刷新后重试")
+    memberships = db.scalars(
+        select(RelationshipMembership).where(RelationshipMembership.member_id.in_(requested))
+    ).all()
+    transfers = [m for m in memberships if m.group_id != group_id]
+    actual_transfers = {(m.member_id, m.group_id) for m in transfers}
+    confirmed = {(m.member_id, m.group_id) for m in payload.confirmed_transfers}
+    if transfers and (not payload.allow_transfer or confirmed != actual_transfers):
+        names = {member.id: member.name for member in members}
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "transfer_required",
+                "message": "以下会友已属于其他关系组，确认后将转入本组："
+                + "、".join(f"{names[m.member_id]} ({m.member_id})" for m in transfers),
+                "transfers": [
+                    {"member_id": str(m.member_id), "group_id": str(m.group_id)} for m in transfers
+                ],
+            },
+        )
+    if payload.allow_transfer and confirmed != actual_transfers:
+        raise HTTPException(status_code=409, detail="关系组已发生变化，请刷新后重试")
+    if group_id is None:
+        group = RelationshipGroup()
+        db.add(group)
+        db.flush()
+        group_id = group.id
+    for membership in current:
+        if membership.member_id not in requested:
+            db.delete(membership)
+    existing = {membership.member_id: membership for membership in memberships}
+    for requested_id in requested:
+        membership = existing.get(requested_id)
+        if membership is None:
+            db.add(RelationshipMembership(member_id=requested_id, group_id=group_id))
+        else:
+            membership.group_id = group_id
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="关系组已发生变化，请刷新后重试")
+    return _relationship_group_out(member_id, db)
+
+
+@router.delete("/{member_id}/relationship-group", response_model=RelationshipGroupOut)
+def leave_relationship_group(member_id: UUID, db: Session = Depends(get_db)) -> RelationshipGroupOut:
+    result = _relationship_group_out(member_id, db)
+    if result.id is not None:
+        membership = db.get(RelationshipMembership, member_id)
+        if membership is not None:
+            db.delete(membership)
+            db.commit()
+    return RelationshipGroupOut(id=None, members=[])
 
 
 @router.get("/transliterate")

@@ -90,6 +90,27 @@ class Member(Base):
         back_populates="member",
         cascade="all, delete-orphan",
     )
+    relationship_membership: Mapped[RelationshipMembership | None] = relationship(
+        "RelationshipMembership", back_populates="member", cascade="all, delete-orphan",
+    )
+
+
+class RelationshipGroup(Base):
+    __tablename__ = "relationship_groups"
+
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+
+
+class RelationshipMembership(Base):
+    __tablename__ = "relationship_memberships"
+
+    member_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("members.id", ondelete="CASCADE"), primary_key=True,
+    )
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("relationship_groups.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    member: Mapped[Member] = relationship("Member", back_populates="relationship_membership")
 
 
 class AttendanceEvent(Base):

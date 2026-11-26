@@ -31,6 +31,43 @@ class MemberSearchResponse(BaseModel):
     items: list[MemberOut]
 
 
+class ExpandedSearchMember(BaseModel):
+    member: MemberOut
+    direct_match: bool
+
+
+class ExpandedSearchGroup(BaseModel):
+    group_id: UUID | None
+    members: list[ExpandedSearchMember]
+
+
+class ExpandedSearchResponse(BaseModel):
+    groups: list[ExpandedSearchGroup]
+    truncated: bool
+
+
+class RelationshipGroupOut(BaseModel):
+    id: UUID | None
+    members: list[MemberOut]
+
+
+class RelationshipTransfer(BaseModel):
+    member_id: UUID
+    group_id: UUID
+
+
+class RelationshipGroupUpdate(BaseModel):
+    member_ids: list[UUID]
+    allow_transfer: bool = False
+    expected_group_id: UUID | None = None
+    expected_member_ids: list[UUID] | None = None
+    confirmed_transfers: list[RelationshipTransfer] = Field(default_factory=list)
+
+
+class RelationshipGroupList(BaseModel):
+    items: list[RelationshipGroupOut]
+
+
 class MemberCreateRequest(BaseModel):
     id: UUID | None = None
     name: str

@@ -15,6 +15,45 @@
     "照片查找、快速补签、待处理事件确认和实时签到动态统一放在这一页，默认优先展示近期活跃且未签到的带照片会友。": "Find members, record manual check-ins, review pending cases, and monitor live attendance from one workspace.", "当前场次：": "Current event: ", "当前补签场次：": "Manual check-in event: ", "按抓拍日期自动匹配": "Match by capture date", "状态读取中...": "Loading status...", "手动查找会友": "Find a member", "支持姓名、中文名、拼音全拼、拼音首字母和语音输入。": "Search by name, Chinese name, pinyin, initials, or voice.", "输入姓名/电话/组别搜索成员": "Search by name, phone, or group", "清空": "Clear", "语音输入": "Voice input", "按照片查找": "Find by photo", "语音输入待命": "Voice input ready", "签到：": "Attendance: ", "已签到": "Checked in", "未签到": "Not checked in", "只看新人": "Newcomers only", "准备就绪": "Ready", "实时签到动态（Channel A）": "Live attendance (Channel A)", "显示模式：": "Display mode: ", "签到模式": "Check-in mode", "完整模式": "Full mode", "刷新系统状态": "Refresh system status", "清空动态": "Clear feed", "待处理队列（Pending / Unknown）": "Pending queue (Pending / Unknown)", "刷新队列": "Refresh queue", "清空队列": "Clear queue",
     "未知": "Unknown", "人工补签": "Manual check-in", "人工": "Manual", "人脸识别": "Face recognition", "人脸识别(绝对阈值)": "Face recognition (absolute threshold)", "人脸识别(投票)": "Face recognition (voting)", "待人工复核": "Pending review", "陌生人检测": "Unknown person detected", "人脸识别已离线": "Face recognition offline", "摄像头状态：正常；识别状态：运行中": "Camera: normal; recognition: running", "系统状态正常": "System status normal", "摄像头和识别均异常": "Camera and recognition unavailable", "摄像头异常": "Camera unavailable", "状态正常但未收到直播连接": "Status normal, but no live connection", "摄像头状态：异常；识别状态：已离线": "Camera: unavailable; recognition: offline", "摄像头状态：异常；识别状态：可能已离线": "Camera: unavailable; recognition: may be offline", "摄像头状态：正常；识别状态：已离线": "Camera: normal; recognition: offline", "可以继续进行签到识别。": "Check-in recognition can continue.", "请先检查视频源。": "Check the video source first.", "请通知签到同工改用人工签到": "Ask reception staff to use manual check-in", "未找到成员": "No members found", "未分组": "Unassigned", "取消签到": "Undo check-in", "签到": "Check in", "查看实时签到、异常抓拍队列、快捷搜索与手动补签。": "View live check-ins, exception snapshots, quick search, and manual check-ins.", "暂无图片": "No image", "无图片": "No photo", "暂无数据": "No data", "暂无": "None", "无更多": "No more results", "读取中": "Loading", "加载中...": "Loading...", "加载失败": "Loading failed", "实时签到动态显示模式": "Live attendance display mode", "当前场次: ": "Current event: ", "当前场次读取失败: ": "Failed to load current event: ", "请先选择场次或等待当前场次加载完成": "Select an event or wait for the current event to load", "连续主日缺席": "Consecutive Sunday absences", "近 3 个月签到": "Check-ins in the last 3 months", "风险": "Risk", "最少距上次签到天数": "Minimum days since last check-in", "最多距上次签到天数": "Maximum days since last check-in", "语言": "Language", "选择语言": "Select language", "从这里进入接待、管理和系统调试工作台。": "Access the reception, admin, and system workspaces from here.", "集中查找会友、处理补签、确认待处理事件并查看实时签到动态。": "Find members, process manual check-ins, review pending cases, and monitor live attendance.", "说明：": "Note: ", "未选择": "Not selected", "会友图片": "Member photo", "提示：周报发送由系统定时任务负责；可在调试页面修改发送邮箱配置。": "Note: weekly briefs are sent by a scheduled task; sending email settings can be changed on the debug page.", "(可空)": "(optional)", "是": "Yes", "否": "No", "当前筛选结果：": "Current results: ", "当前 0 人": "0 members", "确定要清空实时签到动态吗？此操作不可撤销。": "Clear the live feed? This cannot be undone.", "状态读取失败": "Failed to load status", "无法获取摄像头和识别状态": "Unable to get camera and recognition status", "当前日期不是主日，已自动忽略该抓拍": "Today is not Sunday; this capture was ignored", "暂无可选成员": "No selectable members", "已无更多": "No more results", "加载失败:": "Loading failed: ", "月份: ": "Month: ", "第 ": "Page ", " 页 · 共 ": " · ", " 条": " records", "风险分公式：": "Risk score formula: ", "近 N 个月签到（N 取当前筛选条件）<= 1 加 35 分，<= 3 加 20 分；": "check-ins in the last N months (N follows the current filter): <= 1 adds 35 points, <= 3 adds 20 points; ", "距上次签到为空加 40 分，> 90 天加 30 分，> 60 天加 20 分，> 30 天加 10 分；": "no last check-in adds 40 points, > 90 days adds 30 points, > 60 days adds 20 points, > 30 days adds 10 points; ", "连续主日缺席 >= 8 加 25 分，>= 4 加 15 分，>= 2 加 8 分；": "consecutive Sunday absences >= 8 add 25 points, >= 4 add 15 points, >= 2 add 8 points; ", "最近 30 天较前 60 天的参与趋势为负时按 ": "when participation trends downward over the last 30 days versus the prior 60 days, ", "加分；active 且无图片再加 8 分。最终分数限制在 0 - 100，70 分及以上为高，40 - 69 分为中，40 分以下为低。": "adds points; active members without a photo add 8 more points. The final score is capped at 0-100: 70+ is high, 40-69 is medium, and below 40 is low.", "趋势值": "trend value", "请选择左侧会友查看详情": "Select a member on the left to view details", "实时签到动态显示模式": "Live attendance display mode"
   };
+  Object.assign(translations, {
+    "关系组": "Relationship group", "个人": "Individuals", "视图：": "View: ",
+    "照片查找视图": "Photo search view",
+    "关系组独立于事工/关怀分组。添加或移除先在此处暂存，点击保存后才生效；本人离组请使用下方按钮。": "Relationship groups are separate from ministry and care groups. Additions and removals are drafts until saved; use the button below to leave the group.",
+    "搜索会友": "Search members", "输入姓名等信息": "Enter a name or other information",
+    "重新加载关系组": "Reload relationship group", "保存关系组": "Save relationship group",
+    "本人离组": "Leave group", "移除": "Remove", "添加": "Add", "已选择": "Selected",
+    "当前已加入关系组": "Currently in a relationship group", "当前未加入关系组": "Not in a relationship group",
+    "；有未保存的更改": "; unsaved changes", "正在加载关系组…": "Loading relationship group…",
+    "关系组尚未加载，请重新加载。": "Relationship group not loaded; reload it.",
+    "关系组已保存。": "Relationship group saved.", "当前会友已离组。": "Member has left the group.",
+    "正在搜索…": "Searching…", "没有找到会友。": "No members found.",
+    "已停用": "Inactive", "本人": "Current member",
+    "暂无同时有已签到和未签到成员的关系组": "No groups have both checked-in and not-yet-checked-in members",
+    "未签到不代表未到场": "Not checked in does not mean absent",
+    "关系组加载失败:": "Failed to load relationship groups:",
+    "关系组数据格式错误": "Invalid relationship-group data",
+    "关系组响应格式错误": "Invalid relationship-group response",
+    "搜索响应格式错误": "Invalid search response",
+    "直接匹配": "Direct match", "同组成员": "Group member",
+    "搜索模式：个人筛选暂停": "Search mode: individual filters paused",
+    "搜索结果包含同组成员。": "Search results include group members.",
+    "直接匹配结果超过 30 人，请细化搜索。": "More than 30 direct matches; refine your search.",
+    "搜索失败:": "Search failed:", "场次已变化，请等待状态刷新": "The event changed; wait for attendance status to refresh",
+    "确认让当前会友离开关系组？此操作不会删除会友。": "Remove this member from the relationship group? The member will not be deleted.",
+    "未保存的关系组更改将丢弃。": "Unsaved relationship-group changes will be discarded.",
+    "重新加载将丢弃未保存的关系组更改，继续？": "Reload and discard unsaved relationship-group changes?",
+    "所选成员将从其原关系组转移到当前关系组，不会合并原组。确认转移并保存？": "Move selected members from their original groups to this group without merging groups? Confirm transfer and save?",
+    "以下会友已属于其他关系组，确认后将转入本组：": "These members already belong to another group and will be transferred upon confirmation: ",
+    "成员列表必须包含本人且不能重复": "The member list must include the current member without duplicates",
+    "会友不存在，请刷新后重试": "Member not found; reload and try again",
+    "关系组已发生变化，请刷新后重试": "The relationship group changed; reload and try again",
+    "签到成功": "Check-in successful", "已取消签到": "Check-in cancelled",
+    "加载关系组失败：": "Failed to load relationship group: ", "搜索失败：": "Search failed: ",
+    "保存失败：": "Save failed: ", "未保存：": "Not saved: ", "离组失败：": "Failed to leave group: ",
+    "保存失败或结果不确定：": "Save failed or result is uncertain: ",
+    "离组失败或结果不确定：": "Leaving failed or result is uncertain: ",
+    "请重新加载核实后再操作。": "Reload and verify before trying again."
+  });
   const languageLabels = { "zh-CN": "中文", "en-US": "English" };
   const originals = new WeakMap();
   let translating = false;
@@ -31,6 +70,11 @@
     result = result.replace(/^第\s*(\d+)\s*\/\s*(\d+)\s*页\s*·\s*共\s*(\d+)\s*条$/, "Page $1 / $2 · $3 records");
     result = result.replace(/^近\s*(\d+)\s*个月签到$/, "Check-ins in the last $1 months");
     result = result.replace(/^近\s*(\d+)\s*个月签到次数$/, "Check-in count in the last $1 months");
+    result = result.replace(/^显示 (\d+) 个关系组；未签到不代表未到场$/, "Showing $1 relationship groups; not checked in does not mean absent");
+    result = result.replace(/^关系组 · 已签到 (\d+) \/ 未签到 (\d+)$/, "Relationship group · Checked in $1 / Not checked in $2");
+    result = result.replace(/^找到 (\d+) 位会友（最多显示 200 位，请细化搜索）。$/, "Found $1 members (maximum 200; refine your search).");
+    result = result.replace(/^找到 (\d+) 位会友。$/, "Found $1 members.");
+    result = result.replace(/^保存将从该关系组移除 (\d+) 位成员；本人仍在组内。确认保存？$/, "Remove $1 members from this group while keeping the current member? Confirm save?");
     Object.keys(translations).sort((a, b) => b.length - a.length).forEach((source) => {
       if (source !== value && result.includes(source)) result = result.split(source).join(translations[source]);
     });
@@ -107,6 +151,7 @@
   else mount();
   window.Localization = Object.freeze({
     getLanguage,
+    translate: (value) => translateValue(value, getLanguage()),
     setLanguage(language) {
       const nextLanguage = languageLabels[language] ? language : DEFAULT_LANGUAGE;
       window.localStorage.setItem(STORAGE_KEY, nextLanguage);

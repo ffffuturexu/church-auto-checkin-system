@@ -591,6 +591,186 @@ def test_photo_picker_filters_by_attendance_and_includes_no_photo_members(api_co
     assert returned_map[not_checked_no_photo_id]["has_photo"] is False
 
 
+def test_relationship_group_membership_transfer_and_leave(api_context):
+    client = api_context["client"]
+    a, b, c, d = [_create_member(client, name=name)["id"] for name in ("A", "B", "C", "D")]
+
+    def save(anchor, members, transfer=False, confirmed=None):
+        return client.put(
+            f"/members/{anchor}/relationship-group",
+            json={"member_ids": members, "allow_transfer": transfer, "confirmed_transfers": confirmed or []},
+        )
+
+    assert client.get(f"/members/{a}/relationship-group").json() == {"id": None, "members": []}
+    first = save(a, [a, b])
+    assert first.status_code == 200
+    assert save(c, [c, d]).status_code == 200
+    conflict = save(a, [a, b, c])
+    assert conflict.status_code == 409
+    assert {m["id"] for m in client.get(f"/members/{c}/relationship-group").json()["members"]} == {c, d}
+    assert save(a, [a, b, c], transfer=True, confirmed=conflict.json()["detail"]["transfers"]).status_code == 200
+    assert {m["id"] for m in client.get(f"/members/{a}/relationship-group").json()["members"]} == {a, b, c}
+    assert {m["id"] for m in client.get(f"/members/{d}/relationship-group").json()["members"]} == {d}
+    assert save(a, [a, a]).status_code == 422
+    assert save(a, [b]).status_code == 422
+    assert save(a, [a, "00000000-0000-0000-0000-000000000001"]).status_code == 404
+    assert save(a, [a, c]).status_code == 200
+    assert client.get(f"/members/{b}/relationship-group").json()["id"] is None
+    assert client.delete(f"/members/{a}/relationship-group").status_code == 200
+    assert client.get(f"/members/{a}/relationship-group").json()["id"] is None
+    assert {m["id"] for m in client.get(f"/members/{c}/relationship-group").json()["members"]} == {c}
+
+
+def test_relationship_group_rejects_stale_membership_and_transfer_confirmation(api_context):
+    client = api_context["client"]
+    a, b, c = [_create_member(client, name=name)["id"] for name in ("A", "B", "C")]
+    path = f"/members/{a}/relationship-group"
+    initial = client.put(path, json={"member_ids": [a, b]}).json()
+    assert client.put(path, json={"member_ids": [a, b, c]}).status_code == 200
+    stale = client.put(path, json={
+        "member_ids": [a, b], "expected_group_id": initial["id"], "expected_member_ids": [a, b],
+    })
+    assert stale.status_code == 409
+    assert {m["id"] for m in client.get(path).json()["members"]} == {a, b, c}
+
+    assert client.delete(f"/members/{c}/relationship-group").status_code == 200
+    conflict = client.put(f"/members/{c}/relationship-group", json={"member_ids": [c, a]})
+    assert conflict.status_code == 409
+    transfers = conflict.json()["detail"]["transfers"]
+    assert client.delete(f"/members/{a}/relationship-group").status_code == 200
+    retry = client.put(f"/members/{c}/relationship-group", json={
+        "member_ids": [c, a], "allow_transfer": True, "confirmed_transfers": transfers,
+    })
+    assert retry.status_code == 409
+    assert client.get(f"/members/{a}/relationship-group").json()["id"] is None
+
+
+def test_hard_delete_member_removes_relationship_membership(api_context):
+    client = api_context["client"]
+    a, b = [_create_member(client, name=name)["id"] for name in ("A", "B")]
+    assert client.put(
+        f"/members/{a}/relationship-group", json={"member_ids": [a, b]},
+    ).status_code == 200
+    with api_context["session_factory"]() as db:
+        from app.models.models import Member, RelationshipMembership
+
+        db.delete(db.get(Member, UUID(a)))
+        db.commit()
+        assert db.get(RelationshipMembership, UUID(a)) is None
+    assert {m["id"] for m in client.get(f"/members/{b}/relationship-group").json()["members"]} == {b}
+
+
+def test_relationship_photo_groups_use_full_active_group_and_event(api_context):
+    client = api_context["client"]
+    ids = [_create_member(client, name=f"Family {i}")["id"] for i in range(6)]
+    event_a = client.post("/events", json={"event_name": "A", "event_date": "2026-04-12"}).json()["id"]
+    event_b = client.post("/events", json={"event_name": "B", "event_date": "2026-04-19"}).json()["id"]
+    for members in (ids[:3], ids[3:5]):
+        assert client.put(
+            f"/members/{members[0]}/relationship-group", json={"member_ids": members},
+        ).status_code == 200
+    assert client.put(f"/members/{ids[2]}", json={"status": False}).status_code == 200
+
+    def checkin(member_id, event_id):
+        response = client.post("/attendance/manual-checkin", json={"member_id": member_id, "event_id": event_id})
+        assert response.status_code == 200
+        return response.json()["record"]["id"]
+
+    record = checkin(ids[0], event_a)
+    checkin(ids[3], event_a)
+    checkin(ids[5], event_a)
+    checkin(ids[0], event_b)
+    checkin(ids[1], event_b)
+    path = "/members/relationship-groups/photo-picker"
+    response = client.get(path, params={"event_id": event_a, "limit": 1})
+    assert response.status_code == 200
+    first = response.json()["items"]
+    second = client.get(path, params={"event_id": event_a, "limit": 1, "offset": 1}).json()["items"]
+    assert len(first) == len(second) == 1
+    groups = first + second
+    assert {frozenset(m["id"] for m in group["members"]) for group in groups} == {
+        frozenset(ids[:2]), frozenset(ids[3:5]),
+    }
+    group = next(group for group in groups if any(m["id"] == ids[0] for m in group["members"]))
+    states = {m["id"]: m["attendance_status"] for m in group["members"]}
+    assert states == {ids[0]: "checked_in", ids[1]: "not_checked_in"}
+    assert all(not m["has_photo"] for m in group["members"])
+    assert client.get(path, params={"event_id": event_b}).json()["items"] == []
+    assert client.delete(f"/attendance/history/{record}").status_code == 200
+    remaining = client.get(path, params={"event_id": event_a}).json()["items"]
+    assert len(remaining) == 1 and {m["id"] for m in remaining[0]["members"]} == set(ids[3:5])
+    assert client.get(path, params={"event_id": "00000000-0000-0000-0000-000000000001"}).status_code == 404
+
+
+def test_search_with_relations_groups_matches_and_uses_event(api_context):
+    client = api_context["client"]
+    a, b, c, inactive, single = [
+        _create_member(client, name=name)["id"]
+        for name in ("Find A", "Find B", "Relative", "Inactive", "Find C")
+    ]
+    assert client.put(f"/members/{a}/relationship-group", json={"member_ids": [a, b, c, inactive]}).status_code == 200
+    assert client.put(f"/members/{inactive}", json={"status": False}).status_code == 200
+    event_a = client.post("/events", json={"event_name": "A", "event_date": "2026-04-12"}).json()["id"]
+    event_b = client.post("/events", json={"event_name": "B", "event_date": "2026-04-19"}).json()["id"]
+    assert client.post("/attendance/manual-checkin", json={"member_id": c, "event_id": event_a}).status_code == 200
+
+    path = "/members/search-with-relations"
+    response = client.get(path, params={"q": "Find", "event_id": event_a})
+    assert response.status_code == 200
+    result = response.json()
+    assert result["truncated"] is False
+    assert len(result["groups"]) == 2
+    family, ungrouped = result["groups"]
+    assert [(m["member"]["id"], m["direct_match"]) for m in family["members"]] == [
+        (a, True), (b, True), (c, False),
+    ]
+    assert ungrouped["group_id"] is None
+    assert ungrouped["members"][0]["member"]["id"] == single
+    assert [m["member"]["attendance_status"] for m in family["members"]] == [
+        "not_checked_in", "not_checked_in", "checked_in",
+    ]
+    assert all(not m["member"]["has_photo"] for m in family["members"])
+    other_event = client.get(path, params={"q": "Find A", "event_id": event_b}).json()
+    assert all(m["member"]["attendance_status"] == "not_checked_in" for m in other_event["groups"][0]["members"])
+    no_event = client.get(path, params={"q": "Find A"}).json()
+    assert all(m["member"]["attendance_status"] is None for m in no_event["groups"][0]["members"])
+    assert client.get(path, params={"q": "Find", "event_id": "00000000-0000-0000-0000-000000000001"}).status_code == 404
+    assert client.get(path, params={"q": "  "}).status_code == 422
+
+
+def test_search_with_relations_limits_direct_matches_not_group_members(api_context):
+    client = api_context["client"]
+    matches = [_create_member(client, name=f"Match {i:02d}")["id"] for i in range(31)]
+    relatives = [_create_member(client, name=f"Relative {i:02d}")["id"] for i in range(3)]
+    assert client.put(
+        f"/members/{matches[0]}/relationship-group",
+        json={"member_ids": [matches[0], matches[30], *relatives]},
+    ).status_code == 200
+    result = client.get("/members/search-with-relations", params={"q": "Match"}).json()
+    entries = [member for group in result["groups"] for member in group["members"]]
+    assert result["truncated"] is True
+    assert sum(entry["direct_match"] for entry in entries) == 31
+    assert {entry["member"]["id"] for entry in entries if not entry["direct_match"]} == set(relatives)
+    assert len({entry["member"]["id"] for entry in entries}) == 34
+    assert [entry["member"]["id"] for entry in result["groups"][0]["members"][:2]] == [matches[0], matches[30]]
+
+
+def test_search_with_relations_deduplicates_by_id_and_scans_all_candidates(api_context):
+    from app.models.models import Member
+
+    client = api_context["client"]
+    with api_context["session_factory"]() as db:
+        db.add_all([Member(name=f"A noise {i:04d}", status=True) for i in range(650)])
+        db.commit()
+    a, b = [_create_member(client, name="Z needle")["id"] for _ in range(2)]
+    assert client.put(f"/members/{a}/relationship-group", json={"member_ids": [a, b]}).status_code == 200
+    result = client.get("/members/search-with-relations", params={"q": "needle"}).json()
+    assert result["truncated"] is False
+    assert len(result["groups"]) == 1
+    assert {entry["member"]["id"] for entry in result["groups"][0]["members"]} == {a, b}
+    assert all(entry["direct_match"] for entry in result["groups"][0]["members"])
+
+
 def test_reception_queue_resolve_first_sunday_after_15_stays_zh(api_context):
     client = api_context["client"]
     session_factory = api_context["session_factory"]
